@@ -18,12 +18,15 @@ The candidate is suitable for continued local evaluation:
 - General, non-sensitive details can be read without a keychain.
 - Full record/frame decoding requires a DJI keychain for version 14.
 - The controlled truncated file still contains enough prefix/detail data for initialization, so its failure behavior cannot be tested fully until a keychain is available.
+- The official DJI comparator documents v13 only, so it does not currently displace the candidate for these v14 fixtures.
 
-This is not yet a parser acceptance decision. Frame correctness, corrupt-file isolation, resource limits, normalization coverage, and the DJI API/key terms remain unresolved.
+This is not yet a parser acceptance decision. Frame correctness, corrupt-file isolation, resource limits, normalization coverage, supply-chain remediation, and the DJI API/key terms remain unresolved.
 
 The local prefix/details probe is now reproducible through [`../../spikes/dji-parser/`](../../spikes/dji-parser/). Full frame correctness and record-level truncation behavior remain blocked on an authorized keychain flow.
 
 A mock trusted keychain broker, encrypted cache, private parser/keychain IPC, and disabled-by-default provider adapter are implemented. The adapter has been exercised only against a loopback mock server; it has no DJI credential or runtime wiring.
+
+The detailed [supply-chain review](DJI-PARSER-SUPPLY-CHAIN.md) and [official-library comparison](DJI-OFFICIAL-PARSER-COMPARISON.md) retain the candidate only conditionally. The npm/WASM artifact needs an internal reproducible build, SBOM/notices, and replacement of an unmaintained target dependency before production acceptance.
 
 ## Fixture handling
 
@@ -62,7 +65,7 @@ The npm package was downloaded into temporary storage for inspection. It has not
 
 ### Alternative official library
 
-DJI publishes [FlightRecordParsingLib](https://github.com/dji-sdk/FlightRecordParsingLib), an MIT-licensed C/C++ project whose documentation describes version 13 parsing and an App Key requirement. It remains an evaluation comparator, but its documented version scope does not yet establish support for these version 14 fixtures.
+DJI publishes [FlightRecordParsingLib](https://github.com/dji-sdk/FlightRecordParsingLib), a C/C++ project whose documentation describes version 13 parsing and an App Key requirement. Its composite license covers DJI's MIT code plus bundled curl, LibTom, OpenSSL/SSLeay, and Protobuf terms. The [comparison](DJI-OFFICIAL-PARSER-COMPARISON.md) retains it as a comparator/fallback because there is no documented v14 support or authorized result for these fixtures.
 
 ## Local detection method
 
@@ -246,8 +249,8 @@ No parser error message may include raw payload, coordinates, serials, or full f
 - [x] Prove authenticated encrypted cache, offline hit, source revocation, and organization deletion behavior.
 - [x] Implement private parser request/keychain IPC without durable job payloads.
 - [x] Implement a mock-server-tested real provider adapter without enabling production DJI access.
-- [ ] Inspect transitive source/dependency licenses and security posture.
-- [ ] Compare the official DJI library on version scope, output, and operational constraints.
+- [x] Inspect transitive source/dependency licenses and security posture.
+- [x] Compare the official DJI library on version scope, output, and operational constraints.
 - [ ] Decide whether key retrieval can be authorized for these local fixtures.
 - [ ] If authorized, decode frames and validate counts, duration, monotonic time, coordinates bounds, battery ranges, and capability coverage without publishing values.
 - [ ] Prove that the truncated fixture fails independently and a later valid fixture still processes.

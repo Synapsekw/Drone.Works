@@ -47,7 +47,7 @@ Useful options:
 --manifest <path>       Alternate manifest for tests/research
 ```
 
-The harness never fetches keychains. Version 13+ logs return `encrypted_key_required` after local prefix/details detection.
+The probe command never fetches keychains. Version 13+ logs return `encrypted_key_required` after local prefix/details detection.
 
 ## Mock keychain boundary
 
@@ -59,8 +59,11 @@ The `src/keychain/` modules prove the trusted broker contract without contacting
 - AES-256-GCM encrypted in-memory cache;
 - sanitized resolution objects;
 - source revocation and organization deletion.
+- private parser request extraction and bounded keychain delivery through standard input.
 
-Run the same test command to exercise both parser isolation and keychain behavior. The mock implementation never uses the real fixture keychain requests or keys.
+`runIsolatedKeychainRequest()` returns a non-serializing private request accessor for the trusted broker. `runIsolatedDecode()` validates mock/resolved keys before child spawn, passes them only through bounded standard input to a fresh child, and returns an allowlisted summary. Keys are not placed in arguments, environment variables, temporary files, or result JSON.
+
+Run the same test command to exercise parser isolation, keychain behavior, and private IPC. The tests use generated request/key data and never use the real fixture keychains or contact DJI.
 
 The intended production boundary is documented in [`../../docs/architecture/KEYCHAIN-BOUNDARY.md`](../../docs/architecture/KEYCHAIN-BOUNDARY.md).
 

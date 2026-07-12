@@ -23,7 +23,7 @@ This is not yet a parser acceptance decision. Frame correctness, corrupt-file is
 
 The local prefix/details probe is now reproducible through [`../../spikes/dji-parser/`](../../spikes/dji-parser/). Full frame correctness and record-level truncation behavior remain blocked on an authorized keychain flow.
 
-A mock trusted keychain broker, encrypted cache, and provider boundary are also implemented. The real DJI provider and parser/keychain private IPC remain intentionally absent.
+A mock trusted keychain broker, encrypted cache, provider boundary, and private parser/keychain IPC are implemented. The real DJI provider remains intentionally absent.
 
 ## Fixture handling
 
@@ -142,7 +142,18 @@ Nine additional tests pass without using real fixture request values or contacti
 - invalid responses are not cached;
 - source revocation and organization deletion remove cached entries.
 
-The combined spike suite contains 18 passing tests. Cached plaintext is available only through an explicit parser method; JSON serialization of the resolution omits keys and IVs. The in-memory AES-256-GCM cache is evidence for the contract, not the production persistence implementation.
+Cached plaintext is available only through an explicit parser method; JSON serialization of the resolution omits keys and IVs. The in-memory AES-256-GCM cache is evidence for the contract, not the production persistence implementation.
+
+## Private parser IPC evidence
+
+The no-network parser worker now supports two supervisor-only operations:
+
+- request extraction returns the raw parser request only to a `PrivateKeychainRequest` accessor, while ordinary serialization contains bounded metadata;
+- decode accepts a pre-validated keychain through bounded standard input in a fresh child and returns only an allowlisted validation/capability/metrics summary.
+
+Key material is not passed through arguments, environment variables, temporary files, durable job payloads, or the returned result. Invalid keychains fail before the fixture is opened or a child is spawned. Five IPC tests exercise serialization privacy, invalid request handling, key delivery, pre-spawn validation, and the 256 KiB input bound.
+
+The combined spike suite contains 23 tests: nine broker/cache tests, five IPC tests, and nine parser-isolation tests. The network-denial test passes when the outer environment permits its localhost control listener; it may be skipped inside a sandbox that prohibits the listener.
 
 ## Preliminary constructor timing
 
@@ -230,7 +241,7 @@ No parser error message may include raw payload, coordinates, serials, or full f
 - [x] Define and test separate decode-use and external-processing authorization gates.
 - [x] Implement disabled/mock providers and bounded request/response validation.
 - [x] Prove authenticated encrypted cache, offline hit, source revocation, and organization deletion behavior.
-- [ ] Implement private parser request/keychain IPC without durable job payloads.
+- [x] Implement private parser request/keychain IPC without durable job payloads.
 - [ ] Implement a mock-server-tested real provider adapter without enabling production DJI access.
 - [ ] Inspect transitive source/dependency licenses and security posture.
 - [ ] Compare the official DJI library on version scope, output, and operational constraints.

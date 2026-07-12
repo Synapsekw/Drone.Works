@@ -1,6 +1,6 @@
 # DJI keychain trust boundary
 
-Status: proposed; mock implementation proven, real provider not authorized
+Status: proposed; mock broker and private parser IPC proven, real provider not authorized
 Last updated: 2026-07-12
 
 ## Decision summary
@@ -137,11 +137,11 @@ The spike uses AES-256-GCM with an injected in-memory 32-byte key. Production mu
 The intended parser protocol has two private operations:
 
 1. `build_keychain_request`: the no-network child reads the source and returns a bounded request through a private pipe; the supervisor validates it and exposes only sanitized metadata to ordinary callers.
-2. `decode_with_keychain`: the broker passes the resolved plaintext keychain through an ephemeral bounded pipe/file descriptor to a fresh parser child; the child returns sanitized frames or a structured failure.
+2. `decode_with_keychain`: the broker passes the resolved plaintext keychain through bounded standard input to a fresh parser child; the child returns a sanitized decode summary or a structured failure.
 
-Keychain payloads must not be placed in durable queue messages or command-line arguments. Temporary storage, if unavoidable, must be encrypted, access-restricted, and deleted on success, failure, timeout, or crash.
+Keychain payloads are not placed in durable queue messages, environment variables, command-line arguments, or temporary files. The supervisor bounds the serialized input to 256 KiB, clears its retained input buffer after the child closes, and exposes only allowlisted output. JavaScript buffer clearing is best-effort because runtime copies cannot be guaranteed absent.
 
-The current mock proves the broker/cache contract but does not yet wire these two private IPC operations to the parser child.
+The spike implements both operations. The request is held behind a non-serializing `PrivateKeychainRequest` accessor for the broker, while ordinary JSON contains only validation metadata. The decode path validates keychains before opening a fixture or spawning a child, transfers them through standard input, and starts a fresh no-network child for each operation.
 
 ## Mock evidence
 
@@ -153,6 +153,8 @@ The Phase 0 spike includes:
 - an AES-256-GCM in-memory cache bound by authenticated context;
 - sanitized resolution objects whose JSON form never contains keys/IVs;
 - source and organization deletion operations.
+- private request extraction and bounded standard-input keychain delivery;
+- allowlisted decode summaries that exclude request values, keys, IVs, coordinates, and unexpected worker fields.
 
 Nine broker/cache tests prove:
 
@@ -166,6 +168,8 @@ Nine broker/cache tests prove:
 - invalid response rejection without cache write;
 - source revocation and organization deletion.
 
+Five parser IPC tests additionally prove private request serialization, invalid-request rejection, absence of key material from arguments/environment/result output, validation before child spawn, and bounded sensitive input.
+
 ## Acceptance gates before a real request
 
 - [ ] Repository owner confirms authority to accept the DJI API agreement for Drone.Works.
@@ -173,7 +177,7 @@ Nine broker/cache tests prove:
 - [ ] Qualified review accepts the intended commercial use and current DJI terms.
 - [ ] User notice and consent wording is approved and versioned.
 - [ ] The exact endpoint, redirect policy, request fields, retention, and regional processing are documented.
-- [ ] Private request/keychain IPC is implemented and tested.
+- [x] Private request/keychain IPC is implemented and tested.
 - [ ] The real provider adapter passes mock-server tests without contacting DJI.
 - [ ] Cache schema, KMS strategy, RLS, backup, rotation, and deletion behavior are accepted.
 - [ ] The three local fixtures receive explicit authorization for the real request.

@@ -1,0 +1,16 @@
+{
+  "name": "@droneworks/dji-parser-spike",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "probe": "node src/harness.mjs",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "dji-log-parser-js": "0.5.7"
+  }
+}

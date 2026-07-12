@@ -21,6 +21,8 @@ The candidate is suitable for continued local evaluation:
 
 This is not yet a parser acceptance decision. Frame correctness, corrupt-file isolation, resource limits, normalization coverage, and the DJI API/key terms remain unresolved.
 
+The local prefix/details probe is now reproducible through [`../../spikes/dji-parser/`](../../spikes/dji-parser/). Full frame correctness and record-level truncation behavior remain blocked on an authorized keychain flow.
+
 ## Fixture handling
 
 | Fixture | Storage | Bytes | Format | Encryption | Current expected outcome |
@@ -71,6 +73,56 @@ The pinned JavaScript module was imported from an inspected temporary npm tarbal
 5. did not print the full `details` object because it contains sensitive identifiers and locations.
 
 The content detector is therefore recorded as `parser_probe`, not extension-based detection.
+
+## Isolation harness evidence
+
+The repository spike pins `dji-log-parser-js@0.5.7` in an npm lockfile and installs it with package scripts disabled. The current npm advisory check reported zero known vulnerabilities on 2026-07-12. This is a point-in-time signal, not a source audit or future safety guarantee.
+
+For each fixture, the supervisor:
+
+- starts a new Node.js process;
+- grants read access only to the spike/package directory and that fixture;
+- denies filesystem writes, child processes, workers, native add-ons, WASI, FFI, and inspector access through Node permissions;
+- wraps the process in a macOS `sandbox-exec` profile that denies network access;
+- fails closed with `network_isolation_unavailable` if the host-specific network sandbox is unavailable;
+- supplies a minimal environment;
+- enforces wall-time, combined-output, and V8 old-space limits;
+- never returns child stderr content;
+- parses child output through an allowlist that discards unexpected fields.
+
+Node's [permission-model documentation](https://nodejs.org/api/permissions.html) describes it as a defense against unintended access rather than a security boundary for malicious code. The Node 24 runtime used by this spike does not expose a network permission flag, so the harness does not rely on Node permissions for network denial. The macOS profile is research-only; production requires a Linux/container boundary with a disabled network namespace, unprivileged user, read-only filesystem, seccomp/AppArmor, and cgroup limits.
+
+### Isolation test results
+
+Nine tests pass when the outer environment permits the localhost denial test:
+
+| Test | Evidence |
+|---|---|
+| Sanitized success | Unexpected coordinates and a synthetic serial field do not escape the allowlist |
+| Wall-time limit | Hanging child is killed and classified `parser_wall_time_limit` |
+| Output limit | Flooding child is killed and classified `parser_output_limit` |
+| Memory limit | V8 heap exhaustion is classified `parser_memory_limit` without exposing stderr |
+| Crash privacy | Synthetic sensitive stderr remains absent from the result |
+| Network denial | Child cannot connect to a reachable parent localhost listener |
+| Real parser invalid input | Generated non-DJI bytes return `invalid_or_corrupt_prefix` |
+| Batch continuation | A later child succeeds after the preceding child crashes |
+| Missing local fixture | Missing private bytes return `fixture_unavailable` without spawning |
+
+The network test may be skipped only when an outer sandbox prevents the test process itself from opening a localhost listener. It was also run outside that outer restriction and passed.
+
+### Authorized fixture probe
+
+The four local-only fixtures completed sequentially through the OS-network-denied harness:
+
+- total batch wall time: approximately 170 ms;
+- individual supervised process wall time: approximately 40–47 ms;
+- observed post-initialization RSS: approximately 70–87 MB;
+- sanitized child output: 435–466 bytes per fixture;
+- child stderr: zero bytes;
+- result for every fixture: version 14 and `encrypted_key_required`;
+- reported network isolation: `macos_sandbox_exec`.
+
+These remain header/details measurements. RSS is an observation after initialization, not a peak-memory proof. A V8 old-space cap is not a substitute for a container RSS limit, and wall time is not a hard CPU quota.
 
 ## Preliminary constructor timing
 
@@ -145,10 +197,11 @@ No parser error message may include raw payload, coordinates, serials, or full f
 
 ## Remaining P0-03 work
 
-- [ ] Create a reproducible repository spike with the dependency pinned by integrity/lockfile.
-- [ ] Run every fixture in an independently terminable child process.
-- [ ] Add explicit CPU, memory, output-size, and wall-time limits.
-- [ ] Define sanitized machine-readable probe output.
+- [x] Create a reproducible repository spike with the dependency pinned by integrity/lockfile.
+- [x] Run every fixture in an independently terminable child process.
+- [x] Add wall-time, output-size, and V8 old-space limits with tested failure classification.
+- [ ] Add production hard CPU and total-memory limits in the container boundary.
+- [x] Define sanitized machine-readable probe output.
 - [ ] Inspect transitive source/dependency licenses and security posture.
 - [ ] Compare the official DJI library on version scope, output, and operational constraints.
 - [ ] Decide whether key retrieval can be authorized for these local fixtures.

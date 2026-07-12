@@ -11,6 +11,12 @@ Read these documents in order:
 3. [`product/PHASE-1-ACCEPTANCE.md`](product/PHASE-1-ACCEPTANCE.md) turns critical behavior into acceptance scenarios and release gates.
 4. [`product/DECISIONS.md`](product/DECISIONS.md) records accepted and proposed implementation decisions.
 
+## Delivery roadmap
+
+- [`roadmap/DELIVERY-PLAN.md`](roadmap/DELIVERY-PLAN.md) defines the evidence-gated path from discovery through the private pilot beta.
+- [`roadmap/PHASE-0-DISCOVERY.md`](roadmap/PHASE-0-DISCOVERY.md) defines the immediate technical discovery work, decision gates, deliverables, and stop conditions.
+- [`architecture/README.md`](architecture/README.md) indexes architecture evidence and designs as they are produced.
+
 ## Precedence and change discipline
 
 - A narrow, recently accepted decision takes precedence over a broader older statement.

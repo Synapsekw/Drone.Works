@@ -28,6 +28,8 @@ Start with the [documentation index](docs/README.md), then read:
 
 AI-assisted contributors should also follow the repository instructions in [AGENTS.md](AGENTS.md).
 
+The current delivery sequence and immediate technical-discovery work are defined in the [delivery plan](docs/roadmap/DELIVERY-PLAN.md) and [Phase 0 plan](docs/roadmap/PHASE-0-DISCOVERY.md).
+
 ## Product principles
 
 - Preserve source evidence while the customer retains the record.

@@ -8,6 +8,7 @@ const PUBLIC_STATUSES = new Set([
   "fetched",
   "key_service_not_authorized",
   "key_service_unavailable",
+  "key_service_rate_limited",
   "key_rejected",
   "invalid_keychain_request",
   "invalid_keychain_response",

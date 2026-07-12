@@ -23,7 +23,7 @@ This is not yet a parser acceptance decision. Frame correctness, corrupt-file is
 
 The local prefix/details probe is now reproducible through [`../../spikes/dji-parser/`](../../spikes/dji-parser/). Full frame correctness and record-level truncation behavior remain blocked on an authorized keychain flow.
 
-A mock trusted keychain broker, encrypted cache, provider boundary, and private parser/keychain IPC are implemented. The real DJI provider remains intentionally absent.
+A mock trusted keychain broker, encrypted cache, private parser/keychain IPC, and disabled-by-default provider adapter are implemented. The adapter has been exercised only against a loopback mock server; it has no DJI credential or runtime wiring.
 
 ## Fixture handling
 
@@ -153,7 +153,9 @@ The no-network parser worker now supports two supervisor-only operations:
 
 Key material is not passed through arguments, environment variables, temporary files, durable job payloads, or the returned result. Invalid keychains fail before the fixture is opened or a child is spawned. Five IPC tests exercise serialization privacy, invalid request handling, key delivery, pre-spawn validation, and the 256 KiB input bound.
 
-The combined spike suite contains 23 tests: nine broker/cache tests, five IPC tests, and nine parser-isolation tests. The network-denial test passes when the outer environment permits its localhost control listener; it may be skipped inside a sandbox that prohibits the listener.
+The provider adapter models the documented DJI POST endpoint, `Api-Key` header, and `{ "data": ... }` envelope. Exact endpoint allowlisting, HTTPS enforcement, an explicit external-network authorization flag, pre-credential request validation, redirect rejection, runtime credential injection, end-to-end timeout, bounded response reading, and sanitized failure codes are enforced before integration. Twelve provider scenarios run against configuration checks and a loopback mock HTTP server; no DJI hostname is contacted.
+
+The full spike runner reports 36 passing tests, including the broker/cache, IPC, provider, and parser-isolation evidence. Localhost-dependent suites may be skipped only when an outer sandbox prevents the test process from opening a control listener; the complete suite also passes outside that restriction.
 
 ## Preliminary constructor timing
 
@@ -220,6 +222,7 @@ The harness should distinguish at least:
 - `keychain_use_not_authorized`
 - `key_service_not_authorized`
 - `key_service_unavailable`
+- `key_service_rate_limited`
 - `key_rejected`
 - `invalid_keychain_request`
 - `invalid_keychain_response`
@@ -242,7 +245,7 @@ No parser error message may include raw payload, coordinates, serials, or full f
 - [x] Implement disabled/mock providers and bounded request/response validation.
 - [x] Prove authenticated encrypted cache, offline hit, source revocation, and organization deletion behavior.
 - [x] Implement private parser request/keychain IPC without durable job payloads.
-- [ ] Implement a mock-server-tested real provider adapter without enabling production DJI access.
+- [x] Implement a mock-server-tested real provider adapter without enabling production DJI access.
 - [ ] Inspect transitive source/dependency licenses and security posture.
 - [ ] Compare the official DJI library on version scope, output, and operational constraints.
 - [ ] Decide whether key retrieval can be authorized for these local fixtures.

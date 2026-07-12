@@ -1,13 +1,13 @@
 # DJI keychain trust boundary
 
-Status: proposed; mock broker and private parser IPC proven, real provider not authorized
+Status: proposed; mock broker, private parser IPC, and disabled-by-default provider adapter proven
 Last updated: 2026-07-12
 
 ## Decision summary
 
 DJI API credentials and network access belong to a trusted keychain broker, never to the parser process. Parsing remains in a no-network, resource-limited child. The broker separately enforces authorization to decode a log and authorization to transmit a keychain request to DJI.
 
-No production DJI provider or API call exists yet.
+A production-shaped DJI provider adapter exists but is not wired into a runtime, has no credential, and rejects external HTTPS access unless explicitly authorized at construction. No DJI API call has been made.
 
 ## Trust flow
 
@@ -62,6 +62,7 @@ This distinction supports offline reuse without silently expanding permission to
 | `fetched` | Provider returned a valid response and cache write succeeded | Completed |
 | `key_service_not_authorized` | Cache miss and external processing is not authorized | Only after authorization changes |
 | `key_service_unavailable` | Approved provider could not complete the request | Yes, with bounded retry |
+| `key_service_rate_limited` | Approved provider returned HTTP 429 | Yes, under a separate bounded retry policy |
 | `key_rejected` | Provider rejected the request/key/account | Not automatically without diagnosis |
 | `invalid_keychain_request` | Parser-produced request failed bounds/schema validation | No automatic external retry |
 | `invalid_keychain_response` | Provider response failed bounds/schema validation | No cache write; alert and investigate |
@@ -89,7 +90,7 @@ The limits are defensive spike values and must be checked against authorized rea
 
 ## Credential handling
 
-The future real provider must:
+The provider adapter must:
 
 - receive the DJI API credential from a managed secret store at runtime;
 - keep the secret out of source, images, environment dumps, job payloads, and child processes;
@@ -99,6 +100,8 @@ The future real provider must:
 - redact authorization headers and payloads from logs and traces;
 - distinguish network outage, authentication rejection, rate limiting, and invalid response;
 - support credential rotation without reprocessing every cached source.
+
+The spike adapter uses an exact endpoint allowlist, HTTPS-only external URLs, manual redirect handling, an injected runtime credential provider, a 5-second default end-to-end timeout, and a 256 KiB response limit. It models `POST https://dev.dji.com/openapi/v1/flight-records/keychains`, the `Api-Key` header, and the documented `{ "data": ... }` response envelope. Cleartext HTTP is accepted only for an explicitly enabled loopback test server. External HTTPS remains disabled unless the caller supplies a separate authorization flag.
 
 No personal developer API key may become an undocumented production dependency.
 
@@ -152,9 +155,10 @@ The Phase 0 spike includes:
 - a broker with separate authorization gates;
 - an AES-256-GCM in-memory cache bound by authenticated context;
 - sanitized resolution objects whose JSON form never contains keys/IVs;
-- source and organization deletion operations.
+- source and organization deletion operations;
 - private request extraction and bounded standard-input keychain delivery;
 - allowlisted decode summaries that exclude request values, keys, IVs, coordinates, and unexpected worker fields.
+- a disabled-by-default DJI provider adapter tested only against loopback HTTP.
 
 Nine broker/cache tests prove:
 
@@ -170,6 +174,8 @@ Nine broker/cache tests prove:
 
 Five parser IPC tests additionally prove private request serialization, invalid-request rejection, absence of key material from arguments/environment/result output, validation before child spawn, and bounded sensitive input.
 
+Twelve provider scenarios prove exact endpoint allowlisting, HTTPS enforcement, the external-network kill switch, pre-credential request validation, runtime credential delivery, request shape, redirect rejection, authentication and rate-limit classification, response-size and JSON validation, end-to-end timeout, and credential redaction. The integration scenarios use a local mock server and never resolve or contact a DJI host.
+
 ## Acceptance gates before a real request
 
 - [ ] Repository owner confirms authority to accept the DJI API agreement for Drone.Works.
@@ -178,7 +184,7 @@ Five parser IPC tests additionally prove private request serialization, invalid-
 - [ ] User notice and consent wording is approved and versioned.
 - [ ] The exact endpoint, redirect policy, request fields, retention, and regional processing are documented.
 - [x] Private request/keychain IPC is implemented and tested.
-- [ ] The real provider adapter passes mock-server tests without contacting DJI.
+- [x] The real provider adapter passes mock-server tests without contacting DJI.
 - [ ] Cache schema, KMS strategy, RLS, backup, rotation, and deletion behavior are accepted.
 - [ ] The three local fixtures receive explicit authorization for the real request.
 

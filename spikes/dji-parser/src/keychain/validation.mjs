@@ -67,7 +67,14 @@ export function validateKeychainRequest(request) {
     }
   }
 
-  if (Buffer.byteLength(JSON.stringify(request)) > MAX_REQUEST_BYTES) {
+  let serializedBytes;
+  try {
+    serializedBytes = Buffer.byteLength(JSON.stringify(request));
+  } catch {
+    return { valid: false, code: "invalid_keychain_request" };
+  }
+
+  if (serializedBytes > MAX_REQUEST_BYTES) {
     return { valid: false, code: "invalid_keychain_request" };
   }
 
@@ -78,7 +85,7 @@ export function validateKeychainRequest(request) {
       department: request.department,
       groups: request.keychainsArray.length,
       feature_points: request.keychainsArray.reduce((sum, group) => sum + group.length, 0),
-      serialized_bytes: Buffer.byteLength(JSON.stringify(request)),
+      serialized_bytes: serializedBytes,
     },
   };
 }
@@ -106,12 +113,19 @@ export function validateKeychainResponse(keychains) {
     }
   }
 
+  let serializedBytes;
+  try {
+    serializedBytes = Buffer.byteLength(JSON.stringify(keychains));
+  } catch {
+    return { valid: false, code: "invalid_keychain_response" };
+  }
+
   return {
     valid: true,
     metadata: {
       groups: keychains.length,
       feature_points: keychains.reduce((sum, group) => sum + group.length, 0),
-      serialized_bytes: Buffer.byteLength(JSON.stringify(keychains)),
+      serialized_bytes: serializedBytes,
     },
   };
 }

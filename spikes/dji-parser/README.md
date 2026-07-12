@@ -60,10 +60,13 @@ The `src/keychain/` modules prove the trusted broker contract without contacting
 - sanitized resolution objects;
 - source revocation and organization deletion.
 - private parser request extraction and bounded keychain delivery through standard input.
+- a production-shaped provider adapter that is disabled for external HTTPS by default.
 
 `runIsolatedKeychainRequest()` returns a non-serializing private request accessor for the trusted broker. `runIsolatedDecode()` validates mock/resolved keys before child spawn, passes them only through bounded standard input to a fresh child, and returns an allowlisted summary. Keys are not placed in arguments, environment variables, temporary files, or result JSON.
 
 Run the same test command to exercise parser isolation, keychain behavior, and private IPC. The tests use generated request/key data and never use the real fixture keychains or contact DJI.
+
+`DjiKeychainProvider` is not connected to the probe or broker by default. Its integration tests use an explicitly enabled loopback HTTP server. The adapter requires an exact endpoint allowlist, rejects external HTTP, does not follow redirects, obtains its API credential from an injected runtime callback, bounds total request/response time and response bytes, and requires a separate flag before any external HTTPS endpoint can be enabled.
 
 The intended production boundary is documented in [`../../docs/architecture/KEYCHAIN-BOUNDARY.md`](../../docs/architecture/KEYCHAIN-BOUNDARY.md).
 

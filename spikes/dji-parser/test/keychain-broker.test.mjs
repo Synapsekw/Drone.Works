@@ -150,8 +150,12 @@ test("rejects an invalid request before calling the provider", async () => {
   assert.equal(provider.sanitizedCalls.length, 0);
 });
 
-test("maps provider outage and rejection without exposing request values", async () => {
-  for (const failureCode of ["key_service_unavailable", "key_rejected"]) {
+test("maps provider failures without exposing request values", async () => {
+  for (const failureCode of [
+    "key_service_unavailable",
+    "key_service_rate_limited",
+    "key_rejected",
+  ]) {
     const provider = new MockKeychainProvider({ failureCode });
     const { broker } = setup(provider);
     const result = await broker.resolve(input({

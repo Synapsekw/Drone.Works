@@ -180,6 +180,39 @@ Phase 1 is limited to the outcome and included behavior in `PRODUCT.md`. Deferre
 
 Public API-key self-service, public webhooks, migration importers, configurable reporting, documents, weather enrichment, and missions are not Phase 1 release blockers.
 
+## D-011 — Provisional Phase 1A application stack
+
+Status: proposed
+Date: 2026-07-12
+
+### Context
+
+Phase 0 needs a coherent stack candidate for tenancy, parser, telemetry, and delivery proofs. A full-stack framework alone risks weakening the public API boundary, while introducing multiple language ecosystems before parser evidence would slow a small team.
+
+### Proposed decision
+
+Use a modular TypeScript monorepo with separate Next.js web, Fastify API, and Node.js worker processes. Use PostgreSQL as the primary relational system with database-enforced row security plus organization-required repositories. Package and deploy the processes as OCI containers.
+
+Shortlist Drizzle for database access/migrations, pg-boss for background jobs, Better Auth for web authentication and organization membership, S3-compatible object storage for immutable sources, and MapLibre GL JS for map rendering. These shortlist components are not accepted until their proof obligations in `../architecture/STACK-SCORECARD.md` pass.
+
+Telemetry layout, DJI parser/runtime, authentication provider, and deployment vendors remain deliberately unresolved under their Phase 0 workstreams.
+
+### Consequences
+
+- The web application cannot use Next.js server actions as a private domain write path.
+- Web, API, and worker share versioned packages but remain independently runnable and deployable.
+- Parser execution runs below the worker in a separately constrained boundary.
+- PostgreSQL is the provisional database commitment; Drizzle and pg-boss remain replaceable implementation choices.
+- Python remains available as an isolated parser sidecar if P0-03 demonstrates a concrete requirement, rather than becoming the default API ecosystem.
+
+### Acceptance evidence required
+
+- P0-01 owner assumptions and quality-attribute weights are confirmed.
+- P0-03 demonstrates a viable parser/runtime boundary.
+- P0-05 proves organization isolation with pooled connections and non-owner application roles.
+- P0-06 validates a telemetry layout at the benchmark profile.
+- P0-07 completes authentication, deployment, recovery, and cost comparisons.
+
 ## Open decisions
 
 The following require evidence before implementation commitment:

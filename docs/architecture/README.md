@@ -4,8 +4,8 @@ This directory will contain accepted system design and evidence produced during 
 
 Planned documents include:
 
-- `QUALITY-ATTRIBUTES.md`
-- `STACK-SCORECARD.md`
+- [`QUALITY-ATTRIBUTES.md`](QUALITY-ATTRIBUTES.md) — measurable product constraints and architecture priorities.
+- [`STACK-SCORECARD.md`](STACK-SCORECARD.md) — provisional stack recommendation, alternatives, and proof obligations.
 - `DOMAIN-MODEL.md`
 - `TENANCY.md`
 - `SYSTEM.md`

@@ -170,4 +170,6 @@ Before using any fixture:
 
 ## Current Phase 0 state
 
-The repository contains no flight-log fixture yet. P0-02 remains evidence-incomplete until at least one lawful valid DJI log and one controlled corrupt or truncated derivative are inventoried. The policy and tooling may be completed before those private inputs arrive.
+Three contributor-provided candidate DJI logs and one controlled truncated derivative are inventoried as local-only fixtures. Their raw bytes remain ignored by Git, external service processing is not permitted, and their format versions, encryption state, and validity remain pending local P0-03 evaluation.
+
+The P0-02 handling and inventory gate is satisfied for local research. Parser feasibility and confirmation that at least one candidate is a valid supported log remain P0-03 evidence.

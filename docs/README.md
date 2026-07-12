@@ -22,6 +22,10 @@ Read these documents in order:
 - [`testing/FIXTURE-POLICY.md`](testing/FIXTURE-POLICY.md) governs flight-log provenance, consent, privacy, storage, external processing, and redistribution.
 - [`../fixtures/README.md`](../fixtures/README.md) documents the fixture manifest and verification workflow.
 
+## Research
+
+- [`research/DJI-PARSER-EVALUATION.md`](research/DJI-PARSER-EVALUATION.md) records the active parser feasibility investigation without publishing fixture contents.
+
 ## Precedence and change discipline
 
 - A narrow, recently accepted decision takes precedence over a broader older statement.

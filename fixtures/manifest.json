@@ -1,5 +1,202 @@
 {
   "$schema": "./manifest.schema.json",
   "schema_version": 1,
-  "fixtures": []
+  "fixtures": [
+    {
+      "id": "dji-log-001",
+      "path": "local/dji-log-001.txt",
+      "storage": "local_only",
+      "sha256": "9572741575c9533f58b09005cca5d51cb2d24ce45d76d8af1c8f3c3862c1f545",
+      "bytes": 9120603,
+      "content_kind": "raw",
+      "provenance": {
+        "basis": "contributor_consent",
+        "reference": "Provided directly by the repository owner in the 2026-07-12 Codex task for local-only Drone.Works evaluation.",
+        "commercial_evaluation": true,
+        "repository_redistribution": false,
+        "external_service_processing": false,
+        "revocable": true,
+        "review_on": "2026-10-12"
+      },
+      "source": {
+        "family": "dji_txt",
+        "application": "Android platform; application unknown",
+        "application_version": "16.1.6",
+        "aircraft_model": "unknown",
+        "format_version": "14",
+        "encryption": "encrypted"
+      },
+      "content_detection": {
+        "status": "detected",
+        "method": "parser_probe",
+        "detector_version": "dji-log-parser-js@0.5.7"
+      },
+      "expected_outcome": "encrypted_key_required",
+      "sensitive_data": [
+        "location",
+        "pilot_identifier",
+        "account_identifier",
+        "device_identifier",
+        "aircraft_serial",
+        "battery_serial",
+        "controller_serial",
+        "free_text",
+        "unknown"
+      ],
+      "review": {
+        "status": "approved_local",
+        "reviewed_on": "2026-07-12",
+        "reviewer": "repository_owner"
+      },
+      "notes": "Version and non-sensitive details detected locally. Full frame decoding requires a keychain; no external request was made."
+    },
+    {
+      "id": "dji-log-002",
+      "path": "local/dji-log-002.txt",
+      "storage": "local_only",
+      "sha256": "66ebabd3719c7a15b5232a6be5d83c9f22838e4527ad8ddd1bfe6e526de2c189",
+      "bytes": 6935019,
+      "content_kind": "raw",
+      "provenance": {
+        "basis": "contributor_consent",
+        "reference": "Provided directly by the repository owner in the 2026-07-12 Codex task for local-only Drone.Works evaluation.",
+        "commercial_evaluation": true,
+        "repository_redistribution": false,
+        "external_service_processing": false,
+        "revocable": true,
+        "review_on": "2026-10-12"
+      },
+      "source": {
+        "family": "dji_txt",
+        "application": "Android platform; application unknown",
+        "application_version": "16.1.6",
+        "aircraft_model": "unknown",
+        "format_version": "14",
+        "encryption": "encrypted"
+      },
+      "content_detection": {
+        "status": "detected",
+        "method": "parser_probe",
+        "detector_version": "dji-log-parser-js@0.5.7"
+      },
+      "expected_outcome": "encrypted_key_required",
+      "sensitive_data": [
+        "location",
+        "pilot_identifier",
+        "account_identifier",
+        "device_identifier",
+        "aircraft_serial",
+        "battery_serial",
+        "controller_serial",
+        "free_text",
+        "unknown"
+      ],
+      "review": {
+        "status": "approved_local",
+        "reviewed_on": "2026-07-12",
+        "reviewer": "repository_owner"
+      },
+      "notes": "Version and non-sensitive details detected locally. Full frame decoding requires a keychain; no external request was made."
+    },
+    {
+      "id": "dji-log-003",
+      "path": "local/dji-log-003.txt",
+      "storage": "local_only",
+      "sha256": "e18a8b9bef23527c7cd8eeaddf0a0201635680b10f62635de81b75b59c987e34",
+      "bytes": 3466091,
+      "content_kind": "raw",
+      "provenance": {
+        "basis": "contributor_consent",
+        "reference": "Provided directly by the repository owner in the 2026-07-12 Codex task for local-only Drone.Works evaluation.",
+        "commercial_evaluation": true,
+        "repository_redistribution": false,
+        "external_service_processing": false,
+        "revocable": true,
+        "review_on": "2026-10-12"
+      },
+      "source": {
+        "family": "dji_txt",
+        "application": "DJI Fly",
+        "application_version": "16.1.0",
+        "aircraft_model": "Mavic 3 Enterprise",
+        "format_version": "14",
+        "encryption": "encrypted"
+      },
+      "content_detection": {
+        "status": "detected",
+        "method": "parser_probe",
+        "detector_version": "dji-log-parser-js@0.5.7"
+      },
+      "expected_outcome": "encrypted_key_required",
+      "sensitive_data": [
+        "location",
+        "pilot_identifier",
+        "account_identifier",
+        "device_identifier",
+        "aircraft_serial",
+        "battery_serial",
+        "controller_serial",
+        "free_text",
+        "unknown"
+      ],
+      "review": {
+        "status": "approved_local",
+        "reviewed_on": "2026-07-12",
+        "reviewer": "repository_owner"
+      },
+      "notes": "Version and non-sensitive details detected locally. Full frame decoding requires a keychain; no external request was made."
+    },
+    {
+      "id": "dji-log-001-truncated-4m",
+      "path": "local/dji-log-001-truncated-4m.bin",
+      "storage": "local_only",
+      "sha256": "241410ccbbcd809418597e7a28be0c027f5b9124750131424715bdf11655c242",
+      "bytes": 4194304,
+      "content_kind": "derivative",
+      "provenance": {
+        "basis": "synthetic_derivative",
+        "reference": "Local-only derivative of manifest fixture dji-log-001 under the same contributor permission.",
+        "commercial_evaluation": true,
+        "repository_redistribution": false,
+        "external_service_processing": false,
+        "revocable": true,
+        "review_on": "2026-10-12"
+      },
+      "source": {
+        "family": "dji_txt",
+        "application": "Android platform; application unknown",
+        "application_version": "16.1.6",
+        "aircraft_model": "unknown",
+        "format_version": "14",
+        "encryption": "encrypted"
+      },
+      "content_detection": {
+        "status": "detected",
+        "method": "parser_probe",
+        "detector_version": "dji-log-parser-js@0.5.7"
+      },
+      "expected_outcome": "truncated",
+      "sensitive_data": [
+        "location",
+        "pilot_identifier",
+        "account_identifier",
+        "device_identifier",
+        "aircraft_serial",
+        "battery_serial",
+        "controller_serial",
+        "free_text",
+        "unknown"
+      ],
+      "derivative": {
+        "parent_sha256": "9572741575c9533f58b09005cca5d51cb2d24ce45d76d8af1c8f3c3862c1f545",
+        "transformation": "Copied the first 4194304 bytes using dd with bs=1048576 and count=4 on 2026-07-12."
+      },
+      "review": {
+        "status": "approved_local",
+        "reviewed_on": "2026-07-12",
+        "reviewer": "repository_owner"
+      },
+      "notes": "Controlled truncation fixture. Header detection succeeds locally, but the record parse is expected to fail after keychain retrieval; no external request was made."
+    }
+  ]
 }

@@ -23,6 +23,8 @@ This is not yet a parser acceptance decision. Frame correctness, corrupt-file is
 
 The local prefix/details probe is now reproducible through [`../../spikes/dji-parser/`](../../spikes/dji-parser/). Full frame correctness and record-level truncation behavior remain blocked on an authorized keychain flow.
 
+A mock trusted keychain broker, encrypted cache, and provider boundary are also implemented. The real DJI provider and parser/keychain private IPC remain intentionally absent.
+
 ## Fixture handling
 
 | Fixture | Storage | Bytes | Format | Encryption | Current expected outcome |
@@ -94,7 +96,7 @@ Node's [permission-model documentation](https://nodejs.org/api/permissions.html)
 
 ### Isolation test results
 
-Nine tests pass when the outer environment permits the localhost denial test:
+Nine parser-isolation tests pass when the outer environment permits the localhost denial test:
 
 | Test | Evidence |
 |---|---|
@@ -123,6 +125,24 @@ The four local-only fixtures completed sequentially through the OS-network-denie
 - reported network isolation: `macos_sandbox_exec`.
 
 These remain header/details measurements. RSS is an observation after initialization, not a peak-memory proof. A V8 old-space cap is not a substitute for a container RSS limit, and wall time is not a hard CPU quota.
+
+## Mock keychain boundary evidence
+
+The architecture and acceptance gates are documented in [`../architecture/KEYCHAIN-BOUNDARY.md`](../architecture/KEYCHAIN-BOUNDARY.md). The spike implements disabled/mock providers, bounded request/response validation, separate consent gates, an authenticated encrypted cache, sanitized result serialization, and deletion by source or organization.
+
+Nine additional tests pass without using real fixture request values or contacting DJI:
+
+- pre-v13 logs bypass the provider;
+- decode use is independently authorized;
+- a cache miss cannot construct or transmit a request without external-processing authorization;
+- a valid mock response is validated and encrypted;
+- a later offline cache hit does not call the provider;
+- invalid requests fail before provider access;
+- provider outage and rejection remain distinguishable;
+- invalid responses are not cached;
+- source revocation and organization deletion remove cached entries.
+
+The combined spike suite contains 18 passing tests. Cached plaintext is available only through an explicit parser method; JSON serialization of the resolution omits keys and IVs. The in-memory AES-256-GCM cache is evidence for the contract, not the production persistence implementation.
 
 ## Preliminary constructor timing
 
@@ -186,11 +206,16 @@ The harness should distinguish at least:
 - `invalid_or_corrupt_prefix`
 - `missing_required_details`
 - `encrypted_key_required`
+- `keychain_use_not_authorized`
 - `key_service_not_authorized`
 - `key_service_unavailable`
 - `key_rejected`
+- `invalid_keychain_request`
+- `invalid_keychain_response`
 - `truncated_records`
-- `parser_resource_limit`
+- `parser_wall_time_limit`
+- `parser_output_limit`
+- `parser_memory_limit`
 - `parser_internal_error`
 
 No parser error message may include raw payload, coordinates, serials, or full filenames in customer-visible details or ordinary logs.
@@ -202,6 +227,11 @@ No parser error message may include raw payload, coordinates, serials, or full f
 - [x] Add wall-time, output-size, and V8 old-space limits with tested failure classification.
 - [ ] Add production hard CPU and total-memory limits in the container boundary.
 - [x] Define sanitized machine-readable probe output.
+- [x] Define and test separate decode-use and external-processing authorization gates.
+- [x] Implement disabled/mock providers and bounded request/response validation.
+- [x] Prove authenticated encrypted cache, offline hit, source revocation, and organization deletion behavior.
+- [ ] Implement private parser request/keychain IPC without durable job payloads.
+- [ ] Implement a mock-server-tested real provider adapter without enabling production DJI access.
 - [ ] Inspect transitive source/dependency licenses and security posture.
 - [ ] Compare the official DJI library on version scope, output, and operational constraints.
 - [ ] Decide whether key retrieval can be authorized for these local fixtures.

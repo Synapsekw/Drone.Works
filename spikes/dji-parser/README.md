@@ -49,6 +49,21 @@ Useful options:
 
 The harness never fetches keychains. Version 13+ logs return `encrypted_key_required` after local prefix/details detection.
 
+## Mock keychain boundary
+
+The `src/keychain/` modules prove the trusted broker contract without contacting DJI:
+
+- separate authorization for decode use and external processing;
+- disabled and mock providers only;
+- bounded request/response validation;
+- AES-256-GCM encrypted in-memory cache;
+- sanitized resolution objects;
+- source revocation and organization deletion.
+
+Run the same test command to exercise both parser isolation and keychain behavior. The mock implementation never uses the real fixture keychain requests or keys.
+
+The intended production boundary is documented in [`../../docs/architecture/KEYCHAIN-BOUNDARY.md`](../../docs/architecture/KEYCHAIN-BOUNDARY.md).
+
 ## Security boundary
 
 Each parser child starts with Node's permission model and receives only read permission for:

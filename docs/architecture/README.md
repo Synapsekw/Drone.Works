@@ -6,6 +6,7 @@ Planned documents include:
 
 - [`QUALITY-ATTRIBUTES.md`](QUALITY-ATTRIBUTES.md) — measurable product constraints and architecture priorities.
 - [`STACK-SCORECARD.md`](STACK-SCORECARD.md) — provisional stack recommendation, alternatives, and proof obligations.
+- [`KEYCHAIN-BOUNDARY.md`](KEYCHAIN-BOUNDARY.md) — trusted DJI provider, consent, encrypted cache, parser IPC, and deletion boundary.
 - `DOMAIN-MODEL.md`
 - `TENANCY.md`
 - `SYSTEM.md`

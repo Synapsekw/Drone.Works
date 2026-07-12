@@ -213,6 +213,38 @@ Telemetry layout, DJI parser/runtime, authentication provider, and deployment ve
 - P0-06 validates a telemetry layout at the benchmark profile.
 - P0-07 completes authentication, deployment, recovery, and cost comparisons.
 
+## D-012 — DJI keychain trust boundary
+
+Status: proposed
+Date: 2026-07-12
+
+### Context
+
+Version 13+ DJI logs require a keychain obtained through a DJI API. Giving the untrusted parser an API credential or network access would violate parser isolation, while placing plaintext keychains in durable jobs or logs would create a sensitive secret-distribution problem.
+
+### Proposed decision
+
+Use a trusted keychain broker outside the parser process. The broker separately enforces authorization to use a keychain for decoding and authorization to transmit a request to DJI. It checks a source-scoped encrypted cache first, validates bounded requests and responses, and passes plaintext keychains to a fresh no-network parser child only through ephemeral private IPC.
+
+The parser process never receives the DJI API credential or network access. Keychain requests, responses, keys, IVs, and feature-point values never appear in ordinary logs, durable queue payloads, public API representations, webhooks, or customer-visible errors.
+
+Do not share physical keychain cache entries across organizations in Phase 1. Bind authenticated ciphertext to organization, raw source, parser, and log version, and delete it with source revocation, permanent source deletion, or organization deletion.
+
+### Consequences
+
+- Key retrieval and parsing have separate trust and failure boundaries.
+- Cached offline decoding does not imply permission to contact DJI again.
+- Production requires a managed secret store, envelope encryption, provider timeouts/limits, and tested deletion.
+- Jobs carry source references and authorization state, not keychain payloads.
+- Real DJI access remains disabled until the acceptance gates in `../architecture/KEYCHAIN-BOUNDARY.md` pass.
+
+### Acceptance evidence required
+
+- Private parser request/keychain IPC is bounded, sanitized, and crash-cleaned.
+- The provider adapter is tested against a mock server for redirects, timeouts, response limits, errors, and redaction.
+- Current DJI terms, product notices/consent, and authority to use the API are approved.
+- Cache schema, RLS, KMS rotation, backup, and deletion behavior pass their Phase 0 proofs.
+
 ## Open decisions
 
 The following require evidence before implementation commitment:

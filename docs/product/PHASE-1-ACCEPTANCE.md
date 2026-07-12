@@ -1,0 +1,339 @@
+# Phase 1 Acceptance Specification
+
+Status: founding draft
+Last updated: 2026-07-12
+
+These scenarios define the minimum observable behavior of the first useful Drone.Works release. They are implementation-neutral and should become automated acceptance tests where practical.
+
+## 1. Organization isolation
+
+### Scenario: A member cannot access another organization's flight
+
+```gherkin
+Given a flight belongs to organization Alpha
+And a user is a member only of organization Beta
+When the user requests the flight by its exact identifier
+Then access is denied
+And the response does not reveal whether the flight exists
+And no flight metadata or signed download URL is returned
+```
+
+### Scenario: Switching organizations changes the entire data context
+
+```gherkin
+Given a user belongs to organizations Alpha and Beta
+And each organization has flights and fleet assets
+When the user switches from Alpha to Beta
+Then flight, fleet, filter, dashboard, and search results contain only Beta data
+And a previously issued Alpha download cannot be newly authorized in the Beta context
+```
+
+## 2. Successful DJI import
+
+### Scenario: A known aircraft is matched by serial
+
+```gherkin
+Given an organization contains an aircraft with serial ABC
+And a supported DJI log identifies aircraft serial ABC
+When a pilot uploads the log
+Then the import completes or awaits review for reasons unrelated to aircraft identity
+And the proposed flight is linked to the existing aircraft
+And no additional aircraft is created
+And the import result says that serial ABC caused the match
+```
+
+### Scenario: A reliable unseen serial creates an asset
+
+```gherkin
+Given no aircraft in the organization has serial NEW-123
+And a supported DJI log reliably identifies serial NEW-123 and a model
+When an admin uploads the log
+Then a new aircraft is created with serial NEW-123
+And the flight is linked to it
+And the import result identifies the aircraft as newly created
+```
+
+### Scenario: Model name alone does not create an aircraft
+
+```gherkin
+Given a log identifies the model as DJI Mavic 3 but exposes no stable aircraft identifier
+When the log is normalized
+Then the import awaits review
+And no aircraft is automatically created from the model name alone
+And the reviewer may select an existing aircraft or create a new one
+```
+
+### Scenario: A batch preserves individual outcomes
+
+```gherkin
+Given a batch contains one supported log, one corrupt log, and one exact duplicate
+When processing finishes
+Then the supported log has its own completed result
+And the corrupt log has a failed result with an actionable reason
+And the duplicate has a skipped-duplicate result referencing the retained flight
+And the batch summary reports one of each outcome
+```
+
+## 3. Failure clarity
+
+### Scenario: Unsupported format
+
+```gherkin
+Given an uploaded file's contents do not match a supported format
+When format detection completes
+Then the import fails without attempting to trust the extension
+And the user sees that the format is unsupported
+And the user can view the original filename and processing attempt
+```
+
+### Scenario: Parser failure is isolated
+
+```gherkin
+Given two imports are being processed
+And the first contains malformed content that crashes its parser process
+When both are processed
+Then the first fails with a parser-failure reason
+And the second continues independently
+And the worker remains available for later imports
+```
+
+### Scenario: External DJI key retrieval is unavailable
+
+```gherkin
+Given a supported encrypted DJI log needs an unavailable external key
+When processing reaches decryption
+Then the import records a retriable failure or waiting state with a specific reason
+And it is not reported as corrupt or unsupported
+And other imports continue
+```
+
+## 4. Duplicate behavior
+
+### Scenario: Exact file re-upload is idempotent
+
+```gherkin
+Given a file has already produced a flight in the organization
+When any authorized member uploads the exact same bytes again
+Then no second canonical flight is created
+And the result is skipped_duplicate
+And the result identifies the retained flight
+```
+
+### Scenario: Similar flights require review
+
+```gherkin
+Given an existing flight has the same aircraft and a takeoff time within five seconds
+And a new log differs in duration, track, battery identity, or source hash
+When duplicate detection runs
+Then the candidate is marked as a probable duplicate
+And it is not automatically discarded
+And an authorized reviewer can keep both or link one as a duplicate
+```
+
+### Scenario: Missing battery identity does not collapse flights
+
+```gherkin
+Given two logs have the same aircraft and no battery serial
+And their takeoff times are close but their tracks differ
+When duplicate detection runs
+Then battery absence is not treated as an identifier match
+And neither candidate is silently discarded
+```
+
+## 5. Pilot and timezone review
+
+### Scenario: Uploader is only a pilot candidate
+
+```gherkin
+Given an admin uploads a log flown by another pilot
+When the source cannot identify the pilot
+Then the admin's linked pilot profile is proposed visibly
+And an authorized user can choose another pilot before completing review
+And the assignment reason is retained in the import result
+```
+
+### Scenario: Ambiguous local time enters review
+
+```gherkin
+Given a log contains a local takeoff time without a reliable timezone
+And the organization timezone is Asia/Dubai
+When the log is normalized
+Then Asia/Dubai is displayed as an assumption
+And the import awaits review before the canonical instant is finalized
+And the original local value is preserved as source evidence
+```
+
+## 6. Multi-battery and missing telemetry
+
+### Scenario: A multi-battery flight retains each battery
+
+```gherkin
+Given a log reliably identifies batteries BAT-A and BAT-B
+When the flight is created
+Then both batteries are associated with the flight
+And duplicate detection does not reduce them to one serial
+And each battery's derived totals include the flight according to the documented calculation
+```
+
+### Scenario: Missing telemetry is not zero
+
+```gherkin
+Given a manual flight has no telemetry
+When a user opens its flight page
+Then the flight remains a valid operational record
+And telemetry charts explain that data is unavailable
+And no chart displays zero-valued telemetry as if it had been measured
+```
+
+## 7. Replay and downsampling
+
+### Scenario: Map and charts share a cursor
+
+```gherkin
+Given a flight has route, altitude, speed, and battery telemetry
+When a user seeks to a time on any supported chart
+Then the map marker and every visible chart move to the same flight time
+And unavailable samples are shown as gaps rather than interpolated facts
+```
+
+### Scenario: Downsampling preserves significant events
+
+```gherkin
+Given a full telemetry series contains a brief minimum battery value and maximum altitude
+When the default downsampled representation is produced
+Then the first and last samples are retained
+And the significant minimum and maximum remain represented
+And summary statistics agree with the full series
+```
+
+## 8. Corrections and reprocessing
+
+### Scenario: A user override survives parser improvement
+
+```gherkin
+Given an admin corrected a flight's aircraft assignment
+And that field is recorded as a user override
+When the raw file is reprocessed with a newer parser
+Then imported and derived values may be revised
+But the corrected aircraft remains assigned
+And the user can compare processing revisions
+```
+
+### Scenario: Removing an override restores the current source result
+
+```gherkin
+Given a field has a user override
+And the current processing revision contains a different imported value
+When an authorized user removes the override
+Then the current imported or derived value becomes effective
+And the change is audited
+```
+
+## 9. Totals and deletion
+
+### Scenario: Reassignment updates every affected total
+
+```gherkin
+Given a flight contributes one hour to aircraft A and pilot P1
+When an admin reassigns it to aircraft B and pilot P2
+Then the hour is removed from aircraft A and pilot P1 totals
+And the hour is added to aircraft B and pilot P2 totals
+And the canonical flight exists only once
+```
+
+### Scenario: A flight can be restored during the grace period
+
+```gherkin
+Given an admin deletes a flight
+When fewer than 30 days have passed
+Then the flight is excluded from ordinary lists and operational totals
+And an owner or admin can restore it
+And restoration returns it to the appropriate totals
+```
+
+### Scenario: Permanent deletion removes customer payload
+
+```gherkin
+Given a flight's restoration period has ended
+When permanent deletion completes
+Then its telemetry, notes, coordinates, and exclusively referenced raw file are removed from active systems
+And audit history may retain the action and non-sensitive resource reference
+But it does not retain the deleted customer payload
+```
+
+## 10. Maintenance
+
+### Scenario: Maintenance usage follows corrected flights
+
+```gherkin
+Given an aircraft schedule is due every 10 flight hours
+And active flights since its baseline total 8 hours
+When a one-hour flight is corrected to two hours
+Then schedule consumption becomes 10 hours
+And the schedule becomes overdue or due according to its boundary rule
+And the UI explains the contributing usage
+```
+
+### Scenario: Overdue status follows organization policy
+
+```gherkin
+Given an aircraft has an overdue maintenance schedule
+And the organization blocks assignment for overdue maintenance
+When a user tries to assign the aircraft to a new manual flight
+Then the assignment is blocked
+And the reason identifies the maintenance schedule
+But the aircraft lifecycle remains active and its airworthiness value is not silently rewritten
+```
+
+## 11. Export and authorization
+
+### Scenario: Pilot export is scoped
+
+```gherkin
+Given a pilot is allowed to export their own flights
+When the pilot requests an export
+Then only flights assigned to their linked pilot profile are included
+And organization administration data and other pilots' raw logs are excluded
+```
+
+### Scenario: A download does not outlive authorization
+
+```gherkin
+Given an admin generated an export
+And the admin is later removed from the organization
+When the former admin tries to obtain or refresh a download link
+Then access is denied
+And an old expired link cannot be used to bypass the denial
+```
+
+## 12. Organization deletion
+
+### Scenario: Organization deletion is reversible during grace
+
+```gherkin
+Given an owner requests organization deletion
+When fewer than 30 days have passed
+Then the owner can cancel deletion
+And ordinary operation is restored without loss of customer records
+```
+
+### Scenario: Organization deletion completes
+
+```gherkin
+Given an owner requested organization deletion more than 30 days ago
+And the request was not cancelled
+When deletion completes
+Then domain records, raw files, telemetry, generated exports, and customer payloads are removed from active systems
+And the deletion receipt states the maximum remaining backup-retention window
+```
+
+## Release gate
+
+Phase 1 is not accepted until:
+
+- all scenarios above pass or an explicit exception is recorded in `DECISIONS.md`;
+- the supported DJI fixture matrix includes valid, corrupt, truncated, encrypted, and duplicate samples;
+- permissions are tested at both UI and API boundaries;
+- organization isolation tests run against every customer-owned resource type;
+- deletion and restoration have been exercised with real object-storage artifacts, not only database rows;
+- import results have been usability-tested with people who did not build the parser.

@@ -1,0 +1,37 @@
+name: Bug report
+description: Report reproducible behavior that does not match the product contract.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for helping improve Drone.Works. Do not include secrets, customer logs, or private flight locations.
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What happened, and what did you expect instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Provide the smallest safe reproduction you can.
+      placeholder: |
+        1. Go to ...
+        2. Select ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Version, browser, operating system, or API client as applicable.
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact
+      description: Explain who is affected and whether data integrity, authorization, or privacy is involved.

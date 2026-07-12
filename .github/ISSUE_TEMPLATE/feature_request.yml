@@ -1,0 +1,35 @@
+name: Feature request
+description: Propose a product capability or behavior change.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Customer problem
+      description: Describe the customer and the job or problem, rather than only the desired implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      description: What should a user or integration be able to accomplish?
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence or examples
+      description: Share non-sensitive examples, frequency, or current workarounds.
+  - type: dropdown
+    id: phase
+    attributes:
+      label: Suggested scope
+      options:
+        - Phase 1
+        - Later roadmap
+        - Unsure
+    validations:
+      required: true

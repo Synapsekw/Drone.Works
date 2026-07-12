@@ -17,6 +17,11 @@ Read these documents in order:
 - [`roadmap/PHASE-0-DISCOVERY.md`](roadmap/PHASE-0-DISCOVERY.md) defines the immediate technical discovery work, decision gates, deliverables, and stop conditions.
 - [`architecture/README.md`](architecture/README.md) indexes architecture evidence and designs as they are produced.
 
+## Testing and fixture governance
+
+- [`testing/FIXTURE-POLICY.md`](testing/FIXTURE-POLICY.md) governs flight-log provenance, consent, privacy, storage, external processing, and redistribution.
+- [`../fixtures/README.md`](../fixtures/README.md) documents the fixture manifest and verification workflow.
+
 ## Precedence and change discipline
 
 - A narrow, recently accepted decision takes precedence over a broader older statement.

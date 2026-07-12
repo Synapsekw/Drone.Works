@@ -1,0 +1,5 @@
+{
+  "$schema": "./manifest.schema.json",
+  "schema_version": 1,
+  "fixtures": []
+}

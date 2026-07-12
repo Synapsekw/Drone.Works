@@ -1,0 +1,278 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://drone.works/schemas/fixture-manifest-v1.json",
+  "title": "Drone.Works flight-log fixture manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "fixtures"],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "fixtures": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/fixture"
+      }
+    }
+  },
+  "$defs": {
+    "fixture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "path",
+        "storage",
+        "sha256",
+        "bytes",
+        "content_kind",
+        "provenance",
+        "source",
+        "content_detection",
+        "expected_outcome",
+        "sensitive_data",
+        "review"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{2,63}$"
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "storage": {
+          "enum": ["local_only", "repository"]
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "content_kind": {
+          "enum": ["raw", "derivative"]
+        },
+        "provenance": {
+          "$ref": "#/$defs/provenance"
+        },
+        "source": {
+          "$ref": "#/$defs/source"
+        },
+        "content_detection": {
+          "$ref": "#/$defs/contentDetection"
+        },
+        "expected_outcome": {
+          "enum": [
+            "valid",
+            "truncated",
+            "corrupt",
+            "unsupported_format",
+            "unsupported_version",
+            "encrypted_key_required",
+            "duplicate",
+            "unknown"
+          ]
+        },
+        "sensitive_data": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "location",
+              "pilot_identifier",
+              "account_identifier",
+              "device_identifier",
+              "aircraft_serial",
+              "battery_serial",
+              "controller_serial",
+              "free_text",
+              "unknown"
+            ]
+          }
+        },
+        "derivative": {
+          "$ref": "#/$defs/derivative"
+        },
+        "review": {
+          "$ref": "#/$defs/review"
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 500
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "content_kind": {
+                "const": "derivative"
+              }
+            }
+          },
+          "then": {
+            "required": ["derivative"]
+          }
+        }
+      ]
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "basis",
+        "reference",
+        "commercial_evaluation",
+        "repository_redistribution",
+        "external_service_processing",
+        "revocable"
+      ],
+      "properties": {
+        "basis": {
+          "enum": [
+            "owner_generated",
+            "contributor_consent",
+            "public_permission",
+            "synthetic_derivative"
+          ]
+        },
+        "reference": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "commercial_evaluation": {
+          "type": "boolean"
+        },
+        "repository_redistribution": {
+          "type": "boolean"
+        },
+        "external_service_processing": {
+          "type": "boolean"
+        },
+        "revocable": {
+          "type": "boolean"
+        },
+        "expires_on": {
+          "type": ["string", "null"],
+          "format": "date"
+        },
+        "review_on": {
+          "type": ["string", "null"],
+          "format": "date"
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "family",
+        "application",
+        "application_version",
+        "aircraft_model",
+        "format_version",
+        "encryption"
+      ],
+      "properties": {
+        "family": {
+          "enum": [
+            "dji_txt",
+            "manual",
+            "airdata_csv",
+            "litchi_csv",
+            "dronelogbook_csv",
+            "ardupilot_bin",
+            "px4_ulg",
+            "gutma_json",
+            "unknown"
+          ]
+        },
+        "application": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "application_version": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "aircraft_model": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "format_version": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "encryption": {
+          "enum": ["none", "encrypted", "unknown"]
+        }
+      }
+    },
+    "contentDetection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "method"],
+      "properties": {
+        "status": {
+          "enum": ["pending", "detected", "inconclusive"]
+        },
+        "method": {
+          "enum": [
+            "not_yet_inspected",
+            "magic_bytes",
+            "header_signature",
+            "parser_probe",
+            "combined"
+          ]
+        },
+        "detector_version": {
+          "type": "string",
+          "maxLength": 100
+        }
+      }
+    },
+    "derivative": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["parent_sha256", "transformation"],
+      "properties": {
+        "parent_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "transformation": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        }
+      }
+    },
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "reviewed_on", "reviewer"],
+      "properties": {
+        "status": {
+          "enum": ["pending", "approved_local", "approved_repository", "withdrawn"]
+        },
+        "reviewed_on": {
+          "type": ["string", "null"],
+          "format": "date"
+        },
+        "reviewer": {
+          "type": ["string", "null"],
+          "maxLength": 100
+        }
+      }
+    }
+  }
+}

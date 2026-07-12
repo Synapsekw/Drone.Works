@@ -1,0 +1,46 @@
+{
+  "$schema": "./manifest.schema.json",
+  "schema_version": 1,
+  "fixtures": [
+    {
+      "id": "example-owned-dji-log",
+      "path": "local/example-owned-dji-log.txt",
+      "storage": "local_only",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "bytes": 1,
+      "content_kind": "raw",
+      "provenance": {
+        "basis": "owner_generated",
+        "reference": "Private consent record or internal reference, without personal data",
+        "commercial_evaluation": true,
+        "repository_redistribution": false,
+        "external_service_processing": false,
+        "revocable": true,
+        "review_on": "2026-10-12"
+      },
+      "source": {
+        "family": "dji_txt",
+        "application": "DJI Fly",
+        "application_version": "unknown",
+        "aircraft_model": "unknown",
+        "format_version": "unknown",
+        "encryption": "unknown"
+      },
+      "content_detection": {
+        "status": "pending",
+        "method": "not_yet_inspected"
+      },
+      "expected_outcome": "valid",
+      "sensitive_data": [
+        "location",
+        "device_identifier"
+      ],
+      "review": {
+        "status": "pending",
+        "reviewed_on": null,
+        "reviewer": null
+      },
+      "notes": "Example only. Do not add this object to the real manifest."
+    }
+  ]
+}

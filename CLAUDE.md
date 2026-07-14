@@ -16,4 +16,4 @@ Before proposing or implementing product changes, read the product contract in t
 3. `docs/product/PHASE-1-ACCEPTANCE.md`
 4. `docs/product/DECISIONS.md`
 
-At the end of a substantial working block, follow the project-memory wrap-up rules in `AGENTS.md`. Do not treat vault summaries, deferred roadmap ideas, or proposed decisions as accepted implementation requirements.
+At the end of a substantial working block, run `/wrapup`, which delegates to the shared protocol at `.agents/skills/wrapup/SKILL.md`. Do not treat vault summaries, deferred roadmap ideas, or proposed decisions as accepted implementation requirements.

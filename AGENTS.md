@@ -15,12 +15,13 @@ At the start of a substantial task:
 
 The vault summarizes and links; it does not override canonical documents. If a vault note conflicts with an accepted product document or newer repository evidence, update the vault note.
 
-At the end of a substantial working block:
+At the end of every substantial working block, apply the repository-local wrap-up protocol in `.agents/skills/wrapup/SKILL.md`. In Codex it can be invoked as `$wrapup`; in Claude Code use `/wrapup`. The protocol must:
 
 - create a concise `vault/sessions/YYYY-MM-DD-HHmm-short-slug.md` note from `vault/templates/session.md`;
 - update the live `Now` section and `last-updated` value in `vault/00-north-star.md` when project state or the next action changed;
 - record architecture and product decisions only in `docs/product/DECISIONS.md`; `vault/decisions/` is limited to project-memory workflow decisions and non-product gotchas;
 - run `node scripts/vault/verify.mjs` before committing;
+- commit only the vault files intentionally changed by the wrap-up and never sweep source or `.obsidian/` changes into that commit;
 - never copy secrets, raw fixture values, private coordinates, feature-point values, or customer data into vault notes.
 
 Obsidian Sync is not an approved storage path for this repository. Git is the durable shared store for tracked notes. The local-only fixture folders remain outside Git and must not be connected to another sync service without an explicit privacy review.

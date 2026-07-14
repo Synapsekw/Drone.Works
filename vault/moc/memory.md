@@ -29,6 +29,7 @@ Codex or other assistants may maintain machine-local preferences outside this re
 
 ## Capture policy
 
+- Apply `.agents/skills/wrapup/SKILL.md` at the end of every substantial working block (`$wrapup` in Codex, `/wrapup` in Claude Code).
 - Prefer links to canonical evidence over copying long passages.
 - Record the reason, outcome, verification, open threads, and next entry point.
 - Do not store private fixture values or secrets.

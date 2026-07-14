@@ -1,0 +1,4 @@
+interface:
+  display_name: "Wrap Up"
+  short_description: "Capture session state and refresh the north star"
+  default_prompt: "Use $wrapup to capture this working block and refresh the Drone.Works north star."

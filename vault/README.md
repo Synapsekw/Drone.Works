@@ -36,12 +36,14 @@ When a lower layer conflicts with a higher layer, correct the lower layer instea
 ## Working rules
 
 1. Run `scripts/vault-context.sh` at the start of substantial work.
-2. Capture a session note after a substantial completed or blocked working block.
+2. Run `$wrapup` in Codex or `/wrapup` in Claude after every substantial completed or blocked working block.
 3. Keep session notes concise; detailed analysis belongs in a canonical document.
 4. Update `00-north-star.md` only when the live state or next entry point changes. It is a snapshot, not a changelog.
 5. Record technical/product decisions in `docs/product/DECISIONS.md`, not twice.
 6. Run `node scripts/vault/verify.mjs` after vault edits.
 7. Never place secrets, raw log values, private coordinates, customer data, or DJI keychain material in a note.
+
+The shared protocol lives at `.agents/skills/wrapup/SKILL.md`; `scripts/wrapup-context.sh` provides its deterministic context snapshot. A wrap-up updates the live north star, verifies the vault, and creates a vault-only commit without staging source or Obsidian state.
 
 ## Obsidian configuration
 

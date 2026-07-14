@@ -1,12 +1,12 @@
 ---
 type: north-star
 status: active
-last-updated: 2026-07-14-1105
+last-updated: 2026-07-14-1300
 tags: [project/drone-works, north-star]
 related:
   - "[[project-history]]"
   - "[[memory]]"
-  - "[[2026-07-14-1105-obsidian-vault-bootstrap]]"
+  - "[[2026-07-14-1300-shared-vault-wrapup-workflow]]"
 ---
 
 # Drone.Works — North Star
@@ -32,9 +32,9 @@ Drone.Works is an explainable operational record for small professional drone te
 ## Now
 
 - **Phase:** Phase 0, workstream P0-03 — DJI parser and key feasibility.
-- **Branch:** `main`; repository and `origin/main` were aligned at `d641e5f` before this vault bootstrap.
-- **Completed evidence:** product contract and evidence-gated roadmap; fixture governance and a private three-log DJI v14 inventory; per-file parser isolation; mock keychain broker/cache; private parser IPC; hardened provider boundary; official-parser comparison; supply-chain audit; reproducible internal WASM build with parser-side networking removed.
-- **Verification baseline:** the parser isolation suite passes 36/36; two clean internal builds produced 104/104 byte-identical files; all three local fixtures initialize as v14 and construct a keychain request without contacting DJI.
+- **Branch:** `main`; the shared wrap-up workflow is committed at `a3be616`, while `origin/main` remains at `46fa7be` pending an explicit push.
+- **Completed evidence:** repository-root Obsidian project memory with an enforced Codex/Claude wrap-up workflow; product contract and evidence-gated roadmap; fixture governance and a private three-log DJI v14 inventory; per-file parser isolation; mock keychain broker/cache; private parser IPC; hardened provider boundary; official-parser comparison; supply-chain audit; reproducible internal WASM build with parser-side networking removed.
+- **Verification baseline:** the vault verifier passes for 16 notes with no broken or ambiguous links; the shared context script passes syntax and live checks; the wrap-up skill and UI metadata pass an equivalent YAML validation; the parser isolation baseline remains 36/36 and was not rerun for this workflow-only change.
 - **Blocking decision:** real DJI key retrieval is not authorized. Frame correctness, truncation behavior after decryption, and a supported v14 matrix therefore remain unproven.
 - **Next technical action:** add the internal parser build/advisory gate to CI and prove the Linux no-network, read-only, unprivileged, CPU/memory-limited container boundary.
 - **Next external decision:** approve or reject a controlled DJI key-retrieval path after legal/terms, consent, credential ownership, retention, and deletion review.

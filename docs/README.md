@@ -2,6 +2,8 @@
 
 This directory contains the product and engineering documentation that governs Drone.Works.
 
+For current project state and session continuity, start with [`../vault/00-north-star.md`](../vault/00-north-star.md). Vault notes link to this documentation but do not replace it.
+
 ## Product contract
 
 Read these documents in order:

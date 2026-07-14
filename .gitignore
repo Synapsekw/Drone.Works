@@ -40,6 +40,18 @@ Thumbs.db
 .vscode/
 *.swp
 
+# Obsidian project-memory vault. Stable shared settings are tracked; volatile
+# per-machine UI state and downloaded community-plugin code are not.
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
+.obsidian/cache/
+.obsidian/appearance.json
+.obsidian/core-plugins.json
+.obsidian/graph.json
+.obsidian/sync.json
+.obsidian/plugins/
+Welcome.md
+
 # Test artifacts
 playwright-report/
 test-results/

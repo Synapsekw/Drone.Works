@@ -2,6 +2,29 @@
 
 These instructions apply to the entire Drone.Works repository.
 
+## Project-memory vault
+
+The entire repository is an Obsidian vault. Durable development memory lives under `vault/`; product and engineering truth remains under `docs/` and in the codebase.
+
+At the start of a substantial task:
+
+1. Run `scripts/vault-context.sh` for the current branch, recent commits, north-star snapshot, and latest sessions.
+2. Read `vault/00-north-star.md`.
+3. Read the relevant map in `vault/moc/`.
+4. Read the most recent relevant notes in `vault/sessions/`.
+
+The vault summarizes and links; it does not override canonical documents. If a vault note conflicts with an accepted product document or newer repository evidence, update the vault note.
+
+At the end of a substantial working block:
+
+- create a concise `vault/sessions/YYYY-MM-DD-HHmm-short-slug.md` note from `vault/templates/session.md`;
+- update the live `Now` section and `last-updated` value in `vault/00-north-star.md` when project state or the next action changed;
+- record architecture and product decisions only in `docs/product/DECISIONS.md`; `vault/decisions/` is limited to project-memory workflow decisions and non-product gotchas;
+- run `node scripts/vault/verify.mjs` before committing;
+- never copy secrets, raw fixture values, private coordinates, feature-point values, or customer data into vault notes.
+
+Obsidian Sync is not an approved storage path for this repository. Git is the durable shared store for tracked notes. The local-only fixture folders remain outside Git and must not be connected to another sync service without an explicit privacy review.
+
 ## Read before changing the product
 
 Read the following documents in order:

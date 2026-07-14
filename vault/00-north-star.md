@@ -1,12 +1,12 @@
 ---
 type: north-star
 status: active
-last-updated: 2026-07-14-2021
+last-updated: 2026-07-14-2100
 tags: [project/drone-works, north-star]
 related:
   - "[[project-history]]"
   - "[[memory]]"
-  - "[[2026-07-14-2021-actions-billing-still-blocked]]"
+  - "[[2026-07-14-2100-green-parser-ci-proof]]"
 ---
 
 # Drone.Works — North Star
@@ -32,11 +32,11 @@ Drone.Works is an explainable operational record for small professional drone te
 ## Now
 
 - **Phase:** Phase 0, workstream P0-03 — DJI parser and key feasibility.
-- **Branch:** `main` at `034ebf1`, one vault-only commit ahead of `origin/main`; the working tree and Obsidian state are clean.
-- **Completed evidence:** the Linux containment runner, distroless proof target, CI/advisory gates, tests, and research notes are committed and pushed; earlier parser, keychain, supply-chain, and reproducible-build evidence remains intact.
-- **Verification baseline:** 36 local parser/orchestration tests ran with 34 passing and two listener-dependent checks skipped by the outer sandbox; the four-record fixture manifest, JavaScript syntax, workflow YAML, diff checks, and live npm audit passed with zero vulnerabilities; the vault verifier passes for 21 notes.
-- **Blocking evidence:** after the reported plan upgrade, fresh run `29349208680` still failed with `runner_id: 0` and zero steps. Its check annotation explicitly says recent account payments failed or the spending limit must be increased; Linux containment and CI build evidence remain unexecuted. Real DJI key retrieval is also unauthorized.
-- **Next technical action:** clear any failed-payment hold and set the owning account or organization's Actions spending limit above zero, allow propagation, dispatch a fresh run after hosted-runner access returns, and then reconsider the JS binding versus a Rust CLI under D-009.
+- **Branch:** `main` at `f9ce540`, one documentation commit ahead of `origin/main`; source fixes through `0005750` are pushed and the working tree and Obsidian state are clean.
+- **Completed evidence:** GitHub run `29351324096` passed parser tests/advisories, Linux containment, two reproducible internal builds, API comparison, and target-specific RustSec enforcement; the hard-container and CI gates are now closed.
+- **Verification baseline:** 41 local parser/orchestration tests ran with 39 passing and two listener-dependent checks skipped by the outer sandbox; the hosted Linux proof classified wall-time, output, and cgroup OOM limits correctly; 104 build files were byte-identical and 49 target components had no RustSec findings; the vault verifier passes for 22 notes.
+- **Blocking evidence:** real DJI key retrieval remains unauthorized, so decoded-frame correctness, truncated-record behavior, representative decode measurements, and the final JS-binding-versus-Rust-CLI choice remain open. D-009 is still proposed.
+- **Next technical action:** after explicit external authorization, run the controlled key-retrieval path, validate frames and truncation/recovery behavior, measure representative resource/output use, and settle the parser/runtime boundary under D-009.
 - **Next external decision:** approve or reject a controlled DJI key-retrieval path after legal/terms, consent, credential ownership, retention, and deletion review.
 - **After representative output:** begin P0-04 canonical model/provenance proof; P0-05 tenancy and P0-06 telemetry work follow the Phase 0 dependency gates.
 - **Privacy:** raw fixtures remain ignored and local. No raw values, coordinates, identifiers, keychain feature points, credentials, or generated parser artifacts belong in this vault.
@@ -47,7 +47,7 @@ Drone.Works is an explainable operational record for small professional drone te
 |---|---|---|
 | P0-01 constraints and scorecard | Evidence drafted | Quality attributes and stack scorecard exist; final component choices remain proposed. |
 | P0-02 fixture policy and inventory | Local research gate satisfied | Policy, manifest, three private v14 logs, and one controlled truncation exist. |
-| P0-03 parser/key feasibility | Active | Containment and CI gates are pushed, but hosted-runner assignment blocks execution; authorized frame decode also remains blocking. |
+| P0-03 parser/key feasibility | Active | Linux containment, reproducible build, and advisory gates pass in hosted CI; authorized frame decode and final runtime selection remain blocking. |
 | P0-04 canonical model | Waiting | Requires representative intermediate parser output. |
 | P0-05 organization isolation | Not started | Requires ownership model and executable Postgres/RLS proof. |
 | P0-06 telemetry benchmark | Not started | Requires representative telemetry shape. |

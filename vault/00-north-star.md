@@ -1,12 +1,12 @@
 ---
 type: north-star
 status: active
-last-updated: 2026-07-14-1849
+last-updated: 2026-07-14-1905
 tags: [project/drone-works, north-star]
 related:
   - "[[project-history]]"
   - "[[memory]]"
-  - "[[2026-07-14-1849-parser-ci-runner-blocked]]"
+  - "[[2026-07-14-1905-hosted-runner-still-blocked]]"
 ---
 
 # Drone.Works — North Star
@@ -32,11 +32,11 @@ Drone.Works is an explainable operational record for small professional drone te
 ## Now
 
 - **Phase:** Phase 0, workstream P0-03 — DJI parser and key feasibility.
-- **Branch:** `main` at `246489b`, synchronized with `origin/main`; the working tree and Obsidian state are clean.
+- **Branch:** `main` at `e918662`, synchronized with `origin/main`; the working tree and Obsidian state are clean.
 - **Completed evidence:** the Linux containment runner, distroless proof target, CI/advisory gates, tests, and research notes are committed and pushed; earlier parser, keychain, supply-chain, and reproducible-build evidence remains intact.
-- **Verification baseline:** 36 local parser/orchestration tests ran with 34 passing and two listener-dependent checks skipped by the outer sandbox; the four-record fixture manifest, JavaScript syntax, workflow YAML, diff checks, and live npm audit passed with zero vulnerabilities; the vault verifier passes for 19 notes.
-- **Blocking evidence:** GitHub run `29342191869` and its retry both failed before runner assignment (`runner_id: 0`, no steps or logs), while dependent jobs were skipped. Repository Actions are enabled and unrestricted, but Linux containment and CI build evidence remain unexecuted. Real DJI key retrieval is also unauthorized.
-- **Next technical action:** restore GitHub-hosted runner availability for the private repository, rerun failed jobs, record a green Linux result, and then reconsider the JS binding versus a Rust CLI under D-009.
+- **Verification baseline:** 36 local parser/orchestration tests ran with 34 passing and two listener-dependent checks skipped by the outer sandbox; the four-record fixture manifest, JavaScript syntax, workflow YAML, diff checks, and live npm audit passed with zero vulnerabilities; the vault verifier passes for 20 notes.
+- **Blocking evidence:** after the reported payment resolution, run `29342191869` attempt three and fresh runs `29343547275` and `29343682493` still failed with `runner_id: 0`, zero steps, and no logs. Linux containment and CI build evidence remain unexecuted. Real DJI key retrieval is also unauthorized.
+- **Next technical action:** confirm the private-repository Actions budget or spending limit, allow payment propagation, dispatch a fresh run after hosted-runner access returns, and then reconsider the JS binding versus a Rust CLI under D-009.
 - **Next external decision:** approve or reject a controlled DJI key-retrieval path after legal/terms, consent, credential ownership, retention, and deletion review.
 - **After representative output:** begin P0-04 canonical model/provenance proof; P0-05 tenancy and P0-06 telemetry work follow the Phase 0 dependency gates.
 - **Privacy:** raw fixtures remain ignored and local. No raw values, coordinates, identifiers, keychain feature points, credentials, or generated parser artifacts belong in this vault.

@@ -1,12 +1,12 @@
 ---
 type: north-star
 status: active
-last-updated: 2026-07-14-2100
+last-updated: 2026-07-14-2136
 tags: [project/drone-works, north-star]
 related:
   - "[[project-history]]"
   - "[[memory]]"
-  - "[[2026-07-14-2100-green-parser-ci-proof]]"
+  - "[[2026-07-14-2136-controlled-dji-request-host-blocked]]"
 ---
 
 # Drone.Works — North Star
@@ -32,12 +32,12 @@ Drone.Works is an explainable operational record for small professional drone te
 ## Now
 
 - **Phase:** Phase 0, workstream P0-03 — DJI parser and key feasibility.
-- **Branch:** `main` at `f9ce540`, one documentation commit ahead of `origin/main`; source fixes through `0005750` are pushed and the working tree and Obsidian state are clean.
-- **Completed evidence:** GitHub run `29351324096` passed parser tests/advisories, Linux containment, two reproducible internal builds, API comparison, and target-specific RustSec enforcement; the hard-container and CI gates are now closed.
-- **Verification baseline:** 41 local parser/orchestration tests ran with 39 passing and two listener-dependent checks skipped by the outer sandbox; the hosted Linux proof classified wall-time, output, and cgroup OOM limits correctly; 104 build files were byte-identical and 49 target components had no RustSec findings; the vault verifier passes for 22 notes.
-- **Blocking evidence:** real DJI key retrieval remains unauthorized, so decoded-frame correctness, truncated-record behavior, representative decode measurements, and the final JS-binding-versus-Rust-CLI choice remain open. D-009 is still proposed.
-- **Next technical action:** after explicit external authorization, run the controlled key-retrieval path, validate frames and truncation/recovery behavior, measure representative resource/output use, and settle the parser/runtime boundary under D-009.
-- **Next external decision:** approve or reject a controlled DJI key-retrieval path after legal/terms, consent, credential ownership, retention, and deletion review.
+- **Branch:** `main` at `f34a614`, three commits ahead of `origin/main`; the controlled-runner source and canonical evidence are committed and the working tree was clean before this vault wrap-up.
+- **Completed evidence:** Linux containment and reproducible/advisory CI remain green; a fail-closed one-shot DJI runner now defaults to dry-run, enforces per-fixture authorization, isolates credentials and keychains, destroys its memory cache, and accepts the exact finite wire identifiers.
+- **Verification baseline:** all 56 parser/orchestration tests pass outside the outer sandbox with zero skips; the first authorized fixture produces a bounded dry-run request with one group, nine feature points, and 3,825 bytes; four fixtures pass manifest verification and hosted run `29351324096` retains the Linux proof.
+- **Blocking evidence:** the host rejected the first live execution before process creation because fixture-derived private data would leave the workspace. No DJI request was made, so decoded frames, truncation behavior, representative measurements, and the final JS-binding-versus-Rust-CLI choice remain open.
+- **Next technical action:** once the host permits the authorized disclosure, execute the existing one-shot runner for the first fixture, validate frames and truncation/recovery behavior, measure representative resource/output use, and settle D-009.
+- **Next external decision:** permit the single fixture-derived DJI request at the host boundary; production terms, notice/consent, managed-secret, retention, and deletion gates remain separate under D-012.
 - **After representative output:** begin P0-04 canonical model/provenance proof; P0-05 tenancy and P0-06 telemetry work follow the Phase 0 dependency gates.
 - **Privacy:** raw fixtures remain ignored and local. No raw values, coordinates, identifiers, keychain feature points, credentials, or generated parser artifacts belong in this vault.
 
@@ -47,7 +47,7 @@ Drone.Works is an explainable operational record for small professional drone te
 |---|---|---|
 | P0-01 constraints and scorecard | Evidence drafted | Quality attributes and stack scorecard exist; final component choices remain proposed. |
 | P0-02 fixture policy and inventory | Local research gate satisfied | Policy, manifest, three private v14 logs, and one controlled truncation exist. |
-| P0-03 parser/key feasibility | Active | Linux containment, reproducible build, and advisory gates pass in hosted CI; authorized frame decode and final runtime selection remain blocking. |
+| P0-03 parser/key feasibility | Active | Containment, reproducible build, advisories, one-shot broker wiring, and real-fixture dry-run pass; host-blocked live decode and final runtime selection remain open. |
 | P0-04 canonical model | Waiting | Requires representative intermediate parser output. |
 | P0-05 organization isolation | Not started | Requires ownership model and executable Postgres/RLS proof. |
 | P0-06 telemetry benchmark | Not started | Requires representative telemetry shape. |

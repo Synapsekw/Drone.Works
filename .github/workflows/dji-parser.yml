@@ -96,4 +96,7 @@ jobs:
           node spikes/dji-parser/internal-build/compare-builds.mjs /tmp/dji-parser-out-1 /tmp/dji-parser-out-2
           node spikes/dji-parser/internal-build/compare-artifacts.mjs spikes/dji-parser/node_modules/dji-log-parser-js/dji_log_parser_js.mjs /tmp/dji-parser-out-1/dji_log_parser_js.js
       - name: Check the hardened Rust dependency graph against RustSec
-        run: cargo audit --file /tmp/dji-parser-work-1/source/Cargo.lock
+        run: >-
+          node spikes/dji-parser/internal-build/audit-target.mjs
+          /tmp/dji-parser-work-1/source/Cargo.lock
+          /tmp/dji-parser-out-1/sbom.cdx.json

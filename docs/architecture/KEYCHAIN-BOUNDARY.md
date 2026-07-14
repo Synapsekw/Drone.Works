@@ -1,13 +1,13 @@
 # DJI keychain trust boundary
 
-Status: proposed; mock broker, private parser IPC, and disabled-by-default provider adapter proven
-Last updated: 2026-07-12
+Status: proposed; controlled one-shot runner dry-run proven, live disclosure blocked by host policy
+Last updated: 2026-07-14
 
 ## Decision summary
 
 DJI API credentials and network access belong to a trusted keychain broker, never to the parser process. Parsing remains in a no-network, resource-limited child. The broker separately enforces authorization to decode a log and authorization to transmit a keychain request to DJI.
 
-A production-shaped DJI provider adapter exists but is not wired into a runtime, has no credential, and rejects external HTTPS access unless explicitly authorized at construction. No DJI API call has been made.
+A production-shaped DJI provider adapter is wired only into an explicit Phase 0 one-shot runner, not an application or worker runtime. The runner defaults to no-network dry-run mode, requires an individually authorized fixture plus `--allow-dji-request` for live mode, reads a temporary ignored development credential only in the broker, and destroys its encrypted in-memory cache before exit. No DJI API call has been made: the first live execution was rejected by the host's external-disclosure policy before the runner process started.
 
 ## Trust flow
 
@@ -103,6 +103,8 @@ The provider adapter must:
 
 The spike adapter uses an exact endpoint allowlist, HTTPS-only external URLs, manual redirect handling, an injected runtime credential provider, a 5-second default end-to-end timeout, and a 256 KiB response limit. It models `POST https://dev.dji.com/openapi/v1/flight-records/keychains`, the `Api-Key` header, and the documented `{ "data": ... }` response envelope. Cleartext HTTP is accepted only for an explicitly enabled loopback test server. External HTTPS remains disabled unless the caller supplies a separate authorization flag.
 
+For the Phase 0 one-shot runner only, the credential callback reads `DJI_FLIGHT_RECORD_API_KEY` directly from the ignored repository-root `.env.local`. The file is not loaded into the process environment and the restricted parser child receives the existing minimal environment. This temporary development path does not satisfy the production managed-secret-store gate.
+
 No personal developer API key may become an undocumented production dependency.
 
 ## Cache model
@@ -174,18 +176,20 @@ Nine broker/cache tests prove:
 
 Five parser IPC tests additionally prove private request serialization, invalid-request rejection, absence of key material from arguments/environment/result output, validation before child spawn, and bounded sensitive input.
 
-Twelve provider scenarios prove exact endpoint allowlisting, HTTPS enforcement, the external-network kill switch, pre-credential request validation, runtime credential delivery, request shape, redirect rejection, authentication and rate-limit classification, response-size and JSON validation, end-to-end timeout, and credential redaction. The integration scenarios use a local mock server and never resolve or contact a DJI host.
+Twelve provider scenarios prove exact endpoint allowlisting, HTTPS enforcement, the external-network kill switch, pre-credential request validation, runtime credential delivery, request shape, redirect rejection, authentication and rate-limit classification, response-size and JSON validation, end-to-end timeout, and credential redaction. Controlled-runner and wire-identifier tests additionally prove default dry-run behavior, authorization rejection before parsing, broker-to-child secret isolation, cache destruction, credential-file parsing, and the finite DJI feature-point allowlist. The integration scenarios use a local mock server and never resolve or contact a DJI host.
+
+The real first fixture produced one bounded dry-run request containing one group and nine allowlisted feature points. The parent serialized only counts and sizes. A requested live execution was denied by the host before process creation because fixture-derived private data would have left the workspace, so it produced no provider or decode result.
 
 ## Acceptance gates before a real request
 
-- [ ] Repository owner confirms authority to accept the DJI API agreement for Drone.Works.
-- [ ] A Drone.Works Open API application/key exists in a secret store.
+- [x] Repository owner confirms authority to accept the DJI API agreement for Drone.Works.
+- [ ] A Drone.Works Open API application/key exists in an accepted secret store. A temporary ignored development key exists but is not a production secret-store decision.
 - [ ] Qualified review accepts the intended commercial use and current DJI terms.
 - [ ] User notice and consent wording is approved and versioned.
 - [ ] The exact endpoint, redirect policy, request fields, retention, and regional processing are documented.
 - [x] Private request/keychain IPC is implemented and tested.
 - [x] The real provider adapter passes mock-server tests without contacting DJI.
 - [ ] Cache schema, KMS strategy, RLS, backup, rotation, and deletion behavior are accepted.
-- [ ] The three local fixtures receive explicit authorization for the real request.
+- [ ] The three local fixtures receive explicit authorization for the real request. The first fixture is authorized; the other two and the derivative remain unauthorized.
 
-Until every applicable gate passes, `DisabledKeychainProvider` remains the only permitted non-test provider.
+Until every applicable production gate passes, `DisabledKeychainProvider` remains the only permitted application/worker provider. The explicit one-shot research runner is the sole narrow exception: one fixture, one process, no durable keychain, exact endpoint, fail-closed manifest authorization, and sanitized output.

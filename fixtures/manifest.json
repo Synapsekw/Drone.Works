@@ -14,7 +14,8 @@
         "reference": "Provided directly by the repository owner in the 2026-07-12 Codex task for local-only Drone.Works evaluation.",
         "commercial_evaluation": true,
         "repository_redistribution": false,
-        "external_service_processing": false,
+      "external_service_processing": true,
+      "external_processing_reference": "Repository owner explicitly authorized controlled DJI processing for this fixture on 2026-07-14.",
         "revocable": true,
         "review_on": "2026-10-12"
       },

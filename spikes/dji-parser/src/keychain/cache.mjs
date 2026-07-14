@@ -118,6 +118,16 @@ export class EncryptedMemoryKeychainCache {
     return deleted;
   }
 
+  destroy() {
+    for (const entry of this.#entries.values()) {
+      entry.ciphertext.fill(0);
+      entry.authTag.fill(0);
+      entry.iv.fill(0);
+    }
+    this.#entries.clear();
+    this.#masterKey.fill(0);
+  }
+
   encryptedSnapshot() {
     return [...this.#entries.values()].map((entry) => ({
       organization_id: entry.organizationId,

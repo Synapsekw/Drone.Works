@@ -1,4 +1,4 @@
-const FEATURE_POINTS = new Set([
+const FEATURE_POINT_LABELS = [
   "BaseFeature",
   "VisionFeature",
   "WaypointFeature",
@@ -14,6 +14,14 @@ const FEATURE_POINTS = new Set([
   "BatteryFeature",
   "FlySafeFeature",
   "SecurityFeature",
+];
+
+const FEATURE_POINTS = new Set([
+  ...FEATURE_POINT_LABELS,
+  ...FEATURE_POINT_LABELS.map((label, index) => {
+    const name = label.slice(0, -"Feature".length);
+    return `FR_Standardization_Feature_${name}_${index + 1}`;
+  }),
 ]);
 
 const MAX_GROUPS = 256;

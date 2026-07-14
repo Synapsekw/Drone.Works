@@ -1,6 +1,6 @@
 # DJI parser evaluation
 
-Status: in progress; external key retrieval not authorized
+Status: in progress; one controlled fixture authorized, live disclosure blocked by host policy
 Candidate: `dji-log-parser-js@0.5.7`
 Last updated: 2026-07-14
 
@@ -24,7 +24,7 @@ This is not yet a parser acceptance decision. Frame correctness, corrupt-file is
 
 The local prefix/details probe is now reproducible through [`../../spikes/dji-parser/`](../../spikes/dji-parser/). Full frame correctness and record-level truncation behavior remain blocked on an authorized keychain flow.
 
-A mock trusted keychain broker, encrypted cache, private parser/keychain IPC, and disabled-by-default provider adapter are implemented. The adapter has been exercised only against a loopback mock server; it has no DJI credential or runtime wiring.
+A trusted keychain broker, encrypted cache, private parser/keychain IPC, disabled-by-default provider adapter, and explicit one-shot research runner are implemented. The provider contract has been exercised against a loopback mock server and the real fixture request path passes a no-network dry run. The host rejected the first live transmission before process creation, so no DJI API call or decoded frame result exists yet.
 
 The detailed [supply-chain review](DJI-PARSER-SUPPLY-CHAIN.md) and [official-library comparison](DJI-OFFICIAL-PARSER-COMPARISON.md) retain the candidate only conditionally. A reproducible private build now supplies an SBOM/notices, replaces the unmaintained target dependency, removes parser-side DJI networking, and passes the Linux containment and target-specific advisory gates in CI. Authorized frame validation and legal/key-service approval remain open.
 
@@ -39,7 +39,7 @@ The detailed [supply-chain review](DJI-PARSER-SUPPLY-CHAIN.md) and [official-lib
 
 Hashes, provenance, privacy categories, and review state are stored in [`../../fixtures/manifest.json`](../../fixtures/manifest.json). Raw and derived bytes remain under ignored `fixtures/local/` paths and are not committed.
 
-External service processing is false for every fixture. No call to DJI or another external service was made.
+External service processing is explicitly authorized for the first fixture based on the repository owner's 2026-07-14 instruction. It remains false for the other two raw fixtures and the derivative. No call to DJI or another external service was made.
 
 ## Non-sensitive source observations
 
@@ -164,7 +164,15 @@ Key material is not passed through arguments, environment variables, temporary f
 
 The provider adapter models the documented DJI POST endpoint, `Api-Key` header, and `{ "data": ... }` envelope. Exact endpoint allowlisting, HTTPS enforcement, an explicit external-network authorization flag, pre-credential request validation, redirect rejection, runtime credential injection, end-to-end timeout, bounded response reading, and sanitized failure codes are enforced before integration. Twelve provider scenarios run against configuration checks and a loopback mock HTTP server; no DJI hostname is contacted.
 
-The full spike runner reports 36 passing tests, including the broker/cache, IPC, provider, and parser-isolation evidence. Localhost-dependent suites may be skipped only when an outer sandbox prevents the test process from opening a control listener; the complete suite also passes outside that restriction.
+The full spike runner reports 56 passing tests, including broker/cache, IPC, provider, controlled-runner, wire-identifier validation, and parser-isolation evidence. The complete suite passes outside the outer sandbox, including the mock listener and real macOS network-denial checks.
+
+## Controlled one-shot runner evidence
+
+The Phase 0 runner in [`../../spikes/dji-parser/src/keychain/controlled-runner.mjs`](../../spikes/dji-parser/src/keychain/controlled-runner.mjs) requires exactly one fixture ID and defaults to dry-run mode. Dry-run mode does not construct a provider or read the development credential. It builds the request in a macOS-sandboxed no-network child and serializes only request counts, sizes, process metrics, and status.
+
+Live mode additionally requires `--allow-dji-request`, current `approved_local` or `approved_repository` review, commercial-evaluation permission, explicit external-service permission, and a non-expired review date. Only the trusted parent reads the ignored `.env.local`; the parser child receives neither the credential nor ordinary parent environment. Returned keychains would be validated, held only in an encrypted in-memory cache, passed over bounded standard input to a fresh no-network child, and destroyed before process exit.
+
+The first fixture dry run passed with one group, nine allowlisted wire feature points, and a 3,825-byte request. An attempted live run was rejected by the host external-disclosure policy before the runner process started. Therefore provider status, keychain response shape, frame validation, truncation behavior, and decode measurements remain unknown, and no DJI request was made.
 
 ## Preliminary constructor timing
 
@@ -255,10 +263,12 @@ No parser error message may include raw payload, coordinates, serials, or full f
 - [x] Prove authenticated encrypted cache, offline hit, source revocation, and organization deletion behavior.
 - [x] Implement private parser request/keychain IPC without durable job payloads.
 - [x] Implement a mock-server-tested real provider adapter without enabling production DJI access.
+- [x] Implement and test a fail-closed one-shot runner with dry-run default, explicit live flag, manifest authorization, local credential injection, in-memory cache destruction, and sanitized output.
 - [x] Inspect transitive source/dependency licenses and security posture.
 - [x] Build the parser reproducibly from pinned source with maintained dependencies, no parser-side network API, an SBOM, and complete notices.
 - [x] Compare the official DJI library on version scope, output, and operational constraints.
-- [ ] Decide whether key retrieval can be authorized for these local fixtures.
+- [ ] Decide whether key retrieval can be authorized for all local fixtures. The first fixture is authorized; the other fixtures remain closed.
+- [ ] Execute the first controlled live request; the host external-disclosure policy currently blocks process creation.
 - [ ] If authorized, decode frames and validate counts, duration, monotonic time, coordinates bounds, battery ranges, and capability coverage without publishing values.
 - [ ] Prove that the truncated fixture fails independently and a later valid fixture still processes.
 - [ ] Measure process startup, peak memory, key retrieval separately, frame decode, normalization, and output volume.

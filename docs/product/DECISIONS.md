@@ -230,6 +230,8 @@ The parser process never receives the DJI API credential or network access. Keyc
 
 Do not share physical keychain cache entries across organizations in Phase 1. Bind authenticated ciphertext to organization, raw source, parser, and log version, and delete it with source revocation, permanent source deletion, or organization deletion.
 
+Phase 0 permits one narrow research exception to the disabled application provider: an explicit one-shot local runner may contact only the exact allowlisted DJI endpoint for one individually authorized fixture. It must default to dry-run, require a separate live flag, read a temporary ignored credential only in the trusted parent, use no durable keychain store, destroy its encrypted in-memory cache before exit, and emit only sanitized evidence. This exception does not authorize an application or worker integration and does not satisfy the production secret-store, consent, retention, or deletion gates.
+
 ### Consequences
 
 - Key retrieval and parsing have separate trust and failure boundaries.

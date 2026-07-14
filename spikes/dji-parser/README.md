@@ -70,7 +70,21 @@ The `src/keychain/` modules prove the trusted broker contract without contacting
 
 Run the same test command to exercise parser isolation, keychain behavior, and private IPC. The tests use generated request/key data and never use the real fixture keychains or contact DJI.
 
-`DjiKeychainProvider` is not connected to the probe or broker by default. Its integration tests use an explicitly enabled loopback HTTP server. The adapter requires an exact endpoint allowlist, rejects external HTTP, does not follow redirects, obtains its API credential from an injected runtime callback, bounds total request/response time and response bytes, and requires a separate flag before any external HTTPS endpoint can be enabled.
+`DjiKeychainProvider` is not connected to the ordinary probe. Its integration tests use an explicitly enabled loopback HTTP server. The adapter requires an exact endpoint allowlist, rejects external HTTP, does not follow redirects, obtains its API credential from an injected runtime callback, bounds total request/response time and response bytes, and requires a separate flag before any external HTTPS endpoint can be enabled.
+
+The one-shot controlled runner defaults to a no-network dry run for exactly one fixture:
+
+```sh
+npm run keychain -- --fixture dji-log-001
+```
+
+It builds the private request in a no-network child and emits only sanitized metadata. Live mode additionally requires the fixture manifest to explicitly permit external processing and reads `DJI_FLIGHT_RECORD_API_KEY` directly from the ignored repository-root `.env.local`; the credential is not inherited by the parser child. The explicit live switch is:
+
+```sh
+npm run keychain -- --fixture dji-log-001 --allow-dji-request
+```
+
+Live mode uses the exact allowlisted DJI endpoint, holds the returned keychain only in an encrypted in-memory cache for the process lifetime, sends it to a fresh no-network child over bounded standard input, destroys the cache, and emits only the broker and decode summaries. It remains a Phase 0 research command, not a production credential or persistence path.
 
 The intended production boundary is documented in [`../../docs/architecture/KEYCHAIN-BOUNDARY.md`](../../docs/architecture/KEYCHAIN-BOUNDARY.md).
 

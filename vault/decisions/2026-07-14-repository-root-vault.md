@@ -23,6 +23,6 @@ One repository-root vault keeps code, canonical documentation, decisions, and se
 ## Consequences
 
 - The previous empty vault remains untouched until this setup is verified.
-- Stable `.obsidian` preferences may be tracked; volatile workspace and plugin state remain ignored.
+- Stable `.obsidian` preferences may be tracked; workspace state, community-plugin activation, and downloaded plugin code remain machine-local and ignored.
 - Vault notes must never duplicate raw fixtures, coordinates, credentials, or keychain material.
 - Product and architecture decisions continue to live in `docs/product/DECISIONS.md`.

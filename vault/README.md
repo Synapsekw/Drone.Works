@@ -47,8 +47,8 @@ The shared protocol lives at `.agents/skills/wrapup/SKILL.md`; `scripts/wrapup-c
 
 ## Obsidian configuration
 
-Stable editor and template-path settings are tracked under `.obsidian/`. Workspace layout, graph state, plugin binaries, and other machine-local churn are ignored.
+Stable editor and template-path settings are tracked under `.obsidian/`. Workspace layout, graph state, community-plugin activation, plugin binaries, and other machine-local churn are ignored.
 
-The vault deliberately requires no community plugin. Dataview, Templater, and Homepage may be evaluated later, but memory must remain usable as ordinary Markdown.
+The vault deliberately requires no community plugin. Dataview, Templater, and Homepage may be enabled locally, but memory must remain usable as ordinary Markdown on a fresh clone.
 
 Obsidian Sync is intentionally not part of this setup. Git is the shared durable store for tracked notes, while the ignored local fixture directories remain private and local.

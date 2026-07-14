@@ -12,6 +12,7 @@ import {
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { expectedReferenceArtifacts } from "./reference-artifacts.mjs";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const configuration = JSON.parse(readFileSync(join(scriptDirectory, "source.json"), "utf8"));
@@ -147,10 +148,11 @@ const jsCrate = join(sourceRoot, "dji-log-parser-js");
 run(wasmPack, ["build", "--release", "--target", "nodejs", "--out-dir", "pkg", "--", "--locked"], { cwd: jsCrate });
 
 const packageSource = join(jsCrate, "pkg");
-for (const name of Object.keys(configuration.reference_artifacts)) {
+const referenceArtifacts = expectedReferenceArtifacts(configuration);
+for (const name of Object.keys(referenceArtifacts)) {
   const path = join(packageSource, name);
   const actual = sha256(path);
-  if (actual !== configuration.reference_artifacts[name]) {
+  if (actual !== referenceArtifacts[name]) {
     throw new Error(`Artifact checksum mismatch for ${name}: ${actual}`);
   }
   cpSync(path, join(outputRoot, name));

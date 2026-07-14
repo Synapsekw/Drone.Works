@@ -10,6 +10,7 @@ The generated package is intentionally not committed.
 - removes the WebAssembly DJI HTTP client and `fetchKeychains` export;
 - retains `keychainsRequest` and offline `frames(keychains)` decoding;
 - verifies the generated JS, WASM, and type-declaration checksums;
+- retains explicit platform-specific WASM references because pinned `wasm-opt` output differs between macOS and Linux;
 - packages the upstream MIT license;
 - generates a target-specific CycloneDX 1.5 SBOM with stable source references;
 - bundles target-specific dependency license texts and a checksum index.

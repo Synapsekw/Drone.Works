@@ -22,6 +22,11 @@
     "dji_log_parser_js_bg.wasm": "7a21531d7408b06ace9e2e58f8b2a662a911dba7276abfda7aabb5e6a46959ac",
     "dji_log_parser_js.d.ts": "5ee0d4c64f61f590e90e702e1104144e440024fbfc17cd38ab13d576da0565f2"
   },
+  "reference_artifact_overrides": {
+    "linux": {
+      "dji_log_parser_js_bg.wasm": "dd353b2f6b9f3969933f711b567eed19993f2f3173918d981154314522be7d38"
+    }
+  },
   "expected_api": {
     "exports": ["DJILog"],
     "methods": [

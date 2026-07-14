@@ -47,7 +47,7 @@ if (mode === "boundary") {
   };
   process.stdout.write(`${JSON.stringify(result)}\n`);
 } else if (mode === "hang") {
-  await new Promise(() => {});
+  setInterval(() => {}, 1_000);
 } else if (mode === "flood") {
   process.stdout.write("x".repeat(2 * 1024 * 1024));
 } else if (mode === "oom") {

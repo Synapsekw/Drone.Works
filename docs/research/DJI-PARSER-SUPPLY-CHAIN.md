@@ -1,16 +1,17 @@
 # DJI parser supply-chain review
 
-Status: completed for Phase 0; production remediation gates remain
+Status: completed for Phase 0; production CI, advisory, legal, and container gates remain
 Candidate: `dji-log-parser-js@0.5.7`
 Reviewed: 2026-07-12
+Last updated: 2026-07-14
 
 ## Conclusion
 
-The candidate can remain in the isolated Phase 0 evaluation, but the published npm artifact is not ready for production acceptance.
+The candidate can remain in the isolated Phase 0 evaluation, but the published npm artifact is not ready for production acceptance. Drone.Works now has a private, reproducible source-build workflow that addresses the immediate artifact, dependency, and compliance gaps without modifying or republishing the npm package.
 
 The npm package has no npm dependencies and the current npm advisory service reports no known vulnerabilities. That result does not cover the Rust crates compiled into its bundled WebAssembly module. The tagged upstream WebAssembly target resolves to 51 packages: the two local parser crates plus 49 registry crates. Their declared license expressions are permissive-looking and none is missing a license declaration, but the published npm tarball omits the upstream license text and provides no SBOM or reproducible-build attestation.
 
-The target tree also contains `tsify-next@0.5.3`, which RustSec classifies as unmaintained. Production use therefore requires a source-controlled build, complete notices/SBOM, dependency remediation, and a repeatable advisory gate.
+The tagged target tree contains `tsify-next@0.5.3`, which RustSec classifies as unmaintained. The internal build replaces it with maintained `tsify@0.5.6`, removes the WebAssembly DJI HTTP client and `fetchKeychains` export, and retains local keychain-request construction plus offline decoding. Production use still requires CI enforcement, repeatable advisory checks, the parser container boundary, and the unresolved DJI/legal gates.
 
 This review is engineering evidence, not legal advice.
 
@@ -92,13 +93,29 @@ The 10 workspace advisories affect versions of `bytes`, `idna`, `quick-xml`, `ri
 
 ## Production acceptance gates
 
-- [ ] Replace or remove `tsify-next`, or document and approve a maintained fork.
+- [x] Replace or remove `tsify-next`, or document and approve a maintained fork.
 - [ ] Produce the npm/WASM artifact from a pinned source commit in Drone.Works CI.
-- [ ] Prove reproducibility or sign and attest the internally built artifact.
-- [ ] Generate an SPDX or CycloneDX SBOM for the target-specific build.
-- [ ] Package the upstream MIT license and all required dependency notices.
+- [x] Prove reproducibility or sign and attest the internally built artifact.
+- [x] Generate an SPDX or CycloneDX SBOM for the target-specific build.
+- [x] Package the upstream MIT license and all required dependency notices.
 - [ ] Run npm and RustSec checks on every dependency update and scheduled build.
 - [ ] Review source changes between the accepted commit and every upgrade.
 - [ ] Keep the parser inside the independent no-network, resource-limited boundary.
 
-Until these gates pass, `dji-log-parser-js@0.5.7` remains a disposable research dependency rather than an accepted production component.
+## Internal build evidence
+
+The repository workflow in [`../../spikes/dji-parser/internal-build/`](../../spikes/dji-parser/internal-build/) rebuilds exact upstream commit `e2e0775670a8391b4f7ecc40fca4cb01ea4a90fa` using pinned Rust 1.96.1, wasm-pack 0.15.0, and cargo-cyclonedx 0.5.9. Asserted source transformations fail closed if the reviewed upstream layout changes.
+
+Evidence recorded on 2026-07-14:
+
+- two independent clean builds produced 104 of 104 byte-identical package and compliance files;
+- the generated JavaScript, WebAssembly, and declaration hashes matched their pinned reference hashes;
+- the target-specific CycloneDX 1.5 SBOM contains 49 dependency components plus root metadata and stable upstream source references;
+- the license index covers 50 target components, including both local crates, with no component missing a license text;
+- the internal API comparison removed only `fetchKeychains` and added no parser methods;
+- generated JavaScript and declarations contain no DJI endpoint, `Api-Key`, `fetchKeychains`, or WebAssembly fetch binding;
+- all three private local fixtures still initialize as version 14 and construct a keychain request without transmitting it.
+
+The generated package remains ignored and private. License overrides cover only dependency texts omitted from three crate archives; each text is stored locally with its immutable upstream URL and verified SHA-256 checksum.
+
+Until the remaining gates pass, the published `dji-log-parser-js@0.5.7` artifact remains a disposable research dependency. The internally built package is stronger Phase 0 evidence, not yet an accepted production component.

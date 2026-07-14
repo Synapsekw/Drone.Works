@@ -2,7 +2,7 @@
 
 Status: in progress; external key retrieval not authorized
 Candidate: `dji-log-parser-js@0.5.7`
-Last updated: 2026-07-12
+Last updated: 2026-07-14
 
 ## Scope
 
@@ -26,7 +26,7 @@ The local prefix/details probe is now reproducible through [`../../spikes/dji-pa
 
 A mock trusted keychain broker, encrypted cache, private parser/keychain IPC, and disabled-by-default provider adapter are implemented. The adapter has been exercised only against a loopback mock server; it has no DJI credential or runtime wiring.
 
-The detailed [supply-chain review](DJI-PARSER-SUPPLY-CHAIN.md) and [official-library comparison](DJI-OFFICIAL-PARSER-COMPARISON.md) retain the candidate only conditionally. The npm/WASM artifact needs an internal reproducible build, SBOM/notices, and replacement of an unmaintained target dependency before production acceptance.
+The detailed [supply-chain review](DJI-PARSER-SUPPLY-CHAIN.md) and [official-library comparison](DJI-OFFICIAL-PARSER-COMPARISON.md) retain the candidate only conditionally. A reproducible private build now supplies an SBOM/notices, replaces the unmaintained target dependency, and removes parser-side DJI networking. Production CI, hard container limits, advisory automation, authorized frame validation, and legal/key-service approval remain open.
 
 ## Fixture handling
 
@@ -62,6 +62,12 @@ These values are parser observations, not yet independently verified source fact
 The [upstream repository](https://github.com/lvauvillier/dji-log-parser) describes a Rust parser with JavaScript bindings, normalized frames, and support for encrypted logs. Its README states that version 13 and later require a keychain from DJI and that retrieved keychains may be stored for later offline use.
 
 The npm package was downloaded into temporary storage for inspection. It has not been added to the production dependency graph or lockfile.
+
+### Internal source-build proof
+
+[`../../spikes/dji-parser/internal-build/`](../../spikes/dji-parser/internal-build/) rebuilds the tagged source into a private Node/WebAssembly package. It pins the upstream commit and toolchain, replaces `tsify-next` with `tsify`, removes the WebAssembly HTTP implementation and `fetchKeychains` export, verifies artifact hashes and the expected API, and emits a CycloneDX SBOM plus a complete target-specific license bundle.
+
+Two clean builds produced 104 byte-identical output files. Compared with the npm package, the only parser method removed is `fetchKeychains`; no parser method was added. The generated JavaScript and declarations contain no DJI endpoint, API-key header, or fetch binding. The internally built parser still detects each private fixture as version 14 and constructs its local keychain request. No DJI request was made.
 
 ### Alternative official library
 
@@ -250,6 +256,7 @@ No parser error message may include raw payload, coordinates, serials, or full f
 - [x] Implement private parser request/keychain IPC without durable job payloads.
 - [x] Implement a mock-server-tested real provider adapter without enabling production DJI access.
 - [x] Inspect transitive source/dependency licenses and security posture.
+- [x] Build the parser reproducibly from pinned source with maintained dependencies, no parser-side network API, an SBOM, and complete notices.
 - [x] Compare the official DJI library on version scope, output, and operational constraints.
 - [ ] Decide whether key retrieval can be authorized for these local fixtures.
 - [ ] If authorized, decode frames and validate counts, duration, monotonic time, coordinates bounds, battery ranges, and capability coverage without publishing values.

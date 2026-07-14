@@ -4,6 +4,8 @@ This disposable Phase 0 spike evaluates `dji-log-parser-js@0.5.7` against author
 
 It is not production parser infrastructure. The spike uses one restricted Node.js child process per fixture and records only sanitized output. Node's permission model reduces filesystem/process access, while the current macOS spike additionally uses `sandbox-exec` to deny network access. Production parsing still requires a maintained operating-system or container isolation boundary.
 
+The [`internal-build/`](internal-build/) workflow separately rebuilds the reviewed upstream source into a reproducible private package, removes parser-side DJI networking, replaces the unmaintained derive dependency, and emits target-specific SBOM and license evidence. Generated build outputs remain ignored.
+
 ## Install
 
 ```sh

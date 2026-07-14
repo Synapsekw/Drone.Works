@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "packages": {
+    "binrw@0.13.3": [
+      {
+        "name": "LICENSE",
+        "local": "license-overrides/binrw-LICENSE",
+        "source_url": "https://raw.githubusercontent.com/jam1garner/binrw/5200cc100ed4c0efe63a07f0b26454e431e2de33/LICENSE",
+        "sha256": "08159509fe99d146416fe110053a7360ddfccbba5f0c8f955bdbda025d4d2a20"
+      }
+    ],
+    "binrw_derive@0.13.3": [
+      {
+        "name": "LICENSE",
+        "local": "license-overrides/binrw-LICENSE",
+        "source_url": "https://raw.githubusercontent.com/jam1garner/binrw/5200cc100ed4c0efe63a07f0b26454e431e2de33/LICENSE",
+        "sha256": "08159509fe99d146416fe110053a7360ddfccbba5f0c8f955bdbda025d4d2a20"
+      }
+    ],
+    "gloo-utils@0.2.0": [
+      {
+        "name": "LICENSE-MIT",
+        "local": "license-overrides/gloo-LICENSE-MIT",
+        "source_url": "https://raw.githubusercontent.com/rustwasm/gloo/f3bb1d1a1c33dbcccaf26446aca7d0cea8e9d574/LICENSE-MIT",
+        "sha256": "5a6f5443ea473f130adbdcf84254761d1292bc79759b5253915d4b5e7afbef66"
+      },
+      {
+        "name": "LICENSE-APACHE",
+        "local": "license-overrides/gloo-LICENSE-APACHE",
+        "source_url": "https://raw.githubusercontent.com/rustwasm/gloo/f3bb1d1a1c33dbcccaf26446aca7d0cea8e9d574/LICENSE-APACHE",
+        "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+      }
+    ]
+  }
+}

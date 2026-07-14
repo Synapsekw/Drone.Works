@@ -102,6 +102,8 @@ The 10 workspace advisories affect versions of `bytes`, `idna`, `quick-xml`, `ri
 - [ ] Review source changes between the accepted commit and every upgrade.
 - [ ] Keep the parser inside the independent no-network, resource-limited boundary.
 
+The repository CI definition now implements the three open automation gates: it rebuilds the hardened package twice from the pinned source, compares the outputs, runs npm and RustSec advisory checks, and executes the independent Linux containment proof. These checklist items remain open until the workflow has completed successfully on GitHub; adding a workflow definition alone is not execution evidence.
+
 ## Internal build evidence
 
 The repository workflow in [`../../spikes/dji-parser/internal-build/`](../../spikes/dji-parser/internal-build/) rebuilds exact upstream commit `e2e0775670a8391b4f7ecc40fca4cb01ea4a90fa` using pinned Rust 1.96.1, wasm-pack 0.15.0, and cargo-cyclonedx 0.5.9. Asserted source transformations fail closed if the reviewed upstream layout changes.

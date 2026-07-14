@@ -1,0 +1,9 @@
+**
+!spikes/
+!spikes/dji-parser/
+!spikes/dji-parser/package.json
+!spikes/dji-parser/package-lock.json
+!spikes/dji-parser/src/
+!spikes/dji-parser/src/**
+!spikes/dji-parser/test-support/
+!spikes/dji-parser/test-support/container-boundary-worker.mjs

@@ -106,6 +106,11 @@ test("does not expose child stderr after a crash", async () => {
 });
 
 test("denies child network access", async (t) => {
+  if (process.platform !== "darwin") {
+    t.skip("The host-sandbox assertion is macOS-only; Linux isolation runs in the containment proof job");
+    return;
+  }
+
   let connections = 0;
   const server = createServer((_request, response) => {
     connections += 1;

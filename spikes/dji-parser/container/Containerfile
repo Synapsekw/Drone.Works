@@ -1,0 +1,23 @@
+FROM node:24.18.0-bookworm-slim@sha256:cb4e8f7c443347358b7875e717c29e27bf9befc8f5a26cf18af3c3dec80e58c5 AS dependencies
+
+WORKDIR /app
+COPY spikes/dji-parser/package.json spikes/dji-parser/package-lock.json ./
+RUN npm ci --ignore-scripts --omit=dev \
+  && npm cache clean --force \
+  && mkdir -p /input
+
+FROM gcr.io/distroless/nodejs24-debian13:nonroot AS parser
+
+WORKDIR /app
+COPY --from=dependencies /app/node_modules ./node_modules
+COPY --from=dependencies /input /input
+COPY --chown=65532:65532 spikes/dji-parser/src ./src
+
+USER 65532:65532
+ENTRYPOINT ["/nodejs/bin/node", "--permission", "--allow-fs-read=/app", "--allow-fs-read=/input/source.bin", "--max-old-space-size=64", "/app/src/worker.mjs", "--file", "/input/source.bin"]
+
+FROM parser AS proof
+
+COPY --chown=65532:65532 spikes/dji-parser/test-support/container-boundary-worker.mjs ./test-support/container-boundary-worker.mjs
+
+ENTRYPOINT ["/nodejs/bin/node", "--permission", "--allow-fs-read=/app", "--allow-fs-read=/input/source.bin", "--max-old-space-size=64", "/app/test-support/container-boundary-worker.mjs", "--file", "/input/source.bin"]

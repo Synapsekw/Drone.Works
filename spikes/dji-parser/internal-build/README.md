@@ -77,3 +77,7 @@ The expected API difference is the deliberate removal of `fetchKeychains`. Binar
 - `licenses/` containing the target-specific license bundle.
 
 This remains Phase 0 evidence. It does not authorize a DJI request and does not replace the parser process/container boundary.
+
+## CI gate
+
+`.github/workflows/dji-parser.yml` rebuilds the internal package twice from the pinned upstream commit, compares every emitted package and compliance file, checks the deliberate API difference from the published package, and audits the hardened lockfile against the current RustSec database. The same scheduled workflow runs the npm advisory check and the separate Linux containment proof. Generated parser packages are not uploaded or committed.

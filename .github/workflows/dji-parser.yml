@@ -1,0 +1,99 @@
+name: DJI parser evidence
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/dji-parser.yml"
+      - "spikes/dji-parser/**"
+      - "docs/research/DJI-PARSER-*.md"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/dji-parser.yml"
+      - "spikes/dji-parser/**"
+      - "docs/research/DJI-PARSER-*.md"
+  schedule:
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dji-parser-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  parser-tests:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: spikes/dji-parser
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.18.0
+          package-manager-cache: false
+      - name: Install the pinned published parser without scripts
+        run: npm ci --ignore-scripts
+      - name: Run parser and containment-orchestration tests
+        run: npm test
+      - name: Check npm advisories
+        run: npm audit --omit=dev --audit-level=high
+
+  linux-containment:
+    runs-on: ubuntu-24.04
+    needs: parser-tests
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.18.0
+          package-manager-cache: false
+      - name: Build the disposable Linux proof image
+        run: >-
+          docker build
+          --file spikes/dji-parser/container/Containerfile
+          --target proof
+          --tag droneworks/dji-parser-proof:ci
+          .
+      - name: Prove the enforced Linux boundary
+        run: node spikes/dji-parser/container/verify.mjs
+
+  internal-parser-build:
+    runs-on: ubuntu-24.04
+    needs: parser-tests
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.18.0
+          package-manager-cache: false
+      - name: Install the published comparison package without scripts
+        working-directory: spikes/dji-parser
+        run: npm ci --ignore-scripts
+      - name: Install the pinned Rust build toolchain
+        run: |
+          rustup toolchain install 1.96.1 --profile minimal --target wasm32-unknown-unknown
+          rustup default 1.96.1
+          cargo install wasm-pack --version 0.15.0 --locked
+          cargo install cargo-cyclonedx --version 0.5.9 --locked
+      - name: Install the current RustSec audit client
+        run: cargo install cargo-audit --locked
+      - name: Build the hardened parser twice
+        run: |
+          node spikes/dji-parser/internal-build/build.mjs /tmp/dji-parser-work-1 /tmp/dji-parser-out-1
+          node spikes/dji-parser/internal-build/build.mjs /tmp/dji-parser-work-2 /tmp/dji-parser-out-2
+      - name: Verify reproducibility and the reviewed API difference
+        run: |
+          node spikes/dji-parser/internal-build/compare-builds.mjs /tmp/dji-parser-out-1 /tmp/dji-parser-out-2
+          node spikes/dji-parser/internal-build/compare-artifacts.mjs spikes/dji-parser/node_modules/dji-log-parser-js/dji_log_parser_js.mjs /tmp/dji-parser-out-1/dji_log_parser_js.js
+      - name: Check the hardened Rust dependency graph against RustSec
+        run: cargo audit --file /tmp/dji-parser-work-1/source/Cargo.lock

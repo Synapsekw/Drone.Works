@@ -1,8 +1,8 @@
 # Native Rust parser boundary proof
 
 This directory builds a minimal native CLI around the exact upstream parser commit pinned by
-[`../internal-build/source.json`](../internal-build/source.json). It is a Phase 0 comparator, not a
-production release artifact.
+[`../internal-build/source.json`](../internal-build/source.json). It is a Phase 0 release-evidence
+build, not a production release artifact.
 
 The build removes the upstream provider methods and native HTTP dependencies before compilation.
 The resulting CLI:
@@ -20,9 +20,30 @@ Build in disposable directories:
 node spikes/dji-parser/native-cli/build.mjs /tmp/dji-native-work /tmp/dji-native-out
 ```
 
+The build requires the exact Rust version and `cargo-cyclonedx` version pinned in
+[`../internal-build/source.json`](../internal-build/source.json). It defaults to the Rust host target;
+CI sets `DRONEWORKS_NATIVE_TARGET=x86_64-unknown-linux-gnu`. The output directory contains:
+
+- the native executable and a SHA-256 artifact/input manifest;
+- a normalized target-specific CycloneDX 1.5 SBOM;
+- a target-specific license index, copied license texts, and third-party notices;
+- a deterministic inventory of all generated evidence files.
+
+Two clean builds can be compared with the existing recursive comparator, and the exact target graph
+can be checked against RustSec with warnings denied:
+
+```sh
+node spikes/dji-parser/internal-build/compare-builds.mjs /tmp/dji-native-out-1 /tmp/dji-native-out-2
+node spikes/dji-parser/internal-build/audit-target.mjs \
+  /tmp/dji-native-work-1/source/Cargo.lock \
+  /tmp/dji-native-out-1/sbom.cdx.json \
+  deny-warnings
+```
+
+The `native-parser-build` GitHub Actions job repeats those checks on Ubuntu 24.04, uploads the evidence
+bundle, and uses GitHub's `actions/attest` flow for both binary provenance and the SBOM on non-PR runs.
 Production execution remains inside the Linux boundary in `../container/`; the CLI itself is not a
-sandbox. Before release, the native target still needs target-specific SBOM/notices, advisory audit,
-repeatable Linux artifact verification, and CI execution.
+sandbox. The hosted Linux job and attestations must pass before this becomes a releasable artifact.
 
 DJI v13+ logs can end with a partial record even when their declared flight duration is complete. The
 wrapper therefore does not treat a short terminal envelope alone as truncation. It returns
@@ -47,3 +68,9 @@ Validation flags and declared capabilities matched. A valid → controlled-trunc
 sequence recovered to the same 27,228 frames. The hardened artifact classified the derivative as
 `truncated_records` with exit code 2 and zero stderr; both valid operations reached effectively 100% of
 their source-declared duration. The external process/container boundary remains mandatory.
+
+Two clean `aarch64-apple-darwin` evidence builds produced 80 byte-identical files. Their target graph
+contained 39 SBOM components and 39 notice-covered components; the strict RustSec target filter found
+zero vulnerabilities and zero warnings. Four vulnerabilities and two warnings in unrelated packages
+from the upstream workspace lockfile were excluded by exact package name and version. This is a local
+tooling/reproducibility check, not a substitute for the pending Linux CI result.

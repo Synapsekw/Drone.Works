@@ -41,3 +41,17 @@ test("target audit passes when full-workspace findings are absent from the gener
   assert.deepEqual(summary.target.warnings, []);
   assert.equal(summary.excluded_non_target.vulnerabilities, 2);
 });
+
+test("target audit can fail closed on warnings in the generated SBOM", () => {
+  const summary = summarizeTargetAudit(audit, {
+    components: [{ name: "native-warning", version: "3.0.0" }],
+  }, { denyWarnings: true });
+
+  assert.equal(summary.passed, false);
+  assert.equal(summary.policy.deny_warnings, true);
+  assert.deepEqual(summary.target.warnings, [{
+    package: "native-warning@3.0.0",
+    advisory: "RUSTSEC-WARNING",
+    category: "unmaintained",
+  }]);
+});

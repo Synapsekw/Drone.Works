@@ -1,6 +1,6 @@
 # DJI parser evaluation
 
-Status: in progress; native runtime and controlled truncation classification pass
+Status: in progress; native runtime, truncation, and local release-evidence gates pass
 Candidate: pinned `dji-log-parser@0.5.7` behind a minimal Rust CLI
 Last updated: 2026-07-15
 
@@ -23,13 +23,13 @@ The candidate is suitable for continued local evaluation:
 - D-009 now selects the native CLI inside the existing Linux hard-container boundary; JS/WASM remains a research comparator.
 - The official DJI comparator documents v13 only, so it does not currently displace the candidate for these v14 fixtures.
 
-This is not yet final parser acceptance. Representative fixture coverage, normalization validation, native release attestation, and the production DJI key-service/legal gates remain unresolved.
+This is not yet final parser acceptance. Representative fixture coverage, normalization validation, hosted Linux release attestation, and the production DJI key-service/legal gates remain unresolved.
 
-The local prefix/details probe is reproducible through [`../../spikes/dji-parser/`](../../spikes/dji-parser/). The first authorized fixture now has sanitized frame-validity, capability, memory, and recovery evidence; broader fixture coverage, duration validation, normalization, and native release hardening remain open.
+The local prefix/details probe is reproducible through [`../../spikes/dji-parser/`](../../spikes/dji-parser/). The first authorized fixture now has sanitized frame-validity, capability, memory, and recovery evidence; broader fixture coverage, duration validation, normalization, and hosted Linux release execution remain open.
 
 A trusted keychain broker, encrypted cache, private parser/keychain IPC, disabled-by-default provider adapter, and explicit one-shot research runner are implemented. After explicit authorization, the real path fetched one validated keychain response from DJI and decoded only in fresh no-network children. The result contained no credential, request values, keys, IVs, coordinates, or unexpected worker fields.
 
-The detailed [supply-chain review](DJI-PARSER-SUPPLY-CHAIN.md) and [official-library comparison](DJI-OFFICIAL-PARSER-COMPARISON.md) retain the parser library only conditionally. The JS/WASM build already supplies an SBOM/notices, replaces the unmaintained target dependency, removes parser-side DJI networking, and passes the Linux containment and target-specific advisory gates in CI. The selected native artifact now has a reproducible source-removal proof, but it still needs equivalent target-specific SBOM/notices, advisory, and attestation gates before release.
+The detailed [supply-chain review](DJI-PARSER-SUPPLY-CHAIN.md) and [official-library comparison](DJI-OFFICIAL-PARSER-COMPARISON.md) retain the parser library only conditionally. The JS/WASM build already supplies an SBOM/notices, replaces the unmaintained target dependency, removes parser-side DJI networking, and passes the Linux containment and target-specific advisory gates in CI. The selected native build now emits equivalent target-specific SBOM/notices and passes strict local target advisory and reproducibility checks. Its Ubuntu job, binary provenance attestation, and SBOM attestation are defined but still need a hosted non-PR run.
 
 ## Fixture handling
 
@@ -197,6 +197,10 @@ The native valid → truncated derivative → valid sequence ended with the same
 
 The hardened build replaces those unchecked short reads with I/O errors and retains the panic guard. Because valid v13+ logs may also finish with a partial terminal record, the wrapper requires three agreeing signals before returning `truncated_records`: an incomplete raw record envelope, a decoded prefix that passes monotonic-time and coordinate/battery bounds, and decoded flight time more than one second short of the source-declared total. Invalid decoded output remains a generic decode failure rather than being mislabeled as truncation. The valid parent reached effectively 100% completion and remained a 27,228-frame success; the controlled derivative reached approximately 45.7%, returned `truncated_records` with exit code 2 and zero stderr, and the next valid child again produced 27,228 frames. Four source-free Rust tests cover complete, incomplete, corrupt, and combined-evidence behavior.
 
+The native release-evidence build pins Rust 1.96.1 and cargo-cyclonedx 0.5.9, normalizes local source references to the accepted upstream commit, and emits the binary, CycloneDX 1.5 SBOM, license index/texts, notices, and SHA-256 input/artifact manifests. Two clean `aarch64-apple-darwin` builds produced 80 byte-identical files. The host-target SBOM and notice set each cover 39 components. A current strict RustSec pass found zero target vulnerabilities and zero target warnings while excluding four vulnerabilities and two warnings that exist only in unrelated packages in the upstream workspace lockfile.
+
+The repository workflow now repeats the build twice for `x86_64-unknown-linux-gnu`, compares the entire output tree, denies target vulnerabilities and warnings, uploads the evidence, and requests GitHub binary-provenance and SBOM attestations on non-PR runs. Because that workflow version has not yet run on GitHub, Linux byte identity and published attestations remain open evidence rather than assumed results.
+
 ## Preliminary constructor timing
 
 Environment:
@@ -299,7 +303,8 @@ No parser error message may include raw payload, coordinates, serials, or full f
 - [ ] Complete process-startup, key-retrieval, normalization, and output-volume measurements; JS and native decode/worker/RSS observations now exist.
 - [x] Decide whether the JS binding is acceptable in a Node worker or whether a Rust CLI boundary is safer. Select the native CLI and retain JS/WASM only as a comparator.
 - [x] Record acceptance, rejection, or a revised D-009 parser-isolation decision. D-009 now accepts the native CLI in the Linux hard-container boundary.
-- [ ] Add native target SBOM/notices, advisory audit, Linux artifact attestation, and CI execution to the internal build proof.
+- [x] Add native target SBOM/notices, strict advisory audit, repeat-build comparison, and the Linux attestation job to the internal build proof.
+- [ ] Execute the native job on hosted Linux and verify the uploaded evidence plus published binary/SBOM attestations.
 
 ### Linux containment implementation
 

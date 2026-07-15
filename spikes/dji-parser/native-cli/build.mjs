@@ -5,10 +5,12 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  readdirSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
-import { basename, dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { basename, dirname, join, relative, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const directory = dirname(fileURLToPath(import.meta.url));
 const configuration = JSON.parse(
@@ -38,11 +40,36 @@ function output(command, args, cwd) {
   return execFileSync(command, args, { cwd, encoding: "utf8" }).trim();
 }
 
+function sha256(path) {
+  return createHash("sha256").update(readFileSync(path)).digest("hex");
+}
+
+function files(root, current = root) {
+  return readdirSync(current, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(current, entry.name);
+    return entry.isDirectory() ? files(root, path) : [relative(root, path)];
+  });
+}
+
 function replaceExact(path, before, after) {
   const value = readFileSync(path, "utf8");
   const matches = value.split(before).length - 1;
   if (matches !== 1) throw new Error(`Expected one hardening match in ${path}; found ${matches}`);
   writeFileSync(path, value.replace(before, after));
+}
+
+const rustVersion = output("rustc", ["--version"], directory);
+if (!rustVersion.startsWith(`rustc ${configuration.tools.rust} `)) {
+  throw new Error(`Expected Rust ${configuration.tools.rust}; received ${rustVersion}`);
+}
+const rustVerbose = output("rustc", ["-vV"], directory);
+const host = rustVerbose.match(/^host: (.+)$/m)?.[1];
+if (!host) throw new Error("Unable to determine the Rust host target");
+const target = process.env.DRONEWORKS_NATIVE_TARGET ?? host;
+
+const cyclonedx = process.env.CARGO_CYCLONEDX_BIN ?? "cargo-cyclonedx";
+if (!output(cyclonedx, ["cyclonedx", "--version"], directory).includes(configuration.tools.cargo_cyclonedx)) {
+  throw new Error("Unexpected cargo-cyclonedx version");
 }
 
 run("git", ["init", sourceRoot]);
@@ -84,14 +111,14 @@ mkdirSync(join(crateRoot, "src"), { recursive: true });
 cpSync(join(directory, "Cargo.toml"), join(crateRoot, "Cargo.toml"));
 cpSync(join(directory, "src", "main.rs"), join(crateRoot, "src", "main.rs"));
 
-run("cargo", ["test", "--release", "--package", crateName], { cwd: sourceRoot });
-run("cargo", ["build", "--release", "--package", crateName], { cwd: sourceRoot });
+run("cargo", ["test", "--release", "--target", target, "--package", crateName], { cwd: sourceRoot });
+run("cargo", ["build", "--release", "--target", target, "--package", crateName, "--locked"], { cwd: sourceRoot });
 const executableName = process.platform === "win32" ? `${crateName}.exe` : crateName;
-const built = join(sourceRoot, "target", "release", executableName);
+const built = join(sourceRoot, "target", target, "release", executableName);
 const artifact = join(outputRoot, executableName);
 cpSync(built, artifact);
 
-const tree = output("cargo", ["tree", "--package", crateName], sourceRoot);
+const tree = output("cargo", ["tree", "--locked", "--target", target, "--package", crateName], sourceRoot);
 if (/\b(ureq|async-channel)\b/.test(tree)) {
   throw new Error("Provider networking remains in the native dependency graph");
 }
@@ -101,13 +128,68 @@ if (/dev\.dji\.com|Api-Key|fetch_keychains|ureq/.test(text)) {
   throw new Error("Forbidden provider networking marker remains in native artifact");
 }
 
-const sha256 = createHash("sha256").update(bytes).digest("hex");
+const sbomName = "droneworks-native-sbom";
+run(cyclonedx, [
+  "cyclonedx",
+  "--manifest-path",
+  join(crateRoot, "Cargo.toml"),
+  "--format",
+  "json",
+  "--target",
+  target,
+  "--spec-version",
+  "1.5",
+  "--override-filename",
+  sbomName,
+], {
+  cwd: sourceRoot,
+  env: { ...process.env, SOURCE_DATE_EPOCH: String(configuration.upstream.source_date_epoch) },
+});
+const generatedSbom = join(crateRoot, `${sbomName}.json`);
+if (!existsSync(generatedSbom)) throw new Error("CycloneDX SBOM was not generated");
+const generatedSbomValue = readFileSync(generatedSbom, "utf8");
+const localBomPrefix = `path+${pathToFileURL(sourceRoot).href}`;
+const localBomReferenceCount = generatedSbomValue.split(localBomPrefix).length - 1;
+if (localBomReferenceCount < 1) {
+  throw new Error("Expected local source references in the generated native SBOM");
+}
+const stableBomPrefix = `${configuration.upstream.repository.replace(/\.git$/, "")}/tree/${configuration.upstream.commit}`;
+const normalizedSbomValue = generatedSbomValue.replaceAll(localBomPrefix, stableBomPrefix);
+if (normalizedSbomValue.includes(sourceRoot)) throw new Error("Local build path remains in normalized native SBOM");
+writeFileSync(join(outputRoot, "sbom.cdx.json"), normalizedSbomValue);
+
+run("node", [
+  join(directory, "..", "internal-build", "generate-compliance.mjs"),
+  sourceRoot,
+  outputRoot,
+  crateName,
+  target,
+  "exclude-root",
+]);
+
+const artifactSha256 = sha256(artifact);
+const internalDirectory = join(directory, "..", "internal-build");
+const inputFiles = [
+  ["native-cli/Cargo.toml", join(directory, "Cargo.toml")],
+  ["native-cli/build.mjs", join(directory, "build.mjs")],
+  ["native-cli/keychain-api.rs", join(directory, "keychain-api.rs")],
+  ["native-cli/decoder-hardening.patch", join(directory, "decoder-hardening.patch")],
+  ["native-cli/src/main.rs", join(directory, "src", "main.rs")],
+  ["internal-build/source.json", join(internalDirectory, "source.json")],
+  ["internal-build/generate-compliance.mjs", join(internalDirectory, "generate-compliance.mjs")],
+  ["internal-build/license-overrides.json", join(internalDirectory, "license-overrides.json")],
+  ["internal-build/license-overrides/binrw-LICENSE", join(internalDirectory, "license-overrides", "binrw-LICENSE")],
+  ["internal-build/license-overrides/gloo-LICENSE-APACHE", join(internalDirectory, "license-overrides", "gloo-LICENSE-APACHE")],
+  ["internal-build/license-overrides/gloo-LICENSE-MIT", join(internalDirectory, "license-overrides", "gloo-LICENSE-MIT")],
+].map(([name, path]) => ({ name, sha256: sha256(path) }));
 const manifest = {
   schema_version: 1,
   source: configuration.upstream,
+  target,
   tools: {
-    rustc: output("rustc", ["--version"], sourceRoot),
+    rustc: rustVersion,
     cargo: output("cargo", ["--version"], sourceRoot),
+    cargo_cyclonedx: output(cyclonedx, ["cyclonedx", "--version"], sourceRoot),
   },
   hardening: {
     provider_network_source_removed: true,
@@ -120,8 +202,25 @@ const manifest = {
   artifact: {
     name: basename(artifact),
     bytes: bytes.length,
-    sha256,
+    sha256: artifactSha256,
+  },
+  inputs: {
+    cargo_lock_sha256: sha256(join(sourceRoot, "Cargo.lock")),
+    files: inputFiles,
   },
 };
 writeFileSync(join(outputRoot, "artifact-manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
-process.stdout.write(`${JSON.stringify({ status: "built", ...manifest.artifact }, null, 2)}\n`);
+
+const evidenceFiles = files(outputRoot).sort().map((name) => ({
+  name,
+  bytes: statSync(join(outputRoot, name)).size,
+  sha256: sha256(join(outputRoot, name)),
+}));
+writeFileSync(join(outputRoot, "build-evidence.json"), `${JSON.stringify({
+  schema_version: 1,
+  source: configuration.upstream,
+  target,
+  files: evidenceFiles,
+}, null, 2)}\n`);
+
+process.stdout.write(`${JSON.stringify({ status: "built", target, ...manifest.artifact }, null, 2)}\n`);

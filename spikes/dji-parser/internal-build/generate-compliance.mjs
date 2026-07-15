@@ -13,9 +13,14 @@ import { fileURLToPath } from "node:url";
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const sourceRoot = resolve(process.argv[2] ?? "");
 const outputRoot = resolve(process.argv[3] ?? "");
+const rootPackageName = process.argv[4] ?? "dji-log-parser-js";
+const target = process.argv[5] ?? "wasm32-unknown-unknown";
+const includeRoot = process.argv[6] !== "exclude-root";
 
 if (!process.argv[2] || !process.argv[3]) {
-  throw new Error("Usage: node generate-compliance.mjs <source-root> <output-root>");
+  throw new Error(
+    "Usage: node generate-compliance.mjs <source-root> <output-root> [root-package] [target] [exclude-root]",
+  );
 }
 
 const overrides = JSON.parse(readFileSync(join(scriptDirectory, "license-overrides.json"), "utf8"));
@@ -23,16 +28,16 @@ const metadata = JSON.parse(execFileSync("cargo", [
   "metadata",
   "--locked",
   "--filter-platform",
-  "wasm32-unknown-unknown",
+  target,
   "--format-version",
   "1",
 ], { cwd: sourceRoot, encoding: "utf8" }));
 
 const rootPackage = metadata.packages.find((candidate) => (
-  candidate.name === "dji-log-parser-js" && candidate.source === null
+  candidate.name === rootPackageName && candidate.source === null
 ));
 if (!rootPackage) {
-  throw new Error("Unable to identify dji-log-parser-js in Cargo metadata");
+  throw new Error(`Unable to identify ${rootPackageName} in Cargo metadata`);
 }
 
 const nodes = new Map(metadata.resolve.nodes.map((node) => [node.id, node]));
@@ -45,7 +50,9 @@ function include(id) {
 include(rootPackage.id);
 
 const packages = metadata.packages
-  .filter((candidate) => includedIds.has(candidate.id))
+  .filter((candidate) => (
+    includedIds.has(candidate.id) && (includeRoot || candidate.id !== rootPackage.id)
+  ))
   .sort((left, right) => `${left.name}@${left.version}`.localeCompare(`${right.name}@${right.version}`));
 
 const licenseRoot = join(outputRoot, "licenses");
@@ -153,7 +160,7 @@ for (const packageValue of packages) {
 
 writeFileSync(join(outputRoot, "license-index.json"), `${JSON.stringify({
   schema_version: 1,
-  target: "wasm32-unknown-unknown",
+  target,
   component_count: index.length,
   components: index,
 }, null, 2)}\n`);
@@ -161,7 +168,7 @@ writeFileSync(join(outputRoot, "license-index.json"), `${JSON.stringify({
 const noticeLines = [
   "# Third-party notices",
   "",
-  "Generated from the target-specific locked Cargo graph. Review `license-index.json` for source URLs and checksums.",
+  `Generated from the locked Cargo graph for \`${target}\`. Review \`license-index.json\` for source URLs and checksums.`,
   "",
   ...index.flatMap((entry) => [
     `## ${entry.name}@${entry.version}`,

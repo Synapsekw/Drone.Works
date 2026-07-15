@@ -23,7 +23,7 @@ function findingSummary(finding) {
   };
 }
 
-export function summarizeTargetAudit(audit, sbom) {
+export function summarizeTargetAudit(audit, sbom, options = {}) {
   const targetPackages = new Set((sbom.components ?? []).map(packageKey).filter(Boolean));
   const vulnerabilities = audit.vulnerabilities?.list ?? [];
   const warnings = warningEntries(audit.warnings);
@@ -32,6 +32,10 @@ export function summarizeTargetAudit(audit, sbom) {
 
   return {
     schema_version: 1,
+    policy: {
+      deny_vulnerabilities: true,
+      deny_warnings: options.denyWarnings === true,
+    },
     target_components: targetPackages.size,
     full_lockfile: {
       vulnerabilities: vulnerabilities.length,
@@ -45,7 +49,9 @@ export function summarizeTargetAudit(audit, sbom) {
       vulnerabilities: vulnerabilities.length - targetVulnerabilities.length,
       warnings: warnings.length - targetWarnings.length,
     },
-    passed: targetVulnerabilities.length === 0,
+    passed: targetVulnerabilities.length === 0 && (
+      options.denyWarnings !== true || targetWarnings.length === 0
+    ),
   };
 }
 
@@ -66,6 +72,7 @@ function run(lockPath, sbomPath) {
   const summary = summarizeTargetAudit(
     JSON.parse(audit.stdout),
     JSON.parse(readFileSync(sbomPath, "utf8")),
+    { denyWarnings: process.argv[4] === "deny-warnings" },
   );
   process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
   if (!summary.passed) process.exitCode = 1;
@@ -73,7 +80,9 @@ function run(lockPath, sbomPath) {
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   if (!process.argv[2] || !process.argv[3]) {
-    throw new Error("Usage: node audit-target.mjs <Cargo.lock> <target-sbom.json>");
+    throw new Error(
+      "Usage: node audit-target.mjs <Cargo.lock> <target-sbom.json> [deny-warnings]",
+    );
   }
   run(resolve(process.argv[2]), resolve(process.argv[3]));
 }

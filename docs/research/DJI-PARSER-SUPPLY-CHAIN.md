@@ -1,9 +1,9 @@
 # DJI parser supply-chain review
 
-Status: completed for Phase 0; legal, broader-decode, and upgrade-review gates remain
-Candidate: `dji-log-parser-js@0.5.7`
+Status: completed for Phase 0 JS/WASM; native hosted-attestation, legal, broader-decode, and upgrade-review gates remain
+Candidate: pinned `dji-log-parser@0.5.7` behind JS/WASM and native release-evidence builds
 Reviewed: 2026-07-12
-Last updated: 2026-07-14
+Last updated: 2026-07-15
 
 ## Conclusion
 
@@ -11,7 +11,7 @@ The candidate can remain in the isolated Phase 0 evaluation, but the published n
 
 The npm package has no npm dependencies and the current npm advisory service reports no known vulnerabilities. That result does not cover the Rust crates compiled into its bundled WebAssembly module. The tagged upstream WebAssembly target resolves to 51 packages: the two local parser crates plus 49 registry crates. Their declared license expressions are permissive-looking and none is missing a license declaration, but the published npm tarball omits the upstream license text and provides no SBOM or reproducible-build attestation.
 
-The tagged target tree contains `tsify-next@0.5.3`, which RustSec classifies as unmaintained. The internal build replaces it with maintained `tsify@0.5.6`, removes the WebAssembly DJI HTTP client and `fetchKeychains` export, and retains local keychain-request construction plus offline decoding. CI enforcement, repeatable target-specific advisory checks, and the parser container boundary now pass; the first authorized fixture also decodes successfully. Production use still requires the unresolved DJI/legal gates, broader fixture evidence, memory/runtime selection, and source review for each upgrade.
+The tagged target tree contains `tsify-next@0.5.3`, which RustSec classifies as unmaintained. The JS/WASM internal build replaces it with maintained `tsify@0.5.6`, removes the WebAssembly DJI HTTP client and `fetchKeychains` export, and retains local keychain-request construction plus offline decoding. The selected native build removes provider methods and native networking dependencies, emits target-specific release evidence, and passes local repeatability plus strict target advisory checks. Hosted Linux execution and attestations remain open. Production use still requires the unresolved DJI/legal gates, broader fixture evidence, and source review for each upgrade.
 
 This review is engineering evidence, not legal advice.
 
@@ -122,4 +122,31 @@ Evidence recorded on 2026-07-14:
 
 The generated package remains ignored and private. License overrides cover only dependency texts omitted from three crate archives; each text is stored locally with its immutable upstream URL and verified SHA-256 checksum.
 
-Until the remaining legal, broader-decode, runtime-selection, and upgrade-review gates pass, the published `dji-log-parser-js@0.5.7` artifact remains a disposable research dependency. The internally built package is stronger Phase 0 evidence, not yet an accepted production component.
+Until the remaining legal, broader-decode, hosted native attestation, and upgrade-review gates pass, the published `dji-log-parser-js@0.5.7` artifact remains a disposable research dependency. The internally built package is stronger Phase 0 evidence, not yet an accepted production component.
+
+## Native release-evidence build
+
+The selected [`../../spikes/dji-parser/native-cli/`](../../spikes/dji-parser/native-cli/) workflow starts from the same exact upstream commit and pinned Rust 1.96.1 toolchain. It applies the reviewed short-read hardening patch, removes provider methods plus `ureq` and `async-channel`, runs the source-free truncation tests, and fails if provider-network dependencies or markers remain.
+
+The build emits a target-specific CycloneDX 1.5 SBOM, third-party notice file, license index and copied license texts, binary/input SHA-256 manifest, and deterministic evidence inventory. The Drone.Works wrapper crate is excluded from third-party notices; the upstream parser crate and every resolved dependency remain included.
+
+Local evidence recorded on 2026-07-15:
+
+- two independent clean `aarch64-apple-darwin` builds produced 80 of 80 byte-identical evidence files;
+- the executable was 903,232 bytes and had the same SHA-256 digest in both builds;
+- the target SBOM contains 39 dependency components plus root metadata, and the notice index covers the same 39 third-party components;
+- no generated evidence contains a disposable local build path or provider-network marker;
+- the current RustSec scan, configured to deny both vulnerabilities and warnings, found zero findings in the 39 target components;
+- four vulnerabilities and two warnings elsewhere in the upstream workspace lockfile were excluded by exact package name and version because they do not appear in the generated target SBOM.
+
+The `native-parser-build` CI job performs the equivalent proof twice on Ubuntu 24.04 for `x86_64-unknown-linux-gnu`, uploads the evidence bundle, and uses GitHub's [artifact attestation workflow](https://docs.github.com/actions/security-for-github-actions/using-artifact-attestations/using-artifact-attestations-to-establish-provenance-for-builds) for binary provenance and the CycloneDX SBOM on non-PR runs. The job definition is present, but no hosted run of this revision exists yet; Linux reproducibility and published attestations therefore remain open.
+
+### Native release gates
+
+- [x] Pin the upstream source, Rust version, and SBOM generator.
+- [x] Remove provider networking from source, dependencies, and the binary surface.
+- [x] Generate a normalized target-specific CycloneDX SBOM and complete notice/license bundle.
+- [x] Compare two independent clean output trees byte for byte.
+- [x] Deny target-specific RustSec vulnerabilities and maintenance warnings.
+- [x] Define Ubuntu binary/SBOM attestation and evidence-upload steps in CI.
+- [ ] Run the revision on hosted Ubuntu and verify the evidence bundle plus both published attestations.

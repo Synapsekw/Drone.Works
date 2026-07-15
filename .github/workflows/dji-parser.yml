@@ -100,3 +100,61 @@ jobs:
           node spikes/dji-parser/internal-build/audit-target.mjs
           /tmp/dji-parser-work-1/source/Cargo.lock
           /tmp/dji-parser-out-1/sbom.cdx.json
+
+  native-parser-build:
+    runs-on: ubuntu-24.04
+    needs: parser-tests
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    env:
+      DRONEWORKS_NATIVE_TARGET: x86_64-unknown-linux-gnu
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.18.0
+          package-manager-cache: false
+      - name: Install the pinned native Rust toolchain
+        run: |
+          rustup toolchain install 1.96.1 --profile minimal --target x86_64-unknown-linux-gnu
+          rustup default 1.96.1
+          cargo install cargo-cyclonedx --version 0.5.9 --locked
+      - name: Install the current RustSec audit client
+        run: cargo install cargo-audit --locked
+      - name: Build the native parser evidence twice
+        run: |
+          node spikes/dji-parser/native-cli/build.mjs /tmp/dji-native-work-1 /tmp/dji-native-out-1
+          node spikes/dji-parser/native-cli/build.mjs /tmp/dji-native-work-2 /tmp/dji-native-out-2
+      - name: Verify native artifact reproducibility
+        run: >-
+          node spikes/dji-parser/internal-build/compare-builds.mjs
+          /tmp/dji-native-out-1
+          /tmp/dji-native-out-2
+      - name: Check the native Rust dependency graph against RustSec
+        run: >-
+          node spikes/dji-parser/internal-build/audit-target.mjs
+          /tmp/dji-native-work-1/source/Cargo.lock
+          /tmp/dji-native-out-1/sbom.cdx.json
+          deny-warnings
+          | tee /tmp/dji-native-out-1/rustsec-audit.json
+      - name: Attest the native Linux binary provenance
+        if: github.event_name != 'pull_request'
+        uses: actions/attest@v4
+        with:
+          subject-path: /tmp/dji-native-out-1/droneworks-dji-parser-cli
+      - name: Attest the native Linux binary SBOM
+        if: github.event_name != 'pull_request'
+        uses: actions/attest@v4
+        with:
+          subject-path: /tmp/dji-native-out-1/droneworks-dji-parser-cli
+          sbom-path: /tmp/dji-native-out-1/sbom.cdx.json
+      - name: Upload native Linux release evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: dji-native-linux-evidence
+          path: /tmp/dji-native-out-1
+          if-no-files-found: error

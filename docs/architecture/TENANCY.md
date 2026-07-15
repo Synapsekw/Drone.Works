@@ -24,6 +24,8 @@ erDiagram
     FLIGHT_REVISION ||--o{ TELEMETRY_SAMPLE : contains
     ORGANIZATION ||--o{ RAW_SOURCE : owns
     ORGANIZATION ||--o{ EXPORT_ARTIFACT : owns
+    RAW_SOURCE }o--o{ CANONICAL_FLIGHT : contains
+    EXPORT_ARTIFACT }o--o{ CANONICAL_FLIGHT : includes
 ```
 
 Every child has a non-null `organization_id`. Parent keys and foreign keys include that organization identifier, so a Beta flight cannot reference an Alpha pilot, aircraft, revision, or telemetry parent even if an application mutation supplies exact resource IDs. Raw-source and export-artifact references are also organization-owned RLS rows; their physical object keys are derived only after authorization and are not accepted as client input. This relational slice persists generic flight facts and capability names; source-specific parser structures remain outside it.
@@ -66,12 +68,13 @@ Repository methods do not accept an optional organization filter. They can run o
 The integration suite currently proves, with synthetic Alpha and Beta records:
 
 - ordinary-role attributes and table ownership;
-- RLS enabled and forced on all nine tables;
+- RLS enabled and forced on all eleven tables;
 - missing-context read and write denial;
 - direct-ID, join, aggregate, export, and mutation isolation;
 - cross-organization relationship rejection through composite foreign keys;
 - transaction-safe reuse of the same pooled backend;
 - fail-closed job lookup, durable payload validation before enqueue and execution, and real queue retry isolation;
+- versioned HTTP flight reads and download issuance with membership, role, pilot ownership, and organization-policy checks;
 - organization-derived raw-source/export keys, bounded link lifetime, uniform denial, and membership-revocation checks; and
 - forced RLS behavior for the table owner, alongside explicit superuser bypass evidence.
 
@@ -89,6 +92,12 @@ The pg-boss proof keeps queue infrastructure and customer data permissions separ
 
 The test fails an Alpha job once, lets pg-boss place the same job into retry state, and then succeeds it. Both attempts load only Alpha through the one-connection RLS pool. A Beta-scoped job containing the Alpha flight ID completes with `not_found` and never reaches the domain handler. A malformed ID-only job inserted by bypassing the enqueue adapter is rejected again during execution and reaches terminal failed state. This proves the organization contract survives durable storage, connection reuse, and retry; it does not imply exactly-once domain effects, so handlers must remain idempotent.
 
+## Versioned API authorization boundary
+
+The proof exposes real loopback HTTP operations under `/api/v1/` while keeping authentication behind an injected identity adapter. The harness therefore tests API authorization independently of the unresolved Phase 1 session provider and does not select a web framework. Client input cannot supply a user ID; only the authenticated identity reaches the membership query.
+
+All four Phase 1 roles may view active flights in their selected organization. Owner and admin identities may download organization raw-source and export artifacts. Pilot identities may download an artifact only when organization policy permits it and every flight linked to that artifact is assigned to the membership's linked pilot profile; a mixed-pilot raw source or export is denied in full. Viewers cannot download either type. Missing membership, insufficient role, another pilot's artifact, mixed ownership, disabled pilot policy, cross-organization exact IDs, and unknown IDs return the same RFC 9457 `404` problem without signer access.
+
 ## Object and download boundary
 
 Object paths are derived only after an organization-owned database row is authorized. The executable shape is:
@@ -98,13 +107,13 @@ organizations/{organization_id}/raw-sources/{raw_source_id}/revisions/{source_re
 organizations/{organization_id}/exports/{export_id}/{artifact_id}
 ```
 
-The path is defense-in-depth metadata, not authority. The executable boundary selects the raw-source or export row inside current organization context, joins the current membership, requires the first owner/admin role subset, derives and escapes every object-key segment from the authorized row, and calls an injected signer with a maximum 15-minute lifetime. Client-supplied object keys are rejected. Missing, cross-organization, viewer, deleted, expired, revoked, and unknown resources return one indistinguishable `download_not_found` denial and never invoke the signer.
+The path is defense-in-depth metadata, not authority. The executable boundary selects the raw-source or export row inside current organization context, joins current membership and organization policy, applies owner/admin or pilot-own-flight scope, derives and escapes every object-key segment from the authorized row, and calls an injected signer with a maximum 15-minute lifetime. Client-supplied object keys are rejected. Missing, cross-organization, viewer, other-pilot, mixed-pilot, disabled-policy, deleted, expired, revoked, and unknown resources return one indistinguishable denial and never invoke the signer.
 
 The authorization query holds a row lock on the membership and artifact until signing completes. The revocation test proves a previously authorized one-second link expires and that the removed admin cannot mint a replacement. The signer is deliberately a deterministic test adapter: real object-storage URL expiry, provider-side object access, deletion, and revocation still require production-shaped evidence.
 
 ## Remaining P0-05 proof obligations
 
-- Integrate the complete Phase 1 membership/role matrix, including pilot-own-flight raw/export scope, at an API boundary.
+- Extend the API role matrix across creation, editing, reassignment, deletion/restoration, member management, organization settings, and complete organization export.
 - Exercise worker termination, cancellation, queue-age observability, and idempotent domain mutation under retry before accepting pg-boss.
 - Exercise object-key derivation, URL expiry, membership revocation, and deletion against real object-storage artifacts rather than the signer adapter alone.
 - Define explicit, narrow, observable production migration and maintenance access without giving ordinary processes bypass privileges.

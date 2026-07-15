@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import pg from "pg";
 import { PgBoss } from "pg-boss";
+import { createApiServer } from "../src/api.mjs";
 import {
   DownloadAuthorizationError,
   MAX_DOWNLOAD_TTL_MS,
@@ -64,6 +65,54 @@ function isHiddenDownloadDenial(error) {
     && error.message === "Download is not available";
 }
 
+const apiSigner = recordingSigner();
+const sessions = new Map([
+  ["session-alpha-owner", "user-alpha-owner"],
+  ["session-alpha-admin", "user-alpha"],
+  ["session-alpha-pilot", "user-alpha-pilot"],
+  ["session-alpha-other-pilot", "user-alpha-other-pilot"],
+  ["session-alpha-viewer", "user-alpha-viewer"],
+  ["session-beta-admin", "user-beta"],
+  ["session-beta-pilot", "user-beta-pilot"],
+  ["session-beta-viewer", "user-beta-viewer"],
+]);
+const hiddenResourceProblem = Object.freeze({
+  type: "about:blank",
+  title: "Not Found",
+  status: 404,
+  detail: "Resource is not available",
+});
+const apiServer = createApiServer({
+  pool: applicationPool,
+  signer: apiSigner,
+  now: () => new Date(fixedNow),
+  authenticate(request) {
+    const authorization = request.headers.authorization;
+    const session = typeof authorization === "string"
+      ? authorization.match(/^Bearer (.+)$/)?.[1]
+      : undefined;
+    const userId = sessions.get(session);
+    return userId === undefined ? null : { userId };
+  },
+});
+let apiOrigin;
+
+async function apiRequest(path, session, options = {}) {
+  const headers = new Headers(options.headers);
+  if (session !== null) {
+    headers.set("authorization", `Bearer ${session}`);
+  }
+  const response = await fetch(`${apiOrigin}${path}`, {
+    ...options,
+    headers,
+  });
+  return {
+    status: response.status,
+    contentType: response.headers.get("content-type"),
+    body: await response.json(),
+  };
+}
+
 before(async () => {
   queueBoss.on("error", () => {});
   await queueBoss.start();
@@ -72,9 +121,18 @@ before(async () => {
     retryDelay: 0,
     deleteAfterSeconds: 3600,
   });
+  await new Promise((resolve, reject) => {
+    apiServer.once("error", reject);
+    apiServer.listen(0, "127.0.0.1", resolve);
+  });
+  const address = apiServer.address();
+  apiOrigin = `http://127.0.0.1:${address.port}`;
 });
 
 after(async () => {
+  await new Promise((resolve, reject) => {
+    apiServer.close((error) => (error === undefined ? resolve() : reject(error)));
+  });
   await queueBoss.stop({ graceful: false });
   await applicationPool.end();
   await bootstrapPool.end();
@@ -111,7 +169,7 @@ test("ordinary connections are non-owner, non-superuser, and unable to bypass RL
         AND c.relkind = 'r'
       ORDER BY c.relname`,
   );
-  assert.equal(tables.rowCount, 9);
+  assert.equal(tables.rowCount, 11);
   for (const table of tables.rows) {
     assert.equal(table.owner, "droneworks_migrator");
     assert.equal(table.relrowsecurity, true);
@@ -298,6 +356,170 @@ test("object keys cannot be client supplied and every segment is escaped", async
   assert.deepEqual(signer.calls, []);
 });
 
+test("versioned flight API permits every member role and hides cross-organization IDs", async () => {
+  for (const session of [
+    "session-alpha-owner",
+    "session-alpha-admin",
+    "session-alpha-pilot",
+    "session-alpha-viewer",
+  ]) {
+    const response = await apiRequest(
+      "/api/v1/organizations/org-alpha/flights/flight-alpha",
+      session,
+    );
+    assert.equal(response.status, 200);
+    assert.match(response.contentType, /^application\/json/);
+    assert.deepEqual(response.body, {
+      data: {
+        id: "flight-alpha",
+        organization_id: "org-alpha",
+        aircraft_id: "aircraft-alpha",
+        pilot_profile_id: "pilot-alpha",
+        duration_ms: "3600000",
+        notes: "alpha-only",
+      },
+    });
+  }
+  const pilotViewingAnotherPilot = await apiRequest(
+    "/api/v1/organizations/org-alpha/flights/flight-alpha-other",
+    "session-alpha-pilot",
+  );
+  assert.equal(pilotViewingAnotherPilot.status, 200);
+  assert.equal(pilotViewingAnotherPilot.body.data.id, "flight-alpha-other");
+
+  const hiddenRequests = [{
+    path: "/api/v1/organizations/org-alpha/flights/flight-alpha",
+    session: "session-beta-admin",
+  }, {
+    path: "/api/v1/organizations/org-beta/flights/flight-alpha",
+    session: "session-beta-admin",
+  }, {
+    path: "/api/v1/organizations/org-alpha/flights/flight-beta",
+    session: "session-alpha-admin",
+  }, {
+    path: "/api/v1/organizations/org-alpha/flights/flight-unknown",
+    session: "session-alpha-admin",
+  }];
+  for (const input of hiddenRequests) {
+    const response = await apiRequest(input.path, input.session);
+    assert.equal(response.status, 404);
+    assert.match(response.contentType, /^application\/problem\+json/);
+    assert.deepEqual(response.body, hiddenResourceProblem);
+  }
+
+  const unauthenticated = await apiRequest(
+    "/api/v1/organizations/org-alpha/flights/flight-alpha",
+    null,
+  );
+  assert.deepEqual(unauthenticated.body, {
+    type: "about:blank",
+    title: "Unauthorized",
+    status: 401,
+    detail: "Authentication is required",
+  });
+});
+
+test("versioned download API enforces owner, admin, viewer, and pilot-own-flight scope", async () => {
+  const callsBefore = apiSigner.calls.length;
+  const authorizedRequests = [{
+    path: "/api/v1/organizations/org-alpha/raw-sources/raw-alpha-other/downloads",
+    session: "session-alpha-owner",
+  }, {
+    path: "/api/v1/organizations/org-alpha/exports/export-alpha-other/downloads",
+    session: "session-alpha-owner",
+  }, {
+    path: "/api/v1/organizations/org-alpha/raw-sources/raw-alpha-shared/downloads",
+    session: "session-alpha-admin",
+  }, {
+    path: "/api/v1/organizations/org-alpha/exports/export-alpha-shared/downloads",
+    session: "session-alpha-admin",
+  }, {
+    path: "/api/v1/organizations/org-alpha/raw-sources/raw-alpha/downloads",
+    session: "session-alpha-pilot",
+  }, {
+    path: "/api/v1/organizations/org-alpha/exports/export-alpha/downloads",
+    session: "session-alpha-pilot",
+  }];
+  for (const input of authorizedRequests) {
+    const response = await apiRequest(input.path, input.session, { method: "POST" });
+    assert.equal(response.status, 200);
+    assert.match(response.contentType, /^application\/json/);
+    assert.equal(typeof response.body.data.url, "string");
+    assert.equal(response.body.data.expires_at, "2026-07-15T12:05:00.000Z");
+    assert.equal(Object.hasOwn(response.body.data, "object_key"), false);
+  }
+  assert.deepEqual(
+    apiSigner.calls.slice(callsBefore).map((call) => call.objectKey),
+    [
+      "organizations/org-alpha/raw-sources/raw-alpha-other/revisions/raw-revision-alpha-other",
+      "organizations/org-alpha/exports/export-alpha-other/artifact-alpha-other",
+      "organizations/org-alpha/raw-sources/raw-alpha-shared/revisions/raw-revision-alpha-shared",
+      "organizations/org-alpha/exports/export-alpha-shared/artifact-alpha-shared",
+      "organizations/org-alpha/raw-sources/raw-alpha/revisions/raw-revision-alpha",
+      "organizations/org-alpha/exports/export-alpha/artifact-alpha",
+    ],
+  );
+
+  const deniedRequests = [{
+    path: "/api/v1/organizations/org-alpha/raw-sources/raw-alpha/downloads",
+    session: "session-alpha-viewer",
+  }, {
+    path: "/api/v1/organizations/org-alpha/exports/export-alpha/downloads",
+    session: "session-alpha-viewer",
+  }, {
+    path: "/api/v1/organizations/org-alpha/raw-sources/raw-alpha-other/downloads",
+    session: "session-alpha-pilot",
+  }, {
+    path: "/api/v1/organizations/org-alpha/exports/export-alpha-other/downloads",
+    session: "session-alpha-pilot",
+  }, {
+    path: "/api/v1/organizations/org-alpha/raw-sources/raw-alpha-shared/downloads",
+    session: "session-alpha-pilot",
+  }, {
+    path: "/api/v1/organizations/org-alpha/exports/export-alpha-shared/downloads",
+    session: "session-alpha-pilot",
+  }, {
+    path: "/api/v1/organizations/org-alpha/raw-sources/raw-alpha/downloads",
+    session: "session-beta-admin",
+  }, {
+    path: "/api/v1/organizations/org-alpha/raw-sources/raw-beta/downloads",
+    session: "session-alpha-admin",
+  }];
+  const callsAfterAuthorized = apiSigner.calls.length;
+  for (const input of deniedRequests) {
+    const response = await apiRequest(input.path, input.session, {
+      method: "POST",
+      headers: { "x-user-id": "user-alpha-owner" },
+    });
+    assert.equal(response.status, 404);
+    assert.deepEqual(response.body, hiddenResourceProblem);
+  }
+  assert.equal(apiSigner.calls.length, callsAfterAuthorized);
+});
+
+test("organization policy can disable pilot raw and export downloads without limiting admins", async () => {
+  for (const resourcePath of [
+    "raw-sources/raw-beta",
+    "exports/export-beta",
+  ]) {
+    const pilot = await apiRequest(
+      `/api/v1/organizations/org-beta/${resourcePath}/downloads`,
+      "session-beta-pilot",
+      { method: "POST" },
+    );
+    assert.equal(pilot.status, 404);
+    assert.deepEqual(pilot.body, hiddenResourceProblem);
+
+    const admin = await apiRequest(
+      `/api/v1/organizations/org-beta/${resourcePath}/downloads`,
+      "session-beta-admin",
+      { method: "POST" },
+    );
+    assert.equal(admin.status, 200);
+    assert.equal(admin.body.data.expires_at, "2026-07-15T12:05:00.000Z");
+  }
+});
+
 test("Alpha and Beta direct reads, joins, aggregates, and exports remain isolated", async () => {
   const alpha = await withOrganization(applicationPool, "org-alpha", async (repositories) => ({
     own: await repositories.findFlightById("flight-alpha"),
@@ -313,8 +535,12 @@ test("Alpha and Beta direct reads, joins, aggregates, and exports remain isolate
     id: "flight-alpha",
     organization_id: "org-alpha",
     aircraft_name: "Alpha Aircraft",
+  }, {
+    id: "flight-alpha-other",
+    organization_id: "org-alpha",
+    aircraft_name: "Alpha Aircraft",
   }]);
-  assert.deepEqual(alpha.totals, { flightCount: 1, durationMs: 3600000 });
+  assert.deepEqual(alpha.totals, { flightCount: 2, durationMs: 3601000 });
   assert.deepEqual(alpha.exported, [{
     id: "flight-alpha",
     organization_id: "org-alpha",
@@ -369,7 +595,10 @@ test("transaction-local context cannot leak through a one-connection pool", asyn
     rows: await repositories.listFlightsWithAircraft(),
   }));
   assert.equal(beta.pid, alpha.pid);
-  assert.deepEqual(alpha.rows.map((row) => row.organization_id), ["org-alpha"]);
+  assert.deepEqual(
+    alpha.rows.map((row) => row.organization_id),
+    ["org-alpha", "org-alpha"],
+  );
   assert.deepEqual(beta.rows.map((row) => row.organization_id), ["org-beta"]);
 });
 
@@ -556,6 +785,6 @@ test("FORCE RLS applies to the migration owner while bootstrap bypass stays expl
   );
   assert.deepEqual(
     bootstrapRows.rows.map((row) => row.id),
-    ["flight-alpha", "flight-beta"],
+    ["flight-alpha", "flight-alpha-other", "flight-beta"],
   );
 });

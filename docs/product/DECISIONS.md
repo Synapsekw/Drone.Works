@@ -50,7 +50,11 @@ The first native PostgreSQL 18 spike validates the leading relational mechanism 
 
 The follow-up slice adds forced-RLS raw-source and export-artifact references plus an authorization boundary that rechecks current membership, derives escaped organization-prefixed keys only from visible rows, bounds link lifetime, and returns one denial for cross-organization, insufficient-role, expired, deleted, revoked, or missing resources. A removed admin cannot refresh a previously issued link after it expires. The executable signer remains a deterministic adapter rather than a real object-storage provider.
 
-This evidence does not yet accept D-002. The complete API role matrix, a real queue, provider-side signed-URL expiry and object deletion, privileged maintenance observability, the remaining customer-owned resource types, and deletion paths remain open. See `../architecture/TENANCY.md`.
+A third slice runs pg-boss against the native ephemeral cluster through a dedicated non-superuser queue role with no customer-table access. Durable jobs allow only a payload version, organization ID, and domain ID; validation occurs before enqueue and again at execution. A failed Alpha attempt remains Alpha-scoped through retry on the one-connection RLS pool, a Beta-scoped Alpha ID remains hidden, and an adapter-bypassing ID-only job fails before domain handling.
+
+The first `/api/v1/` slice then proves authenticated membership and role checks over real loopback HTTP without selecting an authentication provider or API framework. All roles can view organization flights; owner/admin download access, viewer denial, pilot-own-flight raw/export scope, stored organization pilot restrictions, mixed-pilot denial, and cross-organization exact-ID denial execute through the same RLS pool and return uniform RFC 9457 not-found problems without signer access.
+
+This evidence does not yet accept D-002. The remaining API mutation and administration matrix, provider-side signed-URL expiry and object deletion, privileged maintenance observability, the remaining customer-owned resource types, and deletion paths remain open. See `../architecture/TENANCY.md`.
 
 ## D-003 — Canonical normalized flight model
 

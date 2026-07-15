@@ -45,7 +45,9 @@ $$;
 
 CREATE TABLE droneworks.organizations (
   id text PRIMARY KEY,
-  name text NOT NULL
+  name text NOT NULL,
+  pilot_raw_download_enabled boolean NOT NULL DEFAULT true,
+  pilot_export_enabled boolean NOT NULL DEFAULT true
 );
 
 CREATE TABLE droneworks.memberships (
@@ -149,6 +151,32 @@ CREATE TABLE droneworks.export_artifacts (
     ON DELETE CASCADE
 );
 
+CREATE TABLE droneworks.raw_source_flights (
+  organization_id text NOT NULL,
+  raw_source_id text NOT NULL,
+  canonical_flight_id text NOT NULL,
+  PRIMARY KEY (organization_id, raw_source_id, canonical_flight_id),
+  FOREIGN KEY (organization_id, raw_source_id)
+    REFERENCES droneworks.raw_sources (organization_id, id)
+    ON DELETE CASCADE,
+  FOREIGN KEY (organization_id, canonical_flight_id)
+    REFERENCES droneworks.canonical_flights (organization_id, id)
+    ON DELETE CASCADE
+);
+
+CREATE TABLE droneworks.export_artifact_flights (
+  organization_id text NOT NULL,
+  export_artifact_id text NOT NULL,
+  canonical_flight_id text NOT NULL,
+  PRIMARY KEY (organization_id, export_artifact_id, canonical_flight_id),
+  FOREIGN KEY (organization_id, export_artifact_id)
+    REFERENCES droneworks.export_artifacts (organization_id, id)
+    ON DELETE CASCADE,
+  FOREIGN KEY (organization_id, canonical_flight_id)
+    REFERENCES droneworks.canonical_flights (organization_id, id)
+    ON DELETE CASCADE
+);
+
 ALTER TABLE droneworks.organizations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE droneworks.organizations FORCE ROW LEVEL SECURITY;
 CREATE POLICY organization_isolation ON droneworks.organizations
@@ -200,6 +228,18 @@ CREATE POLICY organization_isolation ON droneworks.raw_sources
 ALTER TABLE droneworks.export_artifacts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE droneworks.export_artifacts FORCE ROW LEVEL SECURITY;
 CREATE POLICY organization_isolation ON droneworks.export_artifacts
+  USING (organization_id = droneworks.current_organization_id())
+  WITH CHECK (organization_id = droneworks.current_organization_id());
+
+ALTER TABLE droneworks.raw_source_flights ENABLE ROW LEVEL SECURITY;
+ALTER TABLE droneworks.raw_source_flights FORCE ROW LEVEL SECURITY;
+CREATE POLICY organization_isolation ON droneworks.raw_source_flights
+  USING (organization_id = droneworks.current_organization_id())
+  WITH CHECK (organization_id = droneworks.current_organization_id());
+
+ALTER TABLE droneworks.export_artifact_flights ENABLE ROW LEVEL SECURITY;
+ALTER TABLE droneworks.export_artifact_flights FORCE ROW LEVEL SECURITY;
+CREATE POLICY organization_isolation ON droneworks.export_artifact_flights
   USING (organization_id = droneworks.current_organization_id())
   WITH CHECK (organization_id = droneworks.current_organization_id());
 

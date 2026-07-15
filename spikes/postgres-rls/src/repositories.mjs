@@ -23,6 +23,28 @@ export function createRepositories(client) {
       return result.rows[0] ?? null;
     },
 
+    async findFlightForMember({ userId, flightId }) {
+      requireId(userId, "userId");
+      requireId(flightId, "flightId");
+      const result = await client.query(
+        `SELECT f.id,
+                f.organization_id,
+                f.aircraft_id,
+                f.pilot_profile_id,
+                f.duration_ms,
+                f.notes
+           FROM droneworks.memberships AS m
+           JOIN droneworks.canonical_flights AS f
+             ON f.organization_id = m.organization_id
+          WHERE m.user_id = $1
+            AND f.id = $2
+            AND f.state <> 'deleted'
+          FOR KEY SHARE OF m, f`,
+        [userId, flightId],
+      );
+      return result.rows[0] ?? null;
+    },
+
     async listFlightsWithAircraft() {
       const result = await client.query(
         `SELECT f.id, f.organization_id, a.display_name AS aircraft_name
@@ -118,25 +140,93 @@ export function createRepositories(client) {
                   r.id AS resource_id,
                   r.object_revision_id AS object_component
              FROM droneworks.memberships AS m
+             JOIN droneworks.organizations AS o
+               ON o.id = m.organization_id
              JOIN droneworks.raw_sources AS r
                ON r.organization_id = m.organization_id
             WHERE m.user_id = $1
-              AND m.role IN ('owner', 'admin')
               AND r.id = $2
               AND r.state = 'retained'
-            FOR KEY SHARE OF m, r`
+              AND (
+                m.role IN ('owner', 'admin')
+                OR (
+                  m.role = 'pilot'
+                  AND o.pilot_raw_download_enabled
+                  AND EXISTS (
+                    SELECT 1
+                      FROM droneworks.raw_source_flights AS rf
+                      JOIN droneworks.canonical_flights AS f
+                        ON f.organization_id = rf.organization_id
+                       AND f.id = rf.canonical_flight_id
+                      JOIN droneworks.pilot_profiles AS p
+                        ON p.organization_id = f.organization_id
+                       AND p.id = f.pilot_profile_id
+                     WHERE rf.organization_id = r.organization_id
+                       AND rf.raw_source_id = r.id
+                       AND p.membership_user_id = m.user_id
+                  )
+                  AND NOT EXISTS (
+                    SELECT 1
+                      FROM droneworks.raw_source_flights AS rf
+                      JOIN droneworks.canonical_flights AS f
+                        ON f.organization_id = rf.organization_id
+                       AND f.id = rf.canonical_flight_id
+                      JOIN droneworks.pilot_profiles AS p
+                        ON p.organization_id = f.organization_id
+                       AND p.id = f.pilot_profile_id
+                     WHERE rf.organization_id = r.organization_id
+                       AND rf.raw_source_id = r.id
+                       AND p.membership_user_id IS DISTINCT FROM m.user_id
+                  )
+                )
+              )
+            FOR KEY SHARE OF m, o, r`
         : `SELECT e.organization_id,
                   e.id AS resource_id,
                   e.object_artifact_id AS object_component
              FROM droneworks.memberships AS m
+             JOIN droneworks.organizations AS o
+               ON o.id = m.organization_id
              JOIN droneworks.export_artifacts AS e
                ON e.organization_id = m.organization_id
             WHERE m.user_id = $1
-              AND m.role IN ('owner', 'admin')
               AND e.id = $2
               AND e.state = 'ready'
               AND e.available_until > $3
-            FOR KEY SHARE OF m, e`;
+              AND (
+                m.role IN ('owner', 'admin')
+                OR (
+                  m.role = 'pilot'
+                  AND o.pilot_export_enabled
+                  AND EXISTS (
+                    SELECT 1
+                      FROM droneworks.export_artifact_flights AS ef
+                      JOIN droneworks.canonical_flights AS f
+                        ON f.organization_id = ef.organization_id
+                       AND f.id = ef.canonical_flight_id
+                      JOIN droneworks.pilot_profiles AS p
+                        ON p.organization_id = f.organization_id
+                       AND p.id = f.pilot_profile_id
+                     WHERE ef.organization_id = e.organization_id
+                       AND ef.export_artifact_id = e.id
+                       AND p.membership_user_id = m.user_id
+                  )
+                  AND NOT EXISTS (
+                    SELECT 1
+                      FROM droneworks.export_artifact_flights AS ef
+                      JOIN droneworks.canonical_flights AS f
+                        ON f.organization_id = ef.organization_id
+                       AND f.id = ef.canonical_flight_id
+                      JOIN droneworks.pilot_profiles AS p
+                        ON p.organization_id = f.organization_id
+                       AND p.id = f.pilot_profile_id
+                     WHERE ef.organization_id = e.organization_id
+                       AND ef.export_artifact_id = e.id
+                       AND p.membership_user_id IS DISTINCT FROM m.user_id
+                  )
+                )
+              )
+            FOR KEY SHARE OF m, o, e`;
       const parameters = resourceType === "raw_source"
         ? [userId, resourceId]
         : [userId, resourceId, now.toISOString()];

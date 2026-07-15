@@ -1,12 +1,12 @@
 ---
 type: north-star
 status: active
-last-updated: 2026-07-15-1158
+last-updated: 2026-07-15-1232
 tags: [project/drone-works, north-star]
 related:
   - "[[project-history]]"
   - "[[memory]]"
-  - "[[2026-07-15-1158-hosted-native-attestations]]"
+  - "[[2026-07-15-1232-private-parser-intermediate]]"
 ---
 
 # Drone.Works — North Star
@@ -31,14 +31,14 @@ Drone.Works is an explainable operational record for small professional drone te
 
 ## Now
 
-- **Phase:** Phase 0, workstream P0-03 — DJI parser and key feasibility.
-- **Branch:** clean `main` at `37e7d82`, synchronized with `origin/main`; the SBOM-attestation fix and canonical hosted evidence are published.
-- **Completed evidence:** hosted Ubuntu run `29398131979` produced 78 byte-identical native Linux build-output files, a 38-component target SBOM with zero target RustSec findings, an uploaded evidence archive, and verified binary-provenance plus SBOM attestations. Final-head run `29398755562` passed all parser, containment, native, and internal-build jobs again.
-- **Verification baseline:** the downloaded evidence matched all 77 inventory hashes; its 1,028,120-byte Linux executable matched the recorded digest, both attestations verified against the exact workflow/source commit/artifact, and privacy scans found no disposable absolute paths or credential markers. Local syntax, workflow YAML, and diff checks pass. No Docker was used locally.
-- **Blocking evidence:** representative fixture coverage and duration-threshold validation remain incomplete for fixtures that are not authorized for DJI processing. A privacy-safe representative intermediate output, normalization, process-startup, and output-volume measurements also remain open.
-- **Next technical action:** define and validate the sanitized intermediate-output contract and measurements using the already authorized fixture, then begin P0-04 canonical model/provenance mapping.
+- **Phase:** Phase 0, advancing from P0-03 parser feasibility into P0-04 canonical model and provenance.
+- **Branch:** clean `main` at `cc7852c`, synchronized with `origin/main`; the private parser-intermediate proof is published.
+- **Completed evidence:** the authorized fixture produced two matching, source-hash-bound private intermediates with 27,228 samples under the bounded IPC limit. Raw telemetry and identifiers stayed behind the trusted normalizer accessor; ordinary output contained only structural metrics and a material digest.
+- **Verification baseline:** 64 host parser/orchestration tests pass; two clean native builds produced 86 byte-identical evidence files and a 42-component target graph with zero RustSec findings. Hosted run `29400677885` passed parser tests, Linux containment, native repeat-build/audit, evidence upload, binary/SBOM attestations, and the comparison build. No Docker was used locally.
+- **Blocking evidence:** broader fixture coverage remains closed until those fixtures are authorized for DJI processing. Production legal, consent, managed-secret, retention, and deletion gates remain open under D-012, but they do not block the local P0-04 model proof.
+- **Next technical action:** implement the smallest P0-04 canonical normalizer and provenance mapping behind the private intermediate accessor, using source-free synthetic tests.
 - **Next external decision:** decide whether the remaining fixtures may use DJI processing; production terms, notice/consent, managed-secret, retention, and deletion gates remain separate under D-012.
-- **After representative output:** begin P0-04 canonical model/provenance proof; P0-05 tenancy and P0-06 telemetry work follow the Phase 0 dependency gates.
+- **After P0-04 mapping:** use the canonical ownership model to begin P0-05 tenancy proof and the representative telemetry shape to begin P0-06 benchmarks.
 - **Privacy:** raw fixtures remain ignored and local. No raw values, coordinates, identifiers, keychain feature points, credentials, or generated parser artifacts belong in this vault.
 
 ## Workstream status
@@ -47,8 +47,8 @@ Drone.Works is an explainable operational record for small professional drone te
 |---|---|---|
 | P0-01 constraints and scorecard | Evidence drafted | Quality attributes and stack scorecard exist; final component choices remain proposed. |
 | P0-02 fixture policy and inventory | Local research gate satisfied | Policy, manifest, three private v14 logs, and one controlled truncation exist. |
-| P0-03 parser/key feasibility | Active | Native runtime, truncation, hosted Linux reproducibility, strict advisory, evidence upload, and both attestations pass; representative output/measurement and broader-coverage gates remain open. |
-| P0-04 canonical model | Waiting | Requires representative intermediate parser output. |
+| P0-03 parser/key feasibility | Core proof complete; external gates remain | Native containment, truncation, private intermediate, representative measurements, hosted reproducibility, strict audit, evidence upload, and attestations pass; broader fixtures and production D-012 gates remain open. |
+| P0-04 canonical model | Active | Representative private intermediate exists; implement canonical field/provenance mapping with source-free tests. |
 | P0-05 organization isolation | Not started | Requires ownership model and executable Postgres/RLS proof. |
 | P0-06 telemetry benchmark | Not started | Requires representative telemetry shape. |
 | P0-07 runtime/deployment selection | Proposed | TypeScript/Next/Fastify/worker/Postgres shortlist needs remaining proofs. |

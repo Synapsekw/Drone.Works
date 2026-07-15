@@ -37,13 +37,22 @@ INSERT INTO droneworks.canonical_flights (
   id,
   pilot_profile_id,
   aircraft_id,
+  imported_pilot_profile_id,
+  imported_aircraft_id,
+  source_kind,
   state,
+  takeoff_at,
+  takeoff_timezone,
   duration_ms,
-  notes
+  location_text,
+  notes,
+  deleted_at,
+  deleted_from_state
 ) VALUES
-  ('org-alpha', 'flight-alpha', 'pilot-alpha', 'aircraft-alpha', 'active', 3600000, 'alpha-only'),
-  ('org-alpha', 'flight-alpha-other', 'pilot-alpha-other', 'aircraft-alpha', 'active', 1000, 'other-alpha-only'),
-  ('org-beta', 'flight-beta', 'pilot-beta', 'aircraft-beta', 'active', 7200000, 'beta-only');
+  ('org-alpha', 'flight-alpha', 'pilot-alpha', 'aircraft-alpha', 'pilot-alpha', 'aircraft-alpha', 'imported', 'active', '2026-07-01T08:00:00Z', 'Asia/Dubai', 3600000, 'Alpha Site', 'alpha-only', NULL, NULL),
+  ('org-alpha', 'flight-alpha-other', 'pilot-alpha-other', 'aircraft-alpha', 'pilot-alpha-other', 'aircraft-alpha', 'imported', 'active', '2026-07-02T08:00:00Z', 'Asia/Dubai', 1000, 'Other Alpha Site', 'other-alpha-only', NULL, NULL),
+  ('org-alpha', 'flight-alpha-expired-delete', 'pilot-alpha-other', 'aircraft-alpha', 'pilot-alpha-other', 'aircraft-alpha', 'imported', 'deleted', '2026-05-01T08:00:00Z', 'Asia/Dubai', 1000, 'Archived Alpha Site', 'expired-delete', '2026-06-01T00:00:00Z', 'active'),
+  ('org-beta', 'flight-beta', 'pilot-beta', 'aircraft-beta', 'pilot-beta', 'aircraft-beta', 'imported', 'active', '2026-07-03T08:00:00Z', 'Asia/Dubai', 7200000, 'Beta Site', 'beta-only', NULL, NULL);
 
 INSERT INTO droneworks.flight_revisions (
   organization_id,

@@ -68,13 +68,15 @@ Repository methods do not accept an optional organization filter. They can run o
 The integration suite currently proves, with synthetic Alpha and Beta records:
 
 - ordinary-role attributes and table ownership;
-- RLS enabled and forced on all eleven tables;
+- RLS enabled and forced on all fourteen tables;
 - missing-context read and write denial;
 - direct-ID, join, aggregate, export, and mutation isolation;
 - cross-organization relationship rejection through composite foreign keys;
 - transaction-safe reuse of the same pooled backend;
 - fail-closed job lookup, durable payload validation before enqueue and execution, and real queue retry isolation;
 - versioned HTTP flight reads and download issuance with membership, role, pilot ownership, and organization-policy checks;
+- versioned flight creation and mutation with idempotency, audit redaction, reversible deletion, role checks, and uniform IDOR denial;
+- imported pilot/aircraft assignments retained as a separate baseline while an organization-owned override row supplies the effective reassignment;
 - organization-derived raw-source/export keys, bounded link lifetime, uniform denial, and membership-revocation checks; and
 - forced RLS behavior for the table owner, alongside explicit superuser bypass evidence.
 
@@ -98,6 +100,10 @@ The proof exposes real loopback HTTP operations under `/api/v1/` while keeping a
 
 All four Phase 1 roles may view active flights in their selected organization. Owner and admin identities may download organization raw-source and export artifacts. Pilot identities may download an artifact only when organization policy permits it and every flight linked to that artifact is assigned to the membership's linked pilot profile; a mixed-pilot raw source or export is denied in full. Viewers cannot download either type. Missing membership, insufficient role, another pilot's artifact, mixed ownership, disabled pilot policy, cross-organization exact IDs, and unknown IDs return the same RFC 9457 `404` problem without signer access.
 
+The mutation slice requires complete manual-flight timing, timezone, duration, and location-text fields and persists no invented telemetry or raw source. Owner, admin, and pilot roles may create; viewers may not. Creation requires an idempotency key scoped to organization, authenticated user, and operation. Equivalent replay returns the original `201` result without a second flight or audit event, while different input under the same key returns `409`.
+
+Owner/admin may edit notes, reassign assets, delete, and restore; pilots may edit notes only while the flight is assigned to their linked pilot profile; viewers cannot mutate. Reassignment is constrained to organization-visible pilot and aircraft rows. Soft deletion preserves the prior active/review state and excludes the flight from lists and derived totals. Restore succeeds only when fewer than 30 days have elapsed. Every successful mutation writes an organization-owned audit event with actor, action, time, resource, and changed field names; note content and other customer payload are not copied into audit metadata.
+
 ## Object and download boundary
 
 Object paths are derived only after an organization-owned database row is authorized. The executable shape is:
@@ -113,7 +119,7 @@ The authorization query holds a row lock on the membership and artifact until si
 
 ## Remaining P0-05 proof obligations
 
-- Extend the API role matrix across creation, editing, reassignment, deletion/restoration, member management, organization settings, and complete organization export.
+- Extend the API role matrix across tags/batteries, member management, organization settings/ownership, upload/import actions, and complete organization export.
 - Exercise worker termination, cancellation, queue-age observability, and idempotent domain mutation under retry before accepting pg-boss.
 - Exercise object-key derivation, URL expiry, membership revocation, and deletion against real object-storage artifacts rather than the signer adapter alone.
 - Define explicit, narrow, observable production migration and maintenance access without giving ordinary processes bypass privileges.

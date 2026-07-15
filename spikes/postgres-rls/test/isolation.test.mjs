@@ -82,10 +82,12 @@ const hiddenResourceProblem = Object.freeze({
   status: 404,
   detail: "Resource is not available",
 });
+let createdFlightSequence = 0;
 const apiServer = createApiServer({
   pool: applicationPool,
   signer: apiSigner,
   now: () => new Date(fixedNow),
+  createId: () => `flight-manual-${++createdFlightSequence}`,
   authenticate(request) {
     const authorization = request.headers.authorization;
     const session = typeof authorization === "string"
@@ -106,10 +108,11 @@ async function apiRequest(path, session, options = {}) {
     ...options,
     headers,
   });
+  const responseText = await response.text();
   return {
     status: response.status,
     contentType: response.headers.get("content-type"),
-    body: await response.json(),
+    body: responseText.length === 0 ? null : JSON.parse(responseText),
   };
 }
 
@@ -169,7 +172,7 @@ test("ordinary connections are non-owner, non-superuser, and unable to bypass RL
         AND c.relkind = 'r'
       ORDER BY c.relname`,
   );
-  assert.equal(tables.rowCount, 11);
+  assert.equal(tables.rowCount, 14);
   for (const table of tables.rows) {
     assert.equal(table.owner, "droneworks_migrator");
     assert.equal(table.relrowsecurity, true);
@@ -623,7 +626,10 @@ test("cross-organization mutations fail through both RLS and composite ownership
       flightId: "flight-wrong-organization",
       pilotProfileId: "pilot-alpha",
       aircraftId: "aircraft-alpha",
+      takeoffAt: new Date("2026-07-15T08:00:00Z"),
+      takeoffTimezone: "Asia/Dubai",
       durationMs: 1000,
+      locationText: "Synthetic Site",
     })),
     (error) => error.code === "42501" && /row-level security policy/.test(error.message),
   );
@@ -634,7 +640,10 @@ test("cross-organization mutations fail through both RLS and composite ownership
       flightId: "flight-cross-asset",
       pilotProfileId: "pilot-beta",
       aircraftId: "aircraft-alpha",
+      takeoffAt: new Date("2026-07-15T08:00:00Z"),
+      takeoffTimezone: "Asia/Dubai",
       durationMs: 1000,
+      locationText: "Synthetic Site",
     })),
     (error) => error.code === "23503" && error.constraint === "canonical_flights_organization_id_aircraft_id_fkey",
   );
@@ -785,6 +794,406 @@ test("FORCE RLS applies to the migration owner while bootstrap bypass stays expl
   );
   assert.deepEqual(
     bootstrapRows.rows.map((row) => row.id),
-    ["flight-alpha", "flight-alpha-other", "flight-beta"],
+    [
+      "flight-alpha",
+      "flight-alpha-expired-delete",
+      "flight-alpha-other",
+      "flight-beta",
+    ],
   );
+});
+
+test("manual-flight creation enforces roles, required fields, and idempotency", async () => {
+  const ownerInput = {
+    pilot_profile_id: "pilot-alpha-other",
+    aircraft_id: "aircraft-alpha",
+    takeoff_at: "2026-07-15T08:00:00Z",
+    takeoff_timezone: "Asia/Dubai",
+    duration_ms: 120000,
+    location_text: "Synthetic Manual Site",
+    notes: "owner-created",
+  };
+
+  const missingKey = await apiRequest(
+    "/api/v1/organizations/org-alpha/flights",
+    "session-alpha-owner",
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(ownerInput),
+    },
+  );
+  assert.equal(missingKey.status, 400);
+  assert.deepEqual(missingKey.body.errors, [{
+    field: "Idempotency-Key",
+    detail: "must be a non-empty opaque identifier",
+  }]);
+
+  const invalid = await apiRequest(
+    "/api/v1/organizations/org-alpha/flights",
+    "session-alpha-owner",
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "idempotency-key": "manual-invalid",
+      },
+      body: JSON.stringify({
+        ...ownerInput,
+        location_text: "",
+        object_key: "not-accepted",
+      }),
+    },
+  );
+  assert.equal(invalid.status, 400);
+  assert.deepEqual(invalid.body.errors, [{
+    field: "object_key",
+    detail: "is not allowed",
+  }, {
+    field: "location_text",
+    detail: "must be a non-empty string",
+  }]);
+
+  const deniedCreations = [{
+    session: "session-alpha-viewer",
+    key: "manual-viewer",
+    input: ownerInput,
+  }, {
+    session: "session-alpha-admin",
+    key: "manual-cross-organization",
+    input: { ...ownerInput, pilot_profile_id: "pilot-beta" },
+  }];
+  for (const denied of deniedCreations) {
+    const response = await apiRequest(
+      "/api/v1/organizations/org-alpha/flights",
+      denied.session,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "idempotency-key": denied.key,
+        },
+        body: JSON.stringify(denied.input),
+      },
+    );
+    assert.equal(response.status, 404);
+    assert.deepEqual(response.body, hiddenResourceProblem);
+  }
+
+  const created = await apiRequest(
+    "/api/v1/organizations/org-alpha/flights",
+    "session-alpha-owner",
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "idempotency-key": "manual-owner-1",
+      },
+      body: JSON.stringify(ownerInput),
+    },
+  );
+  assert.equal(created.status, 201);
+  assert.deepEqual(created.body, {
+    data: {
+      id: "flight-manual-1",
+      organization_id: "org-alpha",
+      pilot_profile_id: "pilot-alpha-other",
+      aircraft_id: "aircraft-alpha",
+      source_kind: "manual",
+      state: "active",
+      takeoff_at: "2026-07-15T08:00:00.000Z",
+      takeoff_timezone: "Asia/Dubai",
+      duration_ms: "120000",
+      location_text: "Synthetic Manual Site",
+      notes: "owner-created",
+    },
+  });
+
+  const replayed = await apiRequest(
+    "/api/v1/organizations/org-alpha/flights",
+    "session-alpha-owner",
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "idempotency-key": "manual-owner-1",
+      },
+      body: JSON.stringify(ownerInput),
+    },
+  );
+  assert.equal(replayed.status, 201);
+  assert.deepEqual(replayed.body, created.body);
+
+  const conflict = await apiRequest(
+    "/api/v1/organizations/org-alpha/flights",
+    "session-alpha-owner",
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "idempotency-key": "manual-owner-1",
+      },
+      body: JSON.stringify({ ...ownerInput, duration_ms: 120001 }),
+    },
+  );
+  assert.deepEqual(conflict.body, {
+    type: "about:blank",
+    title: "Conflict",
+    status: 409,
+    detail: "The idempotency key was already used with different input",
+  });
+
+  const admin = await apiRequest(
+    "/api/v1/organizations/org-alpha/flights",
+    "session-alpha-admin",
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "idempotency-key": "manual-admin-1",
+      },
+      body: JSON.stringify({ ...ownerInput, notes: "admin-created" }),
+    },
+  );
+  assert.equal(admin.status, 201);
+  assert.equal(admin.body.data.id, "flight-manual-2");
+
+  const pilot = await apiRequest(
+    "/api/v1/organizations/org-alpha/flights",
+    "session-alpha-pilot",
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "idempotency-key": "manual-pilot-1",
+      },
+      body: JSON.stringify({
+        ...ownerInput,
+        pilot_profile_id: "pilot-alpha",
+        notes: "pilot-created",
+      }),
+    },
+  );
+  assert.equal(pilot.status, 201);
+  assert.equal(pilot.body.data.id, "flight-manual-3");
+  assert.equal(pilot.body.data.pilot_profile_id, "pilot-alpha");
+});
+
+test("flight mutations enforce the role matrix, grace window, audit redaction, and IDOR denial", async () => {
+  const notesPath = "/api/v1/organizations/org-alpha/flights/flight-alpha-other/notes";
+  for (const session of ["session-alpha-pilot", "session-alpha-viewer", "session-beta-admin"]) {
+    const denied = await apiRequest(notesPath, session, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ notes: "must-not-apply" }),
+    });
+    assert.equal(denied.status, 404);
+    assert.deepEqual(denied.body, hiddenResourceProblem);
+  }
+  const crossOrganizationNotes = await apiRequest(
+    "/api/v1/organizations/org-alpha/flights/flight-beta/notes",
+    "session-alpha-admin",
+    {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ notes: "must-not-apply" }),
+    },
+  );
+  assert.equal(crossOrganizationNotes.status, 404);
+  assert.deepEqual(crossOrganizationNotes.body, hiddenResourceProblem);
+
+  const pilotNotes = await apiRequest(
+    notesPath,
+    "session-alpha-other-pilot",
+    {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ notes: "pilot-owned note" }),
+    },
+  );
+  assert.deepEqual(pilotNotes.body, {
+    data: {
+      id: "flight-alpha-other",
+      organization_id: "org-alpha",
+      notes: "pilot-owned note",
+    },
+  });
+
+  const assignmentPath = "/api/v1/organizations/org-alpha/flights/flight-alpha-other/assignment";
+  for (const session of ["session-alpha-other-pilot", "session-alpha-viewer", "session-beta-admin"]) {
+    const denied = await apiRequest(assignmentPath, session, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        pilot_profile_id: "pilot-alpha",
+        aircraft_id: "aircraft-alpha",
+      }),
+    });
+    assert.equal(denied.status, 404);
+    assert.deepEqual(denied.body, hiddenResourceProblem);
+  }
+  const crossOrganizationTarget = await apiRequest(
+    assignmentPath,
+    "session-alpha-admin",
+    {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        pilot_profile_id: "pilot-beta",
+        aircraft_id: "aircraft-alpha",
+      }),
+    },
+  );
+  assert.equal(crossOrganizationTarget.status, 404);
+  assert.deepEqual(crossOrganizationTarget.body, hiddenResourceProblem);
+  const crossOrganizationAssignment = await apiRequest(
+    "/api/v1/organizations/org-alpha/flights/flight-beta/assignment",
+    "session-alpha-admin",
+    {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        pilot_profile_id: "pilot-alpha",
+        aircraft_id: "aircraft-alpha",
+      }),
+    },
+  );
+  assert.equal(crossOrganizationAssignment.status, 404);
+  assert.deepEqual(crossOrganizationAssignment.body, hiddenResourceProblem);
+
+  const reassigned = await apiRequest(
+    assignmentPath,
+    "session-alpha-admin",
+    {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        pilot_profile_id: "pilot-alpha",
+        aircraft_id: "aircraft-alpha",
+      }),
+    },
+  );
+  assert.equal(reassigned.status, 200);
+  assert.equal(reassigned.body.data.pilot_profile_id, "pilot-alpha");
+  const assignmentState = await withOrganization(
+    applicationPool,
+    "org-alpha",
+    (repositories) => repositories.findFlightAssignmentState("flight-alpha-other"),
+  );
+  assert.deepEqual(assignmentState, {
+    pilot_profile_id: "pilot-alpha",
+    aircraft_id: "aircraft-alpha",
+    imported_pilot_profile_id: "pilot-alpha-other",
+    imported_aircraft_id: "aircraft-alpha",
+    override_pilot_profile_id: "pilot-alpha",
+    override_aircraft_id: "aircraft-alpha",
+  });
+
+  const newPilotNotes = await apiRequest(
+    notesPath,
+    "session-alpha-pilot",
+    {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ notes: "after reassignment" }),
+    },
+  );
+  assert.equal(newPilotNotes.status, 200);
+
+  const totalsBeforeDelete = await withOrganization(
+    applicationPool,
+    "org-alpha",
+    (repositories) => repositories.flightTotals(),
+  );
+  const deletePath = "/api/v1/organizations/org-alpha/flights/flight-alpha-other";
+  for (const session of ["session-alpha-pilot", "session-alpha-viewer", "session-beta-admin"]) {
+    const denied = await apiRequest(deletePath, session, { method: "DELETE" });
+    assert.equal(denied.status, 404);
+    assert.deepEqual(denied.body, hiddenResourceProblem);
+  }
+  const crossOrganizationDelete = await apiRequest(
+    "/api/v1/organizations/org-alpha/flights/flight-beta",
+    "session-alpha-admin",
+    { method: "DELETE" },
+  );
+  assert.equal(crossOrganizationDelete.status, 404);
+  assert.deepEqual(crossOrganizationDelete.body, hiddenResourceProblem);
+  const deleted = await apiRequest(deletePath, "session-alpha-admin", {
+    method: "DELETE",
+  });
+  assert.equal(deleted.status, 204);
+  assert.equal(deleted.body, null);
+
+  const hiddenDeleted = await apiRequest(deletePath, "session-alpha-owner");
+  assert.equal(hiddenDeleted.status, 404);
+  assert.deepEqual(hiddenDeleted.body, hiddenResourceProblem);
+  const totalsAfterDelete = await withOrganization(
+    applicationPool,
+    "org-alpha",
+    (repositories) => repositories.flightTotals(),
+  );
+  assert.deepEqual(totalsAfterDelete, {
+    flightCount: totalsBeforeDelete.flightCount - 1,
+    durationMs: totalsBeforeDelete.durationMs - 1000,
+  });
+
+  const expiredRestore = await apiRequest(
+    "/api/v1/organizations/org-alpha/flights/flight-alpha-expired-delete/restore",
+    "session-alpha-owner",
+    { method: "POST" },
+  );
+  assert.equal(expiredRestore.status, 404);
+  assert.deepEqual(expiredRestore.body, hiddenResourceProblem);
+
+  const restored = await apiRequest(
+    `${deletePath}/restore`,
+    "session-alpha-owner",
+    { method: "POST" },
+  );
+  assert.equal(restored.status, 200);
+  assert.equal(restored.body.data.state, "active");
+  assert.equal(restored.body.data.deleted_at, null);
+  const totalsAfterRestore = await withOrganization(
+    applicationPool,
+    "org-alpha",
+    (repositories) => repositories.flightTotals(),
+  );
+  assert.deepEqual(totalsAfterRestore, totalsBeforeDelete);
+
+  const events = await withOrganization(
+    applicationPool,
+    "org-alpha",
+    (repositories) => repositories.listAuditEvents(),
+  );
+  assert.deepEqual(events.map((event) => event.action), [
+    "flight.assignment_updated",
+    "flight.created_manual",
+    "flight.created_manual",
+    "flight.created_manual",
+    "flight.deleted",
+    "flight.notes_updated",
+    "flight.notes_updated",
+    "flight.restored",
+  ]);
+  assert.equal(events.every((event) => event.resource_type === "flight"), true);
+  assert.equal(events.some((event) => event.changed_fields.includes("state")), true);
+  const serializedAudit = JSON.stringify(events);
+  assert.equal(serializedAudit.includes("pilot-owned note"), false);
+  assert.equal(serializedAudit.includes("after reassignment"), false);
+  assert.equal(serializedAudit.includes("owner-created"), false);
+
+  const contextless = await applicationPool.query(
+    `SELECT current_setting('app.organization_id', true) AS organization_id,
+            (SELECT count(*)::integer FROM droneworks.canonical_flights) AS flight_count,
+            (SELECT count(*)::integer FROM droneworks.audit_events) AS audit_count,
+            (SELECT count(*)::integer FROM droneworks.api_idempotency_requests) AS idempotency_count,
+            (SELECT count(*)::integer FROM droneworks.flight_assignment_overrides) AS assignment_override_count`,
+  );
+  assert.deepEqual(contextless.rows[0], {
+    organization_id: "",
+    flight_count: 0,
+    audit_count: 0,
+    idempotency_count: 0,
+    assignment_override_count: 0,
+  });
 });

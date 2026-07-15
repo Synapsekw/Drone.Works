@@ -54,7 +54,11 @@ A third slice runs pg-boss against the native ephemeral cluster through a dedica
 
 The first `/api/v1/` slice then proves authenticated membership and role checks over real loopback HTTP without selecting an authentication provider or API framework. All roles can view organization flights; owner/admin download access, viewer denial, pilot-own-flight raw/export scope, stored organization pilot restrictions, mixed-pilot denial, and cross-organization exact-ID denial execute through the same RLS pool and return uniform RFC 9457 not-found problems without signer access.
 
-This evidence does not yet accept D-002. The remaining API mutation and administration matrix, provider-side signed-URL expiry and object deletion, privileged maintenance observability, the remaining customer-owned resource types, and deletion paths remain open. See `../architecture/TENANCY.md`.
+The mutation follow-up proves idempotent manual creation, owner/admin reassignment and delete/restore, pilot-own note editing, viewer denial, a strict 30-day restoration boundary, derived-total changes, and uniform cross-organization mutation denial. All successful mutations create RLS-protected audit events containing actor/action/time/resource and changed field names without copying note content. Idempotency state is also organization-owned and RLS-protected; equivalent replay returns the original result without a duplicate flight or audit event.
+
+The reassignment proof also preserves the current imported pilot and aircraft as a separate baseline while storing the active user correction in an organization-owned override row. A future processing revision can update the imported baseline without erasing the effective correction.
+
+This evidence does not yet accept D-002. The remaining API administration and resource matrix, provider-side signed-URL expiry and object deletion, privileged maintenance observability, the remaining customer-owned resource types, and permanent deletion paths remain open. See `../architecture/TENANCY.md`.
 
 ## D-003 — Canonical normalized flight model
 

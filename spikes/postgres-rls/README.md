@@ -2,7 +2,7 @@
 
 This disposable Phase 0 spike proves the first relational slice of P0-05 against the generic canonical ownership model. It uses a real native PostgreSQL 18 server, forced row-level security, a non-owner application role, an actual `pg` connection pool, and a pinned pg-boss queue. It does not use Docker or the Homebrew service cluster.
 
-The schema deliberately stays small: organizations, memberships, pilot profiles, aircraft, canonical flights, immutable flight revisions, telemetry samples, raw sources, export artifacts, and their flight-scope links. Every customer-owned child carries `organization_id`; composite foreign keys prevent a resource in one organization from referencing a parent in another.
+The schema deliberately stays small: organizations, memberships, pilot profiles, aircraft, canonical flights, immutable flight revisions, telemetry samples, raw sources, export artifacts, their flight-scope links, flight-assignment overrides, API idempotency state, and audit events. Every customer-owned child carries `organization_id`; composite foreign keys prevent a resource in one organization from referencing a parent in another.
 
 ## Install
 
@@ -30,7 +30,7 @@ The test runner creates a fresh temporary cluster with local socket-only trust a
 The tests prove:
 
 - the ordinary application connection is neither owner, superuser, nor `BYPASSRLS`;
-- all eleven customer-owned tables enable and force row-level security;
+- all fourteen customer-owned tables enable and force row-level security;
 - absent organization context returns no rows and rejects writes;
 - Alpha/Beta direct-ID reads, joins, aggregates, exports, and mutations remain isolated;
 - composite foreign keys reject cross-organization pilot/aircraft relationships;
@@ -45,6 +45,10 @@ The tests prove:
 - a Beta-scoped job carrying an Alpha flight ID completes as `not_found` without invoking the domain handler; and
 - real `/api/v1/` loopback requests allow every member role to view flights but uniformly hide cross-organization exact IDs;
 - owner/admin, viewer denial, pilot-own-flight, mixed-pilot, and organization-disabled pilot download behavior execute without accepting route-supplied user IDs; and
+- owner/admin/pilot manual creation requires complete fields and an idempotency key; equivalent replay returns the original result without duplicate data;
+- note editing, reassignment, soft deletion, and restoration enforce the role matrix, update derived totals, and uniformly hide cross-organization IDs;
+- reassignment preserves imported pilot/aircraft values and records the effective user correction in a separate organization-owned override row;
+- restoration is limited to fewer than 30 days and every successful mutation creates an RLS-protected, payload-redacted audit event; and
 - forced RLS still applies after explicitly assuming the migration-owner role.
 
 The repository wrapper opens a transaction and sets `app.organization_id` with transaction-local `set_config(..., true)` before exposing repositories. Repository queries intentionally omit redundant organization predicates so the executable evidence demonstrates database enforcement. Application membership and role authorization must independently validate the selected organization before calling this trusted boundary; RLS does not replace authorization.
@@ -53,4 +57,4 @@ The queue proof uses pg-boss's real PostgreSQL persistence and retry state, whil
 
 The API proof uses Node's loopback HTTP server and an injected synthetic session-identity adapter so authorization remains independent of the unresolved web-session provider and Fastify shortlist. It emits snake-case JSON success documents and RFC 9457 problem details. The download proof still uses an injected deterministic signer rather than a storage vendor.
 
-The spike does not yet prove the complete API mutation/administration matrix, real provider-side URL expiry and object deletion, Drizzle migration generation, privileged maintenance observability, organization deletion, or queue behavior under worker termination. Those remain P0-05 follow-ups documented in [`../../docs/architecture/TENANCY.md`](../../docs/architecture/TENANCY.md).
+The spike does not yet prove the complete API administration/resource matrix, real provider-side URL expiry and object deletion, Drizzle migration generation, privileged maintenance observability, permanent deletion, organization deletion, or queue behavior under worker termination. Those remain P0-05 follow-ups documented in [`../../docs/architecture/TENANCY.md`](../../docs/architecture/TENANCY.md).

@@ -88,9 +88,27 @@ CREATE TABLE droneworks.canonical_flights (
   id text NOT NULL,
   pilot_profile_id text NOT NULL,
   aircraft_id text NOT NULL,
+  imported_pilot_profile_id text,
+  imported_aircraft_id text,
+  source_kind text NOT NULL DEFAULT 'imported'
+    CHECK (source_kind IN ('imported', 'manual')),
   state text NOT NULL CHECK (state IN ('awaiting_review', 'active', 'deleted')),
+  takeoff_at timestamptz NOT NULL,
+  takeoff_timezone text NOT NULL CHECK (length(btrim(takeoff_timezone)) > 0),
   duration_ms bigint NOT NULL CHECK (duration_ms >= 0),
+  location_text text,
   notes text NOT NULL DEFAULT '',
+  deleted_at timestamptz,
+  deleted_from_state text CHECK (deleted_from_state IN ('awaiting_review', 'active')),
+  CHECK (source_kind <> 'manual' OR NULLIF(btrim(location_text), '') IS NOT NULL),
+  CHECK (
+    (source_kind = 'imported') = (
+      imported_pilot_profile_id IS NOT NULL
+      AND imported_aircraft_id IS NOT NULL
+    )
+  ),
+  CHECK ((state = 'deleted') = (deleted_at IS NOT NULL)),
+  CHECK ((state = 'deleted') = (deleted_from_state IS NOT NULL)),
   PRIMARY KEY (organization_id, id),
   FOREIGN KEY (organization_id)
     REFERENCES droneworks.organizations (id)
@@ -98,6 +116,10 @@ CREATE TABLE droneworks.canonical_flights (
   FOREIGN KEY (organization_id, pilot_profile_id)
     REFERENCES droneworks.pilot_profiles (organization_id, id),
   FOREIGN KEY (organization_id, aircraft_id)
+    REFERENCES droneworks.aircraft (organization_id, id),
+  FOREIGN KEY (organization_id, imported_pilot_profile_id)
+    REFERENCES droneworks.pilot_profiles (organization_id, id),
+  FOREIGN KEY (organization_id, imported_aircraft_id)
     REFERENCES droneworks.aircraft (organization_id, id)
 );
 
@@ -177,6 +199,57 @@ CREATE TABLE droneworks.export_artifact_flights (
     ON DELETE CASCADE
 );
 
+CREATE TABLE droneworks.api_idempotency_requests (
+  organization_id text NOT NULL,
+  user_id text NOT NULL,
+  operation text NOT NULL,
+  idempotency_key text NOT NULL,
+  request_hash text NOT NULL CHECK (request_hash ~ '^[0-9a-f]{64}$'),
+  response_status integer,
+  response_body jsonb,
+  created_at timestamptz NOT NULL,
+  completed_at timestamptz,
+  PRIMARY KEY (organization_id, user_id, operation, idempotency_key),
+  CHECK ((response_status IS NULL) = (response_body IS NULL)),
+  CHECK ((response_status IS NULL) = (completed_at IS NULL)),
+  FOREIGN KEY (organization_id)
+    REFERENCES droneworks.organizations (id)
+    ON DELETE CASCADE
+);
+
+CREATE TABLE droneworks.audit_events (
+  organization_id text NOT NULL,
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  actor_user_id text NOT NULL,
+  action text NOT NULL,
+  resource_type text NOT NULL,
+  resource_id text NOT NULL,
+  changed_fields text[] NOT NULL DEFAULT '{}',
+  metadata jsonb NOT NULL DEFAULT '{}',
+  occurred_at timestamptz NOT NULL,
+  PRIMARY KEY (organization_id, id),
+  FOREIGN KEY (organization_id)
+    REFERENCES droneworks.organizations (id)
+    ON DELETE CASCADE
+);
+
+CREATE TABLE droneworks.flight_assignment_overrides (
+  organization_id text NOT NULL,
+  canonical_flight_id text NOT NULL,
+  pilot_profile_id text NOT NULL,
+  aircraft_id text NOT NULL,
+  actor_user_id text NOT NULL,
+  applied_at timestamptz NOT NULL,
+  PRIMARY KEY (organization_id, canonical_flight_id),
+  FOREIGN KEY (organization_id, canonical_flight_id)
+    REFERENCES droneworks.canonical_flights (organization_id, id)
+    ON DELETE CASCADE,
+  FOREIGN KEY (organization_id, pilot_profile_id)
+    REFERENCES droneworks.pilot_profiles (organization_id, id),
+  FOREIGN KEY (organization_id, aircraft_id)
+    REFERENCES droneworks.aircraft (organization_id, id)
+);
+
 ALTER TABLE droneworks.organizations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE droneworks.organizations FORCE ROW LEVEL SECURITY;
 CREATE POLICY organization_isolation ON droneworks.organizations
@@ -240,6 +313,24 @@ CREATE POLICY organization_isolation ON droneworks.raw_source_flights
 ALTER TABLE droneworks.export_artifact_flights ENABLE ROW LEVEL SECURITY;
 ALTER TABLE droneworks.export_artifact_flights FORCE ROW LEVEL SECURITY;
 CREATE POLICY organization_isolation ON droneworks.export_artifact_flights
+  USING (organization_id = droneworks.current_organization_id())
+  WITH CHECK (organization_id = droneworks.current_organization_id());
+
+ALTER TABLE droneworks.api_idempotency_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE droneworks.api_idempotency_requests FORCE ROW LEVEL SECURITY;
+CREATE POLICY organization_isolation ON droneworks.api_idempotency_requests
+  USING (organization_id = droneworks.current_organization_id())
+  WITH CHECK (organization_id = droneworks.current_organization_id());
+
+ALTER TABLE droneworks.audit_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE droneworks.audit_events FORCE ROW LEVEL SECURITY;
+CREATE POLICY organization_isolation ON droneworks.audit_events
+  USING (organization_id = droneworks.current_organization_id())
+  WITH CHECK (organization_id = droneworks.current_organization_id());
+
+ALTER TABLE droneworks.flight_assignment_overrides ENABLE ROW LEVEL SECURITY;
+ALTER TABLE droneworks.flight_assignment_overrides FORCE ROW LEVEL SECURITY;
+CREATE POLICY organization_isolation ON droneworks.flight_assignment_overrides
   USING (organization_id = droneworks.current_organization_id())
   WITH CHECK (organization_id = droneworks.current_organization_id());
 

@@ -1,0 +1,180 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://drone.works/schemas/parser/dji-intermediate-v1.json",
+  "title": "Drone.Works DJI parser private intermediate result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "kind", "parser", "source", "flights"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "kind": { "const": "dji_parser_intermediate" },
+    "parser": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version", "source_commit"],
+      "properties": {
+        "id": { "const": "dji-log-parser" },
+        "version": { "type": "string", "minLength": 1 },
+        "source_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sha256", "bytes", "format_family", "format_version"],
+      "properties": {
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "bytes": { "type": "integer", "minimum": 1 },
+        "format_family": { "const": "dji_txt" },
+        "format_version": { "type": "integer", "minimum": 0, "maximum": 255 }
+      }
+    },
+    "flights": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/flight" }
+    }
+  },
+  "$defs": {
+    "nullableNumber": { "type": ["number", "null"] },
+    "nullableInteger": { "type": ["integer", "null"], "minimum": 0 },
+    "nullableString": { "type": ["string", "null"] },
+    "serials": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
+    "flight": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["flight_index", "imported", "capabilities", "sample_count", "samples"],
+      "properties": {
+        "flight_index": { "type": "integer", "minimum": 0 },
+        "imported": { "$ref": "#/$defs/imported" },
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "enum": ["altitude", "attitude", "battery", "gps", "position", "signal", "velocity"]
+          },
+          "uniqueItems": true
+        },
+        "sample_count": { "type": "integer", "minimum": 0 },
+        "samples": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/sample" }
+        }
+      }
+    },
+    "imported": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "takeoff_time_utc",
+        "declared_duration_ms",
+        "declared_distance_m",
+        "declared_max_height_m",
+        "declared_max_horizontal_speed_mps",
+        "declared_max_vertical_speed_mps",
+        "aircraft_name",
+        "aircraft_model",
+        "application_platform",
+        "application_version",
+        "identifiers"
+      ],
+      "properties": {
+        "takeoff_time_utc": { "type": "string", "format": "date-time" },
+        "declared_duration_ms": { "$ref": "#/$defs/nullableInteger" },
+        "declared_distance_m": { "$ref": "#/$defs/nullableNumber" },
+        "declared_max_height_m": { "$ref": "#/$defs/nullableNumber" },
+        "declared_max_horizontal_speed_mps": { "$ref": "#/$defs/nullableNumber" },
+        "declared_max_vertical_speed_mps": { "$ref": "#/$defs/nullableNumber" },
+        "aircraft_name": { "$ref": "#/$defs/nullableString" },
+        "aircraft_model": {},
+        "application_platform": {},
+        "application_version": { "$ref": "#/$defs/nullableString" },
+        "identifiers": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["aircraft_serials", "battery_serials", "camera_serials", "controller_serials"],
+          "properties": {
+            "aircraft_serials": { "$ref": "#/$defs/serials" },
+            "battery_serials": { "$ref": "#/$defs/serials" },
+            "camera_serials": { "$ref": "#/$defs/serials" },
+            "controller_serials": { "$ref": "#/$defs/serials" }
+          }
+        }
+      }
+    },
+    "sample": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["elapsed_ms", "position", "altitude_msl_m", "height_agl_m", "velocity", "attitude", "battery", "gps", "signal"],
+      "properties": {
+        "elapsed_ms": { "$ref": "#/$defs/nullableInteger" },
+        "position": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "required": ["latitude_deg", "longitude_deg"],
+          "properties": {
+            "latitude_deg": { "type": "number", "minimum": -90, "maximum": 90 },
+            "longitude_deg": { "type": "number", "minimum": -180, "maximum": 180 }
+          }
+        },
+        "altitude_msl_m": { "$ref": "#/$defs/nullableNumber" },
+        "height_agl_m": { "$ref": "#/$defs/nullableNumber" },
+        "velocity": { "$ref": "#/$defs/vector" },
+        "attitude": { "$ref": "#/$defs/attitude" },
+        "battery": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "required": ["charge_percent", "voltage_v", "current_a", "temperature_c"],
+          "properties": {
+            "charge_percent": { "type": "integer", "minimum": 0, "maximum": 100 },
+            "voltage_v": { "$ref": "#/$defs/nullableNumber" },
+            "current_a": { "$ref": "#/$defs/nullableNumber" },
+            "temperature_c": { "$ref": "#/$defs/nullableNumber" }
+          }
+        },
+        "gps": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["satellites", "signal_level", "position_used"],
+          "properties": {
+            "satellites": { "type": "integer", "minimum": 0 },
+            "signal_level": { "type": "integer", "minimum": 0 },
+            "position_used": { "type": "boolean" }
+          }
+        },
+        "signal": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "required": ["uplink_percent", "downlink_percent"],
+          "properties": {
+            "uplink_percent": { "$ref": "#/$defs/nullableInteger" },
+            "downlink_percent": { "$ref": "#/$defs/nullableInteger" }
+          }
+        }
+      }
+    },
+    "vector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x_mps", "y_mps", "z_mps"],
+      "properties": {
+        "x_mps": { "$ref": "#/$defs/nullableNumber" },
+        "y_mps": { "$ref": "#/$defs/nullableNumber" },
+        "z_mps": { "$ref": "#/$defs/nullableNumber" }
+      }
+    },
+    "attitude": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pitch_deg", "roll_deg", "yaw_deg"],
+      "properties": {
+        "pitch_deg": { "$ref": "#/$defs/nullableNumber" },
+        "roll_deg": { "$ref": "#/$defs/nullableNumber" },
+        "yaw_deg": { "$ref": "#/$defs/nullableNumber" }
+      }
+    }
+  }
+}

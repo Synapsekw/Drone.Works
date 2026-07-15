@@ -9,6 +9,7 @@ import {
   runIsolatedDecode,
   runIsolatedKeychainRequest,
 } from "./ipc.mjs";
+import { runNativeIntermediate, runNativeSummary } from "./native-ipc.mjs";
 
 const sourceDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(sourceDirectory, "../../../..");
@@ -144,6 +145,9 @@ export async function runControlledKeychain({
   timeoutMs = 5_000,
   maxOutputBytes = 65_536,
   memoryMb = 128,
+  nativeExecutable,
+  nativeArgs = [],
+  maxIntermediateOutputBytes = 32 * 1024 * 1024,
   now,
 }) {
   if (allowDjiRequest) {
@@ -174,6 +178,7 @@ export async function runControlledKeychain({
     request: privateRequest.result,
     broker: null,
     decode: null,
+    intermediate: null,
     follow_up_decodes: [],
   };
 
@@ -200,17 +205,57 @@ export async function runControlledKeychain({
 
     const keychains = resolution.keychainsForParser();
     if (keychains) {
-      result.decode = await runIsolatedDecode({
-        ...childOptions,
-        keychains,
-      });
-      for (const followUp of followUpFixtures) {
-        result.follow_up_decodes.push(await runIsolatedDecode({
-          ...childOptions,
-          fixtureId: followUp.fixtureId,
-          fixturePath: followUp.fixturePath,
+      if (nativeExecutable) {
+        const nativeOptions = {
+          fixtureId,
+          fixturePath,
+          nativeExecutable,
+          nativeArgs,
           keychains,
-        }));
+          networkIsolation,
+          timeoutMs,
+          expectedSourceSha256: fixture.sha256,
+        };
+        result.decode = await runNativeSummary(nativeOptions);
+        if (result.decode.status === "decoded") {
+          const first = await runNativeIntermediate({
+            ...nativeOptions,
+            maxOutputBytes: maxIntermediateOutputBytes,
+          });
+          const second = await runNativeIntermediate({
+            ...nativeOptions,
+            maxOutputBytes: maxIntermediateOutputBytes,
+          });
+          result.intermediate = {
+            ...first.result,
+            repeat_material_match: first.result.status === "intermediate_ready"
+              && second.result.status === "intermediate_ready"
+              && first.result.material.sha256 === second.result.material.sha256,
+          };
+        }
+      } else {
+        result.decode = await runIsolatedDecode({
+          ...childOptions,
+          keychains,
+        });
+      }
+      for (const followUp of followUpFixtures) {
+        result.follow_up_decodes.push(nativeExecutable
+          ? await runNativeSummary({
+            fixtureId: followUp.fixtureId,
+            fixturePath: followUp.fixturePath,
+            nativeExecutable,
+            nativeArgs,
+            keychains,
+            networkIsolation,
+            timeoutMs,
+          })
+          : await runIsolatedDecode({
+            ...childOptions,
+            fixtureId: followUp.fixtureId,
+            fixturePath: followUp.fixturePath,
+            keychains,
+          }));
       }
     }
     return result;
@@ -247,6 +292,11 @@ async function main(argv) {
     });
   }
 
+  const nativeExecutableValue = value(argv, "--native-executable");
+  const nativeExecutable = nativeExecutableValue
+    ? resolve(repositoryRoot, nativeExecutableValue)
+    : undefined;
+
   return runControlledKeychain({
     fixture,
     fixturePath,
@@ -256,7 +306,13 @@ async function main(argv) {
     allowDjiRequest,
     timeoutMs: positiveInteger(argv, "--timeout-ms", 5_000),
     maxOutputBytes: positiveInteger(argv, "--max-output", 65_536),
+    maxIntermediateOutputBytes: positiveInteger(
+      argv,
+      "--max-intermediate-output",
+      32 * 1024 * 1024,
+    ),
     memoryMb: positiveInteger(argv, "--memory-mb", 128),
+    nativeExecutable,
   });
 }
 

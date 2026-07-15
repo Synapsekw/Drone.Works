@@ -1,6 +1,6 @@
 # DJI parser evaluation
 
-Status: in progress; native runtime, truncation, and hosted Linux release-evidence gates pass
+Status: in progress; native runtime, private intermediate, truncation, and hosted Linux release-evidence gates pass
 Candidate: pinned `dji-log-parser@0.5.7` behind a minimal Rust CLI
 Last updated: 2026-07-15
 
@@ -20,12 +20,13 @@ The candidate is suitable for continued local evaluation:
 - The controlled truncated derivative fails independently during keyed frame decoding, and a later fresh child still decodes the valid parent.
 - The hardened native artifact classifies the derivative as `truncated_records` from structural and declared-duration evidence, with zero stderr.
 - The minimal native CLI matches the JS/WASM result at 27,228 frames and uses approximately 70 MB peak RSS instead of 410 MB.
+- The versioned private intermediate is deterministic, source-hash bound, and validated before normalization, which unlocks the P0-04 normalizer slice.
 - D-009 now selects the native CLI inside the existing Linux hard-container boundary; JS/WASM remains a research comparator.
 - The official DJI comparator documents v13 only, so it does not currently displace the candidate for these v14 fixtures.
 
-This is not yet final parser acceptance. Representative fixture coverage, normalization validation, and the production DJI key-service/legal gates remain unresolved.
+This is not yet final parser acceptance. Broader fixture coverage, canonical normalization validation, and the production DJI key-service/legal gates remain unresolved.
 
-The local prefix/details probe is reproducible through [`../../spikes/dji-parser/`](../../spikes/dji-parser/). The first authorized fixture now has sanitized frame-validity, capability, memory, recovery, and hosted Linux release evidence; broader fixture coverage, duration validation, and normalization remain open.
+The local prefix/details probe is reproducible through [`../../spikes/dji-parser/`](../../spikes/dji-parser/). The first authorized fixture now has sanitized frame-validity, capability, duration, output-volume, memory, recovery, and hosted Linux release evidence; broader fixture coverage and canonical normalization remain open.
 
 A trusted keychain broker, encrypted cache, private parser/keychain IPC, disabled-by-default provider adapter, and explicit one-shot research runner are implemented. After explicit authorization, the real path fetched one validated keychain response from DJI and decoded only in fresh no-network children. The result contained no credential, request values, keys, IVs, coordinates, or unexpected worker fields.
 
@@ -167,7 +168,7 @@ Key material is not passed through arguments, environment variables, temporary f
 
 The provider adapter models the documented DJI POST endpoint, `Api-Key` header, and `{ "data": ... }` envelope. Exact endpoint allowlisting, HTTPS enforcement, an explicit external-network authorization flag, pre-credential request validation, redirect rejection, runtime credential injection, end-to-end timeout, bounded response reading, and sanitized failure codes are enforced before integration. Twelve provider scenarios run against configuration checks and a loopback mock HTTP server; no DJI hostname is contacted.
 
-The full spike runner reports 57 passing tests, including broker/cache, IPC, provider, controlled-runner, offline follow-up authorization, wire-identifier validation, and parser-isolation evidence. The complete suite passes outside the outer sandbox, including the mock listener and real macOS network-denial checks.
+The full spike runner reports 64 passing tests, including broker/cache, IPC, provider, controlled-runner, private-native-intermediate, trusted-source hashing, offline follow-up authorization, wire-identifier validation, and parser-isolation evidence. The complete suite passes outside the outer sandbox, including the mock listener and real macOS network-denial checks.
 
 ## Controlled one-shot runner evidence
 
@@ -183,7 +184,7 @@ One later provider call supplied the same ephemeral keychain to three fresh no-n
 
 ## Native Rust boundary comparison
 
-[`../../spikes/dji-parser/native-cli/`](../../spikes/dji-parser/native-cli/) builds a minimal CLI from the same exact pinned upstream commit. Its build removes the provider methods plus `ureq` and `async-channel` before compilation. The executable accepts validated keychains only through bounded standard input, emits a sanitized summary, contains no provider-networking path, and converts upstream decoder panics into `parser_internal_error`. It still runs as untrusted code inside the D-009 Linux boundary.
+[`../../spikes/dji-parser/native-cli/`](../../spikes/dji-parser/native-cli/) builds a minimal CLI from the same exact pinned upstream commit. Its build removes the provider methods plus `ureq` and `async-channel` before compilation. The executable accepts validated keychains only through bounded standard input and emits either a sanitized diagnostic summary or a versioned private intermediate through bounded parser-to-worker IPC. It contains no provider-networking path and converts upstream decoder panics into `parser_internal_error`. It still runs as untrusted code inside the D-009 Linux boundary.
 
 One controlled comparison reused a single authorized parent response in memory. The JS/WASM and native children reported the same 27,228 frames, validation flags, and capabilities:
 
@@ -195,9 +196,17 @@ One controlled comparison reused a single authorized parent response in memory. 
 
 The native valid → truncated derivative → valid sequence ended with the same 27,228-frame result. The unpatched native comparator exited with Rust panic code 101 on the derivative, while the following fresh child remained unaffected. Source inspection identified unchecked decoder reads and enum fallback that can reinterpret a final partial record.
 
-The hardened build replaces those unchecked short reads with I/O errors and retains the panic guard. Because valid v13+ logs may also finish with a partial terminal record, the wrapper requires three agreeing signals before returning `truncated_records`: an incomplete raw record envelope, a decoded prefix that passes monotonic-time and coordinate/battery bounds, and decoded flight time more than one second short of the source-declared total. Invalid decoded output remains a generic decode failure rather than being mislabeled as truncation. The valid parent reached effectively 100% completion and remained a 27,228-frame success; the controlled derivative reached approximately 45.7%, returned `truncated_records` with exit code 2 and zero stderr, and the next valid child again produced 27,228 frames. Four source-free Rust tests cover complete, incomplete, corrupt, and combined-evidence behavior.
+The hardened build replaces those unchecked short reads with I/O errors and retains the panic guard. Because valid v13+ logs may also finish with a partial terminal record, the wrapper requires three agreeing signals before returning `truncated_records`: an incomplete raw record envelope, a decoded prefix that passes monotonic-time and coordinate/battery bounds, and decoded flight time more than one second short of the source-declared total. Invalid decoded output remains a generic decode failure rather than being mislabeled as truncation. The valid parent reached effectively 100% completion and remained a 27,228-frame success; the controlled derivative reached approximately 45.7%, returned `truncated_records` with exit code 2 and zero stderr, and the next valid child again produced 27,228 frames. Six source-free Rust tests cover complete, incomplete, corrupt, combined-evidence, output-mode, and deterministic intermediate behavior.
 
-The native release-evidence build pins Rust 1.96.1 and cargo-cyclonedx 0.5.9, normalizes local source references to the accepted upstream commit, and emits the binary, CycloneDX 1.5 SBOM, license index/texts, notices, and SHA-256 input/artifact manifests. Two clean `aarch64-apple-darwin` builds produced 80 byte-identical files. The host-target SBOM and notice set each cover 39 components. A current strict RustSec pass found zero target vulnerabilities and zero target warnings while excluding four vulnerabilities and two warnings that exist only in unrelated packages in the upstream workspace lockfile.
+## Private intermediate output evidence
+
+The native CLI's [`../../spikes/dji-parser/native-cli/intermediate.schema.json`](../../spikes/dji-parser/native-cli/intermediate.schema.json) defines the first private parser-output contract. Each result identifies the parser and schema version, binds itself to the exact SHA-256 source digest, distinguishes imported fields from later derived or overridden values, represents absent telemetry as `null`, and orders identifiers and capabilities deterministically. The trusted worker independently hashes and counts the authorized source bytes, then validates the parser-reported identity, contract fields, source identity, sample count, monotonic elapsed time, coordinate and telemetry bounds, and bounded output before exposing the result to a normalizer-only accessor. Ordinary serialization returns structural counts and a material digest, never raw samples or identifiers.
+
+Two fresh native processes decoded the authorized fixture to the same intermediate digest. Sanitized evidence recorded one flight, 27,228 samples, a 2,722,900 ms elapsed span, all seven declared capabilities, and a 12,698,658-byte intermediate (approximately 466 bytes per sample). Position and battery were present for all samples; signal was absent in seven samples and represented as `null`. The source digest was verified, the 32 MiB output limit had ample headroom, both children produced zero stderr, and the raw result was neither printed nor persisted.
+
+The measured native operation used approximately 197 ms for decoding, 224 ms total worker time, 250 ms supervisor wall time, and 70 MB peak RSS. A private-intermediate process completed in approximately 293 ms including process startup and bounded IPC. These host observations exclude the external key request and do not replace the product-level import target. They establish representative output, duration, startup, and output-volume evidence for the first authorized fixture only; the remaining fixture matrix and canonical normalization remain open.
+
+The native release-evidence build pins Rust 1.96.1 and cargo-cyclonedx 0.5.9, normalizes local source references to the accepted upstream commit, and emits the binary, CycloneDX 1.5 SBOM, license index/texts, notices, and SHA-256 input/artifact manifests. For the private-intermediate revision, two clean `aarch64-apple-darwin` builds produced 86 byte-identical files. The host-target SBOM and notice set each cover 42 components. A current strict RustSec pass found zero target vulnerabilities and zero target warnings while excluding four vulnerabilities and two warnings that exist only in unrelated packages in the upstream workspace lockfile. The 981,472-byte host executable has SHA-256 `53c6d965031d91f4e34e0245a084b599f55f3efe119e5e143b87e43976b95060`.
 
 The repository workflow repeats the build twice for `x86_64-unknown-linux-gnu`, compares the entire output tree, denies target vulnerabilities and warnings, uploads the evidence, and requests GitHub binary-provenance and SBOM attestations on non-PR runs. [GitHub Actions run `29398131979`](https://github.com/Synapsekw/Drone.Works/actions/runs/29398131979) passed at commit `6be0f8a`: 78 of 78 build-output files were byte-identical, the 38-component Linux target graph had zero target vulnerabilities and zero target warnings, and the uploaded 591,415-byte evidence archive was retained as artifact `8336052110`. The 1,028,120-byte executable has SHA-256 `22ea490fb456b080fe50ea1bb25369be68fe318495cb55ed7652a32794ab689a`. Independent `gh attestation verify` checks bound both the [binary provenance attestation](https://github.com/Synapsekw/Drone.Works/attestations/35405520) and [CycloneDX SBOM attestation](https://github.com/Synapsekw/Drone.Works/attestations/35405526) to the exact repository workflow, source commit, and artifact digest.
 
@@ -299,8 +308,10 @@ No parser error message may include raw payload, coordinates, serials, or full f
 - [x] Decode the first authorized fixture and validate positive frame count, monotonic time, coordinate/battery bounds, and capability coverage.
 - [x] Prove that the controlled truncated derivative fails independently and a later valid fixture still processes.
 - [x] Classify the controlled derivative as `truncated_records` using incomplete-envelope plus declared-duration evidence, without fixture-identity inference.
+- [x] Define and validate a deterministic, source-hash-bound private intermediate result on the first authorized fixture.
+- [x] Measure native process startup and output volume on the first authorized fixture.
 - [ ] Validate duration and representative output on the remaining fixture matrix.
-- [ ] Complete process-startup, key-retrieval, normalization, and output-volume measurements; JS and native decode/worker/RSS observations now exist.
+- [ ] Validate canonical normalization in P0-04; key retrieval plus native process and output measurements now exist.
 - [x] Decide whether the JS binding is acceptable in a Node worker or whether a Rust CLI boundary is safer. Select the native CLI and retain JS/WASM only as a comparator.
 - [x] Record acceptance, rejection, or a revised D-009 parser-isolation decision. D-009 now accepts the native CLI in the Linux hard-container boundary.
 - [x] Add native target SBOM/notices, strict advisory audit, repeat-build comparison, and the Linux attestation job to the internal build proof.

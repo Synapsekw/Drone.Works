@@ -157,13 +157,15 @@ Flight logs may be truncated, corrupt, or adversarial. One poison file must not 
 
 ### Decision
 
-Run each parse in a fresh, minimal Rust CLI inside the Linux hard-container boundary. The CLI receives one read-only source path and bounded private keychain input over standard input, emits only a versioned sanitized result, and has provider networking removed from its source and dependency graph.
+Run each parse in a fresh, minimal Rust CLI inside the Linux hard-container boundary. The CLI receives one read-only source path and bounded private keychain input over standard input, and has provider networking removed from its source and dependency graph.
+
+The CLI may emit either a small sanitized diagnostic/failure envelope or a versioned private intermediate result over bounded parser-to-worker IPC. The intermediate result may contain customer telemetry and source identifiers required for normalization, so the trusted worker must validate it before use and must never copy it into ordinary logs, public errors, durable job payloads, or project documentation. Only non-sensitive structural metrics and content digests may be retained as Phase 0 evidence.
 
 The trusted application worker remains outside this boundary. It resolves organization authorization, source access, keychain use, and any separately authorized provider request; applies wall-time and output limits; validates the CLI result; and destroys ephemeral plaintext after the child exits. The parser child runs unprivileged with no network, a read-only filesystem, dropped capabilities, `no-new-privileges`, bounded temporary storage, and hard CPU, total-memory, PID, wall-time, and output limits.
 
 ### Consequences
 
-Parser failures require structured supervisor classification, and every operation remains independently terminable because the reviewed upstream decoder contains unchecked reads on malformed data. Parser code receives no organization credential, DJI API credential, durable keychain payload, or network access.
+Parser failures require structured supervisor classification, and every operation remains independently terminable because the reviewed upstream decoder contains unchecked reads on malformed data. Parser code receives no organization credential, DJI API credential, durable keychain payload, or network access. The trusted worker owns source-hash comparison, intermediate-schema validation, normalization, persistence, and redaction at the parser boundary.
 
 The native boundary produced the same 27,228 frames and validation/capability summary as the JS/WASM binding on the first authorized v14 fixture while reducing observed peak RSS from approximately 410 MB to 70 MB. A fresh valid child succeeded after the controlled truncated derivative caused an upstream panic. The hardened build replaces unchecked short-record reads with I/O errors and retains the outer panic guard.
 

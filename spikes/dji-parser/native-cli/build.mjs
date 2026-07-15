@@ -190,6 +190,7 @@ const inputFiles = [
   ["native-cli/Cargo.toml", join(directory, "Cargo.toml")],
   ["native-cli/build.mjs", join(directory, "build.mjs")],
   ["native-cli/keychain-api.rs", join(directory, "keychain-api.rs")],
+  ["native-cli/intermediate.schema.json", join(directory, "intermediate.schema.json")],
   ["native-cli/decoder-hardening.patch", join(directory, "decoder-hardening.patch")],
   ["native-cli/src/main.rs", join(directory, "src", "main.rs")],
   ["internal-build/source.json", join(internalDirectory, "source.json")],

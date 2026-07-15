@@ -2,6 +2,8 @@ use dji_log_parser::frame::Frame;
 use dji_log_parser::keychain::KeychainFeaturePoint;
 use dji_log_parser::DJILog;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use std::collections::BTreeSet;
 use std::env;
 use std::fs;
 use std::io::{self, Read};
@@ -12,6 +14,9 @@ const MAX_INPUT_BYTES: u64 = 262_144;
 const PREFIX_SIZE: usize = 100;
 const VERSION_OFFSET: usize = 10;
 const MAX_TERMINAL_TIME_GAP_SECONDS: f64 = 1.0;
+const PARSER_ID: &str = "dji-log-parser";
+const PARSER_VERSION: &str = "0.5.7";
+const PARSER_SOURCE_COMMIT: &str = "e2e0775670a8391b4f7ecc40fca4cb01ea4a90fa";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum EnvelopeStatus {
@@ -19,6 +24,12 @@ enum EnvelopeStatus {
     IncompleteTerminalRecord,
     Invalid,
     Unavailable,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum OutputMode {
+    Summary,
+    Intermediate,
 }
 
 #[derive(Deserialize)]
@@ -73,6 +84,116 @@ struct Failure {
     kind: &'static str,
     status: &'static str,
     failure_code: &'static str,
+}
+
+#[derive(Serialize)]
+struct IntermediateParser {
+    id: &'static str,
+    version: &'static str,
+    source_commit: &'static str,
+}
+
+#[derive(Serialize)]
+struct IntermediateSource {
+    sha256: String,
+    bytes: usize,
+    format_family: &'static str,
+    format_version: u8,
+}
+
+#[derive(Serialize)]
+struct SourceIdentifiers {
+    aircraft_serials: Vec<String>,
+    battery_serials: Vec<String>,
+    camera_serials: Vec<String>,
+    controller_serials: Vec<String>,
+}
+
+#[derive(Serialize)]
+struct ImportedDetails {
+    takeoff_time_utc: String,
+    declared_duration_ms: Option<u64>,
+    declared_distance_m: Option<f32>,
+    declared_max_height_m: Option<f32>,
+    declared_max_horizontal_speed_mps: Option<f32>,
+    declared_max_vertical_speed_mps: Option<f32>,
+    aircraft_name: Option<String>,
+    aircraft_model: serde_json::Value,
+    application_platform: serde_json::Value,
+    application_version: Option<String>,
+    identifiers: SourceIdentifiers,
+}
+
+#[derive(Serialize)]
+struct PositionSample {
+    latitude_deg: f64,
+    longitude_deg: f64,
+}
+
+#[derive(Serialize)]
+struct VelocitySample {
+    x_mps: Option<f32>,
+    y_mps: Option<f32>,
+    z_mps: Option<f32>,
+}
+
+#[derive(Serialize)]
+struct AttitudeSample {
+    pitch_deg: Option<f32>,
+    roll_deg: Option<f32>,
+    yaw_deg: Option<f32>,
+}
+
+#[derive(Serialize)]
+struct BatterySample {
+    charge_percent: u8,
+    voltage_v: Option<f32>,
+    current_a: Option<f32>,
+    temperature_c: Option<f32>,
+}
+
+#[derive(Serialize)]
+struct GpsSample {
+    satellites: u8,
+    signal_level: u8,
+    position_used: bool,
+}
+
+#[derive(Serialize)]
+struct SignalSample {
+    uplink_percent: Option<u8>,
+    downlink_percent: Option<u8>,
+}
+
+#[derive(Serialize)]
+struct TelemetrySample {
+    elapsed_ms: Option<u64>,
+    position: Option<PositionSample>,
+    altitude_msl_m: Option<f32>,
+    height_agl_m: Option<f32>,
+    velocity: VelocitySample,
+    attitude: AttitudeSample,
+    battery: Option<BatterySample>,
+    gps: GpsSample,
+    signal: Option<SignalSample>,
+}
+
+#[derive(Serialize)]
+struct IntermediateFlight {
+    flight_index: u8,
+    imported: ImportedDetails,
+    capabilities: Vec<&'static str>,
+    sample_count: usize,
+    samples: Vec<TelemetrySample>,
+}
+
+#[derive(Serialize)]
+struct IntermediateResult {
+    schema_version: u8,
+    kind: &'static str,
+    parser: IntermediateParser,
+    source: IntermediateSource,
+    flights: Vec<IntermediateFlight>,
 }
 
 fn fail(code: &'static str) -> ! {
@@ -231,11 +352,208 @@ fn summarize(frames: &[Frame], secret: &str) -> (Validation, Capabilities) {
     )
 }
 
+fn output_mode(arguments: &[String]) -> Option<(String, OutputMode)> {
+    match arguments {
+        [path] => Some((path.clone(), OutputMode::Summary)),
+        [path, flag, value] if flag == "--output" && value == "summary" => {
+            Some((path.clone(), OutputMode::Summary))
+        }
+        [path, flag, value] if flag == "--output" && value == "intermediate" => {
+            Some((path.clone(), OutputMode::Intermediate))
+        }
+        _ => None,
+    }
+}
+
+fn finite_f32(value: f32) -> Option<f32> {
+    value.is_finite().then_some(value)
+}
+
+fn non_empty(value: &str) -> Option<String> {
+    let trimmed = value.trim_matches(char::from(0)).trim();
+    (!trimmed.is_empty()).then(|| trimmed.to_string())
+}
+
+fn insert_non_empty(values: &mut BTreeSet<String>, value: &str) {
+    if let Some(value) = non_empty(value) {
+        values.insert(value);
+    }
+}
+
+fn intermediate_sample(frame: &Frame, battery_seen: &mut bool) -> TelemetrySample {
+    let latitude = frame.osd.latitude;
+    let longitude = frame.osd.longitude;
+    let position = (latitude.is_finite()
+        && longitude.is_finite()
+        && (-90.0..=90.0).contains(&latitude)
+        && (-180.0..=180.0).contains(&longitude)
+        && (latitude != 0.0 || longitude != 0.0))
+        .then_some(PositionSample {
+            latitude_deg: latitude,
+            longitude_deg: longitude,
+        });
+
+    let has_battery_evidence = frame.battery.charge_level > 0
+        || frame.battery.voltage != 0.0
+        || frame.battery.current != 0.0
+        || frame.battery.current_capacity > 0
+        || frame.battery.full_capacity > 0
+        || frame.battery.temperature != 0.0
+        || frame
+            .battery
+            .cell_voltages
+            .iter()
+            .any(|value| *value != 0.0);
+    *battery_seen |= has_battery_evidence;
+
+    let signal = (frame.rc.uplink_signal.is_some() || frame.rc.downlink_signal.is_some())
+        .then_some(SignalSample {
+            uplink_percent: frame.rc.uplink_signal,
+            downlink_percent: frame.rc.downlink_signal,
+        });
+
+    TelemetrySample {
+        elapsed_ms: frame
+            .osd
+            .fly_time
+            .is_finite()
+            .then(|| (f64::from(frame.osd.fly_time.max(0.0)) * 1000.0).round() as u64),
+        position,
+        altitude_msl_m: finite_f32(frame.osd.altitude),
+        height_agl_m: finite_f32(frame.osd.height),
+        velocity: VelocitySample {
+            x_mps: finite_f32(frame.osd.x_speed),
+            y_mps: finite_f32(frame.osd.y_speed),
+            z_mps: finite_f32(frame.osd.z_speed),
+        },
+        attitude: AttitudeSample {
+            pitch_deg: finite_f32(frame.osd.pitch),
+            roll_deg: finite_f32(frame.osd.roll),
+            yaw_deg: finite_f32(frame.osd.yaw),
+        },
+        battery: (*battery_seen).then_some(BatterySample {
+            charge_percent: frame.battery.charge_level,
+            voltage_v: finite_f32(frame.battery.voltage),
+            current_a: finite_f32(frame.battery.current),
+            temperature_c: finite_f32(frame.battery.temperature),
+        }),
+        gps: GpsSample {
+            satellites: frame.osd.gps_num,
+            signal_level: frame.osd.gps_level,
+            position_used: frame.osd.is_gpd_used,
+        },
+        signal,
+    }
+}
+
+fn intermediate_result(
+    source_sha256: String,
+    source_bytes: usize,
+    format_version: u8,
+    parser: &DJILog,
+    frames: &[Frame],
+) -> IntermediateResult {
+    let mut aircraft_serials = BTreeSet::new();
+    let mut battery_serials = BTreeSet::new();
+    let mut camera_serials = BTreeSet::new();
+    let mut controller_serials = BTreeSet::new();
+    insert_non_empty(&mut aircraft_serials, &parser.details.aircraft_sn);
+    insert_non_empty(&mut battery_serials, &parser.details.battery_sn);
+    insert_non_empty(&mut camera_serials, &parser.details.camera_sn);
+    insert_non_empty(&mut controller_serials, &parser.details.rc_sn);
+    for frame in frames {
+        insert_non_empty(&mut aircraft_serials, &frame.recover.aircraft_sn);
+        insert_non_empty(&mut battery_serials, &frame.recover.battery_sn);
+        insert_non_empty(&mut camera_serials, &frame.recover.camera_sn);
+        insert_non_empty(&mut controller_serials, &frame.recover.rc_sn);
+    }
+
+    let mut battery_seen = false;
+    let samples = frames
+        .iter()
+        .map(|frame| intermediate_sample(frame, &mut battery_seen))
+        .collect::<Vec<_>>();
+    let mut capabilities = BTreeSet::new();
+    for sample in &samples {
+        if sample.position.is_some() {
+            capabilities.insert("position");
+        }
+        if sample.altitude_msl_m.is_some() || sample.height_agl_m.is_some() {
+            capabilities.insert("altitude");
+        }
+        if sample.velocity.x_mps.is_some()
+            || sample.velocity.y_mps.is_some()
+            || sample.velocity.z_mps.is_some()
+        {
+            capabilities.insert("velocity");
+        }
+        if sample.attitude.pitch_deg.is_some()
+            || sample.attitude.roll_deg.is_some()
+            || sample.attitude.yaw_deg.is_some()
+        {
+            capabilities.insert("attitude");
+        }
+        if sample.battery.is_some() {
+            capabilities.insert("battery");
+        }
+        if sample.signal.is_some() {
+            capabilities.insert("signal");
+        }
+        capabilities.insert("gps");
+    }
+
+    let declared_duration_ms = parser
+        .details
+        .total_time
+        .is_finite()
+        .then(|| (parser.details.total_time.max(0.0) * 1000.0).round() as u64);
+    IntermediateResult {
+        schema_version: 1,
+        kind: "dji_parser_intermediate",
+        parser: IntermediateParser {
+            id: PARSER_ID,
+            version: PARSER_VERSION,
+            source_commit: PARSER_SOURCE_COMMIT,
+        },
+        source: IntermediateSource {
+            sha256: source_sha256,
+            bytes: source_bytes,
+            format_family: "dji_txt",
+            format_version,
+        },
+        flights: vec![IntermediateFlight {
+            flight_index: 0,
+            imported: ImportedDetails {
+                takeoff_time_utc: parser.details.start_time.to_rfc3339(),
+                declared_duration_ms,
+                declared_distance_m: finite_f32(parser.details.total_distance),
+                declared_max_height_m: finite_f32(parser.details.max_height),
+                declared_max_horizontal_speed_mps: finite_f32(parser.details.max_horizontal_speed),
+                declared_max_vertical_speed_mps: finite_f32(parser.details.max_vertical_speed),
+                aircraft_name: non_empty(&parser.details.aircraft_name),
+                aircraft_model: serde_json::to_value(&parser.details.product_type)
+                    .unwrap_or(serde_json::Value::Null),
+                application_platform: serde_json::to_value(&parser.details.app_platform)
+                    .unwrap_or(serde_json::Value::Null),
+                application_version: non_empty(&parser.details.app_version),
+                identifiers: SourceIdentifiers {
+                    aircraft_serials: aircraft_serials.into_iter().collect(),
+                    battery_serials: battery_serials.into_iter().collect(),
+                    camera_serials: camera_serials.into_iter().collect(),
+                    controller_serials: controller_serials.into_iter().collect(),
+                },
+            },
+            capabilities: capabilities.into_iter().collect(),
+            sample_count: samples.len(),
+            samples,
+        }],
+    }
+}
+
 fn main() {
     let started = Instant::now();
-    let path = env::args()
-        .nth(1)
-        .unwrap_or_else(|| fail("invalid_arguments"));
+    let arguments = env::args().skip(1).collect::<Vec<_>>();
+    let (path, output_mode) = output_mode(&arguments).unwrap_or_else(|| fail("invalid_arguments"));
 
     let mut input_bytes = Vec::new();
     if io::stdin()
@@ -259,6 +577,9 @@ fn main() {
     let read_started = Instant::now();
     let bytes = fs::read(path).unwrap_or_else(|_| fail("fixture_unavailable"));
     let read_ms = read_started.elapsed().as_secs_f64() * 1000.0;
+    let source_bytes = bytes.len();
+    let format_version = bytes.get(VERSION_OFFSET).copied().unwrap_or_default();
+    let source_sha256 = format!("{:x}", Sha256::digest(&bytes));
     let envelope_status = inspect_record_envelopes(&bytes);
     if envelope_status == EnvelopeStatus::Invalid {
         fail("decode_failed");
@@ -294,6 +615,20 @@ fn main() {
         decoded_prefix_valid,
     ) {
         fail("truncated_records");
+    }
+
+    if output_mode == OutputMode::Intermediate {
+        let output = intermediate_result(
+            source_sha256,
+            source_bytes,
+            format_version,
+            &parser,
+            &frames,
+        );
+        serde_json::to_writer(io::stdout(), &output)
+            .unwrap_or_else(|_| fail("serialization_failed"));
+        println!();
+        return;
     }
 
     let output = Success {
@@ -376,5 +711,38 @@ mod tests {
             100.0,
             true
         ));
+    }
+
+    #[test]
+    fn parses_explicit_intermediate_output_mode() {
+        assert_eq!(
+            output_mode(&[
+                "fixture.bin".to_string(),
+                "--output".to_string(),
+                "intermediate".to_string(),
+            ]),
+            Some(("fixture.bin".to_string(), OutputMode::Intermediate))
+        );
+        assert_eq!(
+            output_mode(&["fixture.bin".to_string()]),
+            Some(("fixture.bin".to_string(), OutputMode::Summary))
+        );
+    }
+
+    #[test]
+    fn intermediate_sample_keeps_unavailable_position_null() {
+        let mut frame = Frame::default();
+        frame.osd.latitude = 0.0;
+        frame.osd.longitude = 0.0;
+        frame.osd.fly_time = 1.25;
+        let mut battery_seen = false;
+        let sample = intermediate_sample(&frame, &mut battery_seen);
+        let first = serde_json::to_vec(&sample).unwrap();
+        let second = serde_json::to_vec(&sample).unwrap();
+
+        assert!(sample.position.is_none());
+        assert!(sample.battery.is_none());
+        assert_eq!(sample.elapsed_ms, Some(1250));
+        assert_eq!(first, second);
     }
 }

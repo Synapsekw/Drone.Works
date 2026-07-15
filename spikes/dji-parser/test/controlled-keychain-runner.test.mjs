@@ -14,6 +14,7 @@ import { MockKeychainProvider } from "../src/keychain/providers.mjs";
 
 const testDirectory = dirname(fileURLToPath(import.meta.url));
 const fakeWorker = resolve(testDirectory, "../test-support/fake-worker.mjs");
+const fakeNativeWorker = resolve(testDirectory, "../test-support/fake-native-worker.mjs");
 const temporaryDirectories = [];
 
 async function temporaryFile(name, contents) {
@@ -107,6 +108,30 @@ test("live mode fetches and decodes through the broker without serializing secre
   assert.equal(provider.sanitizedCalls.length, 1);
   assert.equal(JSON.stringify(result).includes(keychains[0][0].aesKey), false);
   assert.equal(JSON.stringify(result).includes(keychains[0][0].aesIv), false);
+});
+
+test("live mode validates two deterministic private native intermediates", async () => {
+  const fixturePath = await temporaryFile("fixture.bin", "success");
+  const provider = new MockKeychainProvider({
+    responses: new Map([["controlled-fixture", keychains]]),
+  });
+  const result = await runControlledKeychain({
+    fixture: fixture(true),
+    fixturePath,
+    provider,
+    allowDjiRequest: true,
+    workerPath: fakeWorker,
+    nativeExecutable: process.execPath,
+    nativeArgs: [fakeNativeWorker],
+    networkIsolation: "test_only_none",
+  });
+
+  assert.equal(result.decode.status, "decoded");
+  assert.equal(result.intermediate.status, "intermediate_ready");
+  assert.equal(result.intermediate.repeat_material_match, true);
+  assert.equal(result.intermediate.material.sample_count, 1);
+  assert.equal(JSON.stringify(result).includes("private-aircraft-serial"), false);
+  assert.equal(provider.sanitizedCalls.length, 1);
 });
 
 test("live mode rejects a fixture without external-processing authorization before parsing", async () => {

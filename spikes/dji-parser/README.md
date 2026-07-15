@@ -86,6 +86,18 @@ npm run keychain -- --fixture dji-log-001 --allow-dji-request
 
 Live mode uses the exact allowlisted DJI endpoint, holds the returned keychain only in an encrypted in-memory cache for the process lifetime, sends it to a fresh no-network child over bounded standard input, destroys the cache, and emits only the broker and decode summaries. It remains a Phase 0 research command, not a production credential or persistence path.
 
+The selected native CLI can also be exercised through the same controlled runner:
+
+```sh
+npm run keychain -- --fixture dji-log-001 --allow-dji-request --memory-mb 256 \
+  --native-executable /path/to/droneworks-dji-parser-cli
+```
+
+That mode runs one sanitized native summary and two fresh private-intermediate operations. It prints
+only structural metrics, a material digest, source-hash verification, and whether the two results
+match. The validated raw intermediate remains behind the trusted worker's `valueForNormalizer()`
+accessor and is never included in ordinary JSON serialization.
+
 An authorized primary request can drive additional offline decodes before the cache is destroyed. Each follow-up fixture must independently permit controlled local keychain use, but its metadata is not sent to DJI:
 
 ```sh

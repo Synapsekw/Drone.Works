@@ -13,12 +13,12 @@ related: ["[[00-north-star]]"]
 - [DJI official-parser comparison](../../docs/research/DJI-OFFICIAL-PARSER-COMPARISON.md)
 - [Fixture policy](../../docs/testing/FIXTURE-POLICY.md)
 - [Internal parser build](../../spikes/dji-parser/internal-build/README.md)
+- [Native Rust boundary proof](../../spikes/dji-parser/native-cli/README.md)
 
 ## Unresolved evidence
 
-- Authority and consent for a controlled DJI key request.
-- Correct decoded v14 frames and capability coverage.
-- Truncated-record behavior after decryption.
-- Peak CPU/memory and output volume for complete frame decoding.
-- Production Linux container isolation and CI/advisory enforcement.
-- Final parser/runtime acceptance or revision of D-009 and D-012.
+- Representative decoded coverage beyond the first authorized v14 fixture.
+- A parser termination signal that distinguishes clean EOF, unexpected EOF, and corrupt records.
+- Native target SBOM/notices, advisory audit, Linux artifact attestation, and CI execution.
+- Duration, normalization, process-startup, and output-volume validation.
+- Production key-service/legal acceptance and final D-012 status.

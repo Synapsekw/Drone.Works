@@ -1,12 +1,12 @@
 ---
 type: north-star
 status: active
-last-updated: 2026-07-15-0820
+last-updated: 2026-07-15-0943
 tags: [project/drone-works, north-star]
 related:
   - "[[project-history]]"
   - "[[memory]]"
-  - "[[2026-07-15-0820-authorized-dji-decode-recovery]]"
+  - "[[2026-07-15-0943-select-native-parser-boundary]]"
 ---
 
 # Drone.Works — North Star
@@ -32,11 +32,11 @@ Drone.Works is an explainable operational record for small professional drone te
 ## Now
 
 - **Phase:** Phase 0, workstream P0-03 — DJI parser and key feasibility.
-- **Branch:** `main` at `c7a8d40`, five commits ahead of `origin/main`; the live decode/recovery implementation and canonical evidence are committed and the working tree was clean before this vault wrap-up.
-- **Completed evidence:** the trusted broker fetched and validated the first authorized DJI keychain response; a 256 MB isolated child decoded 27,228 bounded frames, the controlled derivative failed independently, and a later fresh child reproduced the valid result. Linux containment and reproducible/advisory CI remain green.
-- **Verification baseline:** all 57 parser/orchestration tests pass outside the outer sandbox with zero skips; successful decodes show monotonic time, bounded coordinates/battery values, four capability groups, approximately 421–528 ms frame decode, and approximately 411–413 MB RSS; four fixtures pass manifest verification.
-- **Blocking evidence:** the controlled derivative still reports generic `decode_failed`; duration, remaining fixture coverage, normalization/output-volume measurements, and the final JS-binding-versus-Rust-CLI choice remain open. The observed JS RSS materially exceeds the initial limit.
-- **Next technical action:** compare the JavaScript binding with a Rust CLI boundary using the authorized evidence, add defensible `truncated_records` classification, and settle D-009 before starting P0-04 normalization.
+- **Branch:** `main` at `58e42a7`, seven commits ahead of `origin/main`; the native parser-boundary proof and accepted D-009 decision are committed.
+- **Completed evidence:** the native Rust CLI matches the JS/WASM result at 27,228 frames with the same validation and capabilities, uses approximately 70 MB peak RSS instead of 410 MB, and decodes in approximately 203–207 ms instead of 412–416 ms. Its reproducible build removes provider networking, and valid processing recovers after a guarded malformed-input failure.
+- **Verification baseline:** all 57 parser/orchestration tests pass outside the outer sandbox with zero skips; the exact pinned native source builds successfully, the controlled derivative returns structured `parser_internal_error` with zero stderr, and a later fresh child reproduces the valid result. Linux hard-container and JS/WASM reproducibility/advisory CI evidence remain green.
+- **Blocking evidence:** upstream record iteration discards its parse-termination reason and contains unchecked reads, so `truncated_records` cannot yet be distinguished honestly from corrupt/internal failure. Remaining fixture coverage, duration, normalization/output-volume measurements, and native SBOM/audit/attestation gates remain open.
+- **Next technical action:** patch the pinned parser to expose clean completion versus unexpected EOF/corrupt-record termination, prove `truncated_records` and unchanged valid output, then complete native release gates before starting P0-04 normalization.
 - **Next external decision:** decide whether the remaining fixtures may use DJI processing; production terms, notice/consent, managed-secret, retention, and deletion gates remain separate under D-012.
 - **After representative output:** begin P0-04 canonical model/provenance proof; P0-05 tenancy and P0-06 telemetry work follow the Phase 0 dependency gates.
 - **Privacy:** raw fixtures remain ignored and local. No raw values, coordinates, identifiers, keychain feature points, credentials, or generated parser artifacts belong in this vault.
@@ -47,7 +47,7 @@ Drone.Works is an explainable operational record for small professional drone te
 |---|---|---|
 | P0-01 constraints and scorecard | Evidence drafted | Quality attributes and stack scorecard exist; final component choices remain proposed. |
 | P0-02 fixture policy and inventory | Local research gate satisfied | Policy, manifest, three private v14 logs, and one controlled truncation exist. |
-| P0-03 parser/key feasibility | Active | Authorized v14 decode and valid-truncated-valid recovery pass; truncation classification, broader coverage, resource comparison, and final runtime selection remain open. |
+| P0-03 parser/key feasibility | Active | D-009 selects the native Rust CLI in the Linux boundary; truncation termination, native release gates, broader coverage, and normalization measurements remain open. |
 | P0-04 canonical model | Waiting | Requires representative intermediate parser output. |
 | P0-05 organization isolation | Not started | Requires ownership model and executable Postgres/RLS proof. |
 | P0-06 telemetry benchmark | Not started | Requires representative telemetry shape. |

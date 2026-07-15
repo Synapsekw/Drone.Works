@@ -15,11 +15,11 @@ related: ["[[00-north-star]]", "[[project-history]]"]
 
 ```text
 P0-03 parser/key feasibility
-  -> authorized representative intermediate output
+  -> native termination classification + release gates
   -> P0-04 canonical model
   -> P0-05 tenancy + P0-06 telemetry proofs
   -> P0-07/08 stack and threat-model closure
   -> P0-09 Phase 1A backlog
 ```
 
-The Linux parser-container and CI work can proceed while the external DJI authorization decision is reviewed.
+D-009 now selects a minimal native Rust CLI inside the proven Linux hard-container boundary. The next gate is exposing truthful parse termination (`truncated_records` versus corrupt/internal failure), then closing the native artifact SBOM/audit/attestation proof before P0-04 consumes a representative intermediate output.

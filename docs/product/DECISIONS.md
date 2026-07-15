@@ -1,7 +1,7 @@
 # Decision Log — Drone.Works
 
 Status: active
-Last updated: 2026-07-12
+Last updated: 2026-07-15
 
 This file records architectural and implementation decisions. Product behavior belongs in `BEHAVIOR.md`; unresolved choices remain open here until accepted.
 
@@ -148,20 +148,32 @@ Accept a storage design only after measuring import, replay, export, deletion, a
 
 ## D-009 — Parser isolation
 
-Status: proposed
-Date: 2026-07-12
+Status: accepted
+Date: 2026-07-15
 
 ### Context
 
 Flight logs may be truncated, corrupt, or adversarial. One poison file must not affect other work.
 
-### Proposed decision
+### Decision
 
-Run parsing with explicit CPU, memory, time, and filesystem/network limits in an independently terminable execution boundary. The specific process, container, or worker technology will be selected after parser evaluation.
+Run each parse in a fresh, minimal Rust CLI inside the Linux hard-container boundary. The CLI receives one read-only source path and bounded private keychain input over standard input, emits only a versioned sanitized result, and has provider networking removed from its source and dependency graph.
+
+The trusted application worker remains outside this boundary. It resolves organization authorization, source access, keychain use, and any separately authorized provider request; applies wall-time and output limits; validates the CLI result; and destroys ephemeral plaintext after the child exits. The parser child runs unprivileged with no network, a read-only filesystem, dropped capabilities, `no-new-privileges`, bounded temporary storage, and hard CPU, total-memory, PID, wall-time, and output limits.
 
 ### Consequences
 
-Parser failures need structured classification. Parser code receives no organization credentials and no unrestricted network access.
+Parser failures require structured supervisor classification, and every operation remains independently terminable because the reviewed upstream decoder contains unchecked reads on malformed data. Parser code receives no organization credential, DJI API credential, durable keychain payload, or network access.
+
+The native boundary produced the same 27,228 frames and validation/capability summary as the JS/WASM binding on the first authorized v14 fixture while reducing observed peak RSS from approximately 410 MB to 70 MB. A fresh valid child succeeded after the controlled truncated derivative caused an upstream panic. The wrapper converts such panics to `parser_internal_error`, but accurate `truncated_records` classification still requires a parser patch that distinguishes clean record completion from unexpected EOF. This classification gap blocks final parser acceptance, not the isolation technology decision.
+
+The JS/WASM binding remains useful as a research comparator; it is not the production parser runtime. The native build must retain pinned-source verification, target-specific SBOM/notices, advisory checks, artifact attestation, and the Linux containment proof in CI.
+
+### Reconsideration triggers
+
+- The Rust candidate cannot expose a defensible parse-termination reason without an incompatible fork.
+- Representative supported fixtures exceed the accepted Linux resource envelope.
+- A maintained parser with stronger correctness and supply-chain evidence materially changes the trade-off.
 
 ## D-010 — Phase 1 delivery boundary
 

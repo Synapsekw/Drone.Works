@@ -1,8 +1,8 @@
 # DJI parser evaluation
 
-Status: in progress; first authorized v14 decode and truncation-recovery sequence pass
-Candidate: `dji-log-parser-js@0.5.7`
-Last updated: 2026-07-14
+Status: in progress; native runtime selected, truncation classification remains open
+Candidate: pinned `dji-log-parser@0.5.7` behind a minimal Rust CLI
+Last updated: 2026-07-15
 
 ## Scope
 
@@ -18,15 +18,17 @@ The candidate is suitable for continued local evaluation:
 - General, non-sensitive details can be read without a keychain.
 - Full record/frame decoding requires a DJI keychain for version 14.
 - The controlled truncated derivative fails independently during keyed frame decoding, and a later fresh child still decodes the valid parent.
+- The minimal native CLI matches the JS/WASM result at 27,228 frames and uses approximately 70 MB peak RSS instead of 410 MB.
+- D-009 now selects the native CLI inside the existing Linux hard-container boundary; JS/WASM remains a research comparator.
 - The official DJI comparator documents v13 only, so it does not currently displace the candidate for these v14 fixtures.
 
-This is not yet a parser acceptance decision. Frame correctness, corrupt-file isolation, resource limits, normalization coverage, supply-chain remediation, and the DJI API/key terms remain unresolved.
+This is not yet final parser acceptance. Representative fixture coverage, duration/normalization validation, defensible truncation classification, native release attestation, and the production DJI key-service/legal gates remain unresolved.
 
-The local prefix/details probe is reproducible through [`../../spikes/dji-parser/`](../../spikes/dji-parser/). The first authorized fixture now has sanitized frame-validity, capability, memory, and recovery evidence; broader fixture coverage, duration validation, normalization, and final runtime selection remain open.
+The local prefix/details probe is reproducible through [`../../spikes/dji-parser/`](../../spikes/dji-parser/). The first authorized fixture now has sanitized frame-validity, capability, memory, and recovery evidence; broader fixture coverage, duration validation, normalization, and native release hardening remain open.
 
 A trusted keychain broker, encrypted cache, private parser/keychain IPC, disabled-by-default provider adapter, and explicit one-shot research runner are implemented. After explicit authorization, the real path fetched one validated keychain response from DJI and decoded only in fresh no-network children. The result contained no credential, request values, keys, IVs, coordinates, or unexpected worker fields.
 
-The detailed [supply-chain review](DJI-PARSER-SUPPLY-CHAIN.md) and [official-library comparison](DJI-OFFICIAL-PARSER-COMPARISON.md) retain the candidate only conditionally. A reproducible private build now supplies an SBOM/notices, replaces the unmaintained target dependency, removes parser-side DJI networking, and passes the Linux containment and target-specific advisory gates in CI. Authorized frame validation and legal/key-service approval remain open.
+The detailed [supply-chain review](DJI-PARSER-SUPPLY-CHAIN.md) and [official-library comparison](DJI-OFFICIAL-PARSER-COMPARISON.md) retain the parser library only conditionally. The JS/WASM build already supplies an SBOM/notices, replaces the unmaintained target dependency, removes parser-side DJI networking, and passes the Linux containment and target-specific advisory gates in CI. The selected native artifact now has a reproducible source-removal proof, but it still needs equivalent target-specific SBOM/notices, advisory, and attestation gates before release.
 
 ## Fixture handling
 
@@ -39,7 +41,7 @@ The detailed [supply-chain review](DJI-PARSER-SUPPLY-CHAIN.md) and [official-lib
 
 Hashes, provenance, privacy categories, and review state are stored in [`../../fixtures/manifest.json`](../../fixtures/manifest.json). Raw and derived bytes remain under ignored `fixtures/local/` paths and are not committed.
 
-External service processing is explicitly authorized for the first fixture based on the repository owner's 2026-07-14 instruction. It remains false for the other two raw fixtures and the derivative. No call to DJI or another external service was made.
+External service processing is explicitly authorized for the first fixture based on the repository owner's 2026-07-14 instruction. It remains false for the other two raw fixtures and the derivative. Controlled requests were made only for the authorized parent; the derivative reused the same ephemeral response locally and was never sent to DJI.
 
 ## Non-sensitive source observations
 
@@ -176,7 +178,21 @@ The first fixture request contains one group, nine allowlisted wire feature poin
 
 At the initial 128 MB V8 old-space limit, decode terminated cleanly as `parser_memory_limit`. With 256 MB of V8 old space, the same fixture decoded 27,228 frames. Two successful observations measured approximately 421–528 ms inside `frames()`, 444–549 ms total worker time, 411–413 MB RSS, and 143–176 MB used JavaScript heap. Time was monotonic, coordinates and battery values remained in bounds, and location, battery, signal, and attitude capabilities were present.
 
-One later provider call supplied the same ephemeral keychain to three fresh no-network children. The valid source decoded, the controlled truncated derivative failed, and a later valid child decoded the same 27,228 frames. This proves per-operation failure isolation and recovery without sending derivative metadata to DJI. The derivative currently returns generic `decode_failed`; distinguishing it as `truncated_records` remains an implementation requirement.
+One later provider call supplied the same ephemeral keychain to three fresh no-network children. The valid source decoded, the controlled truncated derivative failed, and a later valid child decoded the same 27,228 frames. This proves per-operation failure isolation and recovery without sending derivative metadata to DJI. The JS/WASM child returns generic `decode_failed`, while the guarded native child returns `parser_internal_error`; distinguishing unexpected EOF as `truncated_records` remains an implementation requirement.
+
+## Native Rust boundary comparison
+
+[`../../spikes/dji-parser/native-cli/`](../../spikes/dji-parser/native-cli/) builds a minimal CLI from the same exact pinned upstream commit. Its build removes the provider methods plus `ureq` and `async-channel` before compilation. The executable accepts validated keychains only through bounded standard input, emits a sanitized summary, contains no provider-networking path, and converts upstream decoder panics into `parser_internal_error`. It still runs as untrusted code inside the D-009 Linux boundary.
+
+One controlled comparison reused a single authorized parent response in memory. The JS/WASM and native children reported the same 27,228 frames, validation flags, and capabilities:
+
+| Observation | JS/WASM | Native Rust |
+|---|---:|---:|
+| Decode time | 416 ms | 207 ms |
+| Worker time | 435 ms | 213 ms |
+| Peak RSS | 410 MB | 70 MB |
+
+The native valid → truncated derivative → valid sequence ended with the same 27,228-frame result. The unpatched native comparator exited with Rust panic code 101 on the derivative, while the following fresh child remained unaffected. Source inspection identified unchecked reads in the upstream decoder and a record loop that discards the record parse error. Because that API does not expose whether termination was clean EOF, unexpected EOF, or another parse error, labeling the derivative `truncated_records` today would be guesswork. The selected native wrapper contains the panic; the next parser patch must preserve and classify the termination cause before P0-03 closes.
 
 ## Preliminary constructor timing
 
@@ -277,9 +293,10 @@ No parser error message may include raw payload, coordinates, serials, or full f
 - [x] Prove that the controlled truncated derivative fails independently and a later valid fixture still processes.
 - [ ] Classify the controlled derivative as `truncated_records` instead of generic `decode_failed`.
 - [ ] Validate duration and representative output on the remaining fixture matrix.
-- [ ] Complete process-startup, key-retrieval, normalization, and output-volume measurements; JS decode time, worker time, RSS, and heap observations now exist.
-- [ ] Decide whether the JS binding is acceptable in a Node worker or whether a Rust CLI boundary is safer.
-- [ ] Record acceptance, rejection, or a revised D-009 parser-isolation decision.
+- [ ] Complete process-startup, key-retrieval, normalization, and output-volume measurements; JS and native decode/worker/RSS observations now exist.
+- [x] Decide whether the JS binding is acceptable in a Node worker or whether a Rust CLI boundary is safer. Select the native CLI and retain JS/WASM only as a comparator.
+- [x] Record acceptance, rejection, or a revised D-009 parser-isolation decision. D-009 now accepts the native CLI in the Linux hard-container boundary.
+- [ ] Add native target SBOM/notices, advisory audit, Linux artifact attestation, and CI execution to the internal build proof.
 
 ### Linux containment implementation
 

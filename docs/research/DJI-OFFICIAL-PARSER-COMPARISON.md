@@ -1,13 +1,13 @@
 # DJI official parser comparison
 
 Status: completed for Phase 0
-Compared: 2026-07-12
+Compared: 2026-07-15
 
 ## Recommendation
 
-Continue evaluating `dji-log-parser-js@0.5.7` for Phase 1A. Do not select DJI `FlightRecordParsingLib@v1.0.6` as the primary parser on current evidence.
+Continue with the pinned community Rust parser behind Drone.Works' minimal native CLI for Phase 1A. Retain its JS/WASM binding as a research comparator. Do not select DJI `FlightRecordParsingLib@v1.0.6` as the primary parser on current evidence.
 
-This is a conditional feasibility recommendation, not production acceptance of the community parser. The first authorized v14 fixture now passes bounded frame validation and truncation recovery, while broader fixture coverage, memory/runtime packaging, and the production key-service/legal gates remain open.
+This is a conditional parser-library recommendation, not production acceptance of the artifact. The first authorized v14 fixture passes bounded frame validation and recovery, and the native runtime materially improves memory and decode time. Broader fixture coverage, truthful truncation classification, native artifact attestation, and the production key-service/legal gates remain open.
 
 ## Comparison
 
@@ -19,11 +19,12 @@ This is a conditional feasibility recommendation, not production acceptance of t
 | Local fixture evidence | Initializes all three local v14 candidates; the first authorized fixture decodes 27,228 bounded frames and survives a valid-truncated-valid recovery sequence | No documented v14 support and not run because it requires an App Key |
 | Output model | Normalized Rust `Frame` exposed through JS/WASM | 10 Hz standardized C++/Protobuf frame model |
 | Key-service boundary | Can construct a request locally and accept offline keychains; Drone.Works isolates provider access | Library architecture includes curl/OpenSSL communication with DJIService and accepts an App Key |
-| Runtime integration | ESM/Node binding around bundled WASM | Native C/C++, CMake, platform builds, Protobuf, and bundled native libraries |
+| Runtime integration | Selected minimal native Rust CLI; JS/WASM retained as comparator | Native C/C++, CMake, platform builds, Protobuf, and bundled native libraries |
 | Process isolation fit | Already proven in the no-network child harness | Would require a new native build, wrapper, and equivalent container proof |
 | Published dependency visibility | Opaque npm/WASM artifact; 49 target-specific external Rust crates in tagged source | Source/vendors curl 7.65.1, OpenSSL 1.1.1, LibTomCrypt 1.18.0, LibTomMath 1.0.1, and Protobuf 3.21.12 |
 | Licensing | Upstream MIT; npm tarball omits referenced license text; dependency notices still required | Composite notice: DJI MIT plus curl, LibTom, OpenSSL/SSLeay, and BSD-3-Clause Protobuf terms |
-| Current fit | Best available candidate for continued v14 evaluation | Comparator/fallback only until DJI documents or demonstrates v14 support |
+| Measured authorized result | JS/WASM and Rust both return 27,228 matching frames/capabilities; Rust observed at 207 ms decode and 70 MB peak RSS versus 416 ms and 410 MB | Not run; no documented v14 support |
+| Current fit | Selected parser source and native runtime boundary, conditional on remaining correctness and release gates | Comparator/fallback only until DJI documents or demonstrates v14 support |
 
 Primary sources: [community parser](https://github.com/lvauvillier/dji-log-parser), [DJI official README](https://github.com/dji-sdk/FlightRecordParsingLib), [DJI v1.0.6 release notes](https://github.com/dji-sdk/FlightRecordParsingLib/blob/v1.0.6/ReleaseNote.md), and [DJI composite license](https://github.com/dji-sdk/FlightRecordParsingLib/blob/v1.0.6/LICENSE.txt).
 
@@ -41,14 +42,16 @@ The v1.0.6 notes include fixes for Mavic 3 Enterprise and M350 RTK fields, which
 
 ## Deployment direction if the candidate succeeds
 
-The current Node/WASM child is acceptable for continued research because it is independently terminable, no-network, bounded, and produces sanitized output. It should not automatically become the production distribution.
+The Node/WASM child remains acceptable for research comparison because it is independently terminable, no-network, bounded, and produces sanitized output. It is not the selected production distribution.
 
-Now that authorized v14 decoding succeeds, compare two production packaging options from the same reviewed source:
+The measured comparison selected a minimal Rust executable from the same reviewed source:
 
-1. an internally built and attested WASM binding with a complete SBOM; or
-2. a minimal Rust executable/library wrapper with all provider networking removed and the native dependency graph upgraded and re-audited.
+- it matched all 27,228 frames plus validation/capability flags;
+- it reduced observed peak RSS from approximately 410 MB to 70 MB;
+- it reduced decode time from approximately 416 ms to 207 ms;
+- it recovered in a fresh child after the controlled derivative triggered an upstream panic.
 
-Choose between them using measured startup/RSS/throughput, patchability, SBOM quality, and isolation—not language preference.
+The native build removes provider networking from source and dependencies and passes keychains only through bounded standard input. Production acceptance still requires target-specific SBOM/notices and audit/attestation gates, plus a parser patch that distinguishes clean completion from unexpected EOF instead of guessing at `truncated_records`.
 
 ## Reconsideration triggers
 

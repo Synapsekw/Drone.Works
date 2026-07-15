@@ -44,6 +44,12 @@ Use organization identifiers on every customer-owned record, require organizatio
 - Isolation tests cover reads, mutations, joins, aggregates, jobs, exports, and object-storage paths.
 - Background jobs cannot run without explicit organization context.
 
+### Phase 0 evidence — 2026-07-15
+
+The first native PostgreSQL 18 spike validates the leading relational mechanism against the generic canonical ownership model. A non-owner, non-superuser, non-`BYPASSRLS` application role is constrained by forced RLS on organizations, memberships, pilots, aircraft, canonical flights, revisions, and telemetry. Composite organization foreign keys prevent cross-organization relationships. Transaction-local context is proven to clear before the same pooled backend is reused; direct reads, joins, aggregates, exports, writes, owner behavior, and organization-required job lookup have Alpha-versus-Beta negative tests.
+
+This evidence does not yet accept D-002. API role authorization, a real queue, object-key and signed-download enforcement, privileged maintenance observability, the remaining customer-owned resource types, and deletion paths remain open. See `../architecture/TENANCY.md`.
+
 ## D-003 — Canonical normalized flight model
 
 Status: accepted

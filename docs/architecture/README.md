@@ -8,7 +8,7 @@ Planned documents include:
 - [`STACK-SCORECARD.md`](STACK-SCORECARD.md) — provisional stack recommendation, alternatives, and proof obligations.
 - [`KEYCHAIN-BOUNDARY.md`](KEYCHAIN-BOUNDARY.md) — trusted DJI provider, consent, encrypted cache, parser IPC, and deletion boundary.
 - [`DOMAIN-MODEL.md`](DOMAIN-MODEL.md) — canonical schema, provenance, exact-normalized fingerprint, ownership, and executable lifecycle proof.
-- `TENANCY.md`
+- [`TENANCY.md`](TENANCY.md) — PostgreSQL/RLS roles, pooled organization context, ownership constraints, and remaining isolation gates.
 - `SYSTEM.md`
 - `SECURITY-BOUNDARIES.md`
 

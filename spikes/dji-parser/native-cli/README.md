@@ -43,7 +43,9 @@ node spikes/dji-parser/internal-build/audit-target.mjs \
 The `native-parser-build` GitHub Actions job repeats those checks on Ubuntu 24.04, uploads the evidence
 bundle, and uses GitHub's `actions/attest` flow for both binary provenance and the SBOM on non-PR runs.
 Production execution remains inside the Linux boundary in `../container/`; the CLI itself is not a
-sandbox. The hosted Linux job and attestations must pass before this becomes a releasable artifact.
+sandbox. The CycloneDX output includes a deterministic UUIDv5-shaped serial number derived from the
+normalized BOM, pinned source commit, and target so GitHub can recognize and attest it without making
+repeat builds differ.
 
 DJI v13+ logs can end with a partial record even when their declared flight duration is complete. The
 wrapper therefore does not treat a short terminal envelope alone as truncation. It returns
@@ -72,5 +74,13 @@ their source-declared duration. The external process/container boundary remains 
 Two clean `aarch64-apple-darwin` evidence builds produced 80 byte-identical files. Their target graph
 contained 39 SBOM components and 39 notice-covered components; the strict RustSec target filter found
 zero vulnerabilities and zero warnings. Four vulnerabilities and two warnings in unrelated packages
-from the upstream workspace lockfile were excluded by exact package name and version. This is a local
-tooling/reproducibility check, not a substitute for the pending Linux CI result.
+from the upstream workspace lockfile were excluded by exact package name and version.
+
+Hosted Ubuntu run [`29398131979`](https://github.com/Synapsekw/Drone.Works/actions/runs/29398131979)
+closed the platform-specific release-evidence gate at commit `6be0f8a`: 78 of 78 Linux build-output
+files were byte-identical, all 38 target components passed strict RustSec enforcement, and the
+evidence archive uploaded successfully. The 1,028,120-byte binary has SHA-256
+`22ea490fb456b080fe50ea1bb25369be68fe318495cb55ed7652a32794ab689a`; its
+[provenance](https://github.com/Synapsekw/Drone.Works/attestations/35405520) and
+[SBOM](https://github.com/Synapsekw/Drone.Works/attestations/35405526) attestations were independently
+verified against the expected workflow, source commit, and artifact digest.

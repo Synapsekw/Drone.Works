@@ -124,12 +124,17 @@ test("live mode validates two deterministic private native intermediates", async
     nativeExecutable: process.execPath,
     nativeArgs: [fakeNativeWorker],
     networkIsolation: "test_only_none",
+    normalizeProof: true,
+    displayTimezone: "Asia/Dubai",
   });
 
   assert.equal(result.decode.status, "decoded");
   assert.equal(result.intermediate.status, "intermediate_ready");
   assert.equal(result.intermediate.repeat_material_match, true);
   assert.equal(result.intermediate.material.sample_count, 1);
+  assert.equal(result.normalization.status, "canonical_revision_ready");
+  assert.equal(result.normalization.flight_count, 1);
+  assert.equal(result.normalization.telemetry_sample_count, 1);
   assert.equal(JSON.stringify(result).includes("private-aircraft-serial"), false);
   assert.equal(provider.sanitizedCalls.length, 1);
 });
@@ -143,6 +148,15 @@ test("live mode rejects a fixture without external-processing authorization befo
     workerPath: fakeWorker,
     networkIsolation: "test_only_none",
   }), /not authorized/);
+});
+
+test("normalization proof requires the authorized native path", async () => {
+  await assert.rejects(runControlledKeychain({
+    fixture: fixture(false),
+    fixturePath: resolve(tmpdir(), "missing-controlled-fixture"),
+    normalizeProof: true,
+    networkIsolation: "test_only_none",
+  }), /authorized native request/);
 });
 
 test("live mode rejects an unauthorized offline follow-up before the provider call", async () => {

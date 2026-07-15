@@ -10,6 +10,7 @@ import {
   runIsolatedKeychainRequest,
 } from "./ipc.mjs";
 import { runNativeIntermediate, runNativeSummary } from "./native-ipc.mjs";
+import { normalizeDjiIntermediate } from "../normalization/canonical-v1.mjs";
 
 const sourceDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(sourceDirectory, "../../../..");
@@ -148,8 +149,13 @@ export async function runControlledKeychain({
   nativeExecutable,
   nativeArgs = [],
   maxIntermediateOutputBytes = 32 * 1024 * 1024,
+  normalizeProof = false,
+  displayTimezone = "UTC",
   now,
 }) {
+  if (normalizeProof && (!nativeExecutable || !allowDjiRequest)) {
+    throw new TypeError("normalizeProof requires an authorized native request");
+  }
   if (allowDjiRequest) {
     assertFixtureAuthorization(fixture, now);
     for (const followUp of followUpFixtures) {
@@ -179,6 +185,7 @@ export async function runControlledKeychain({
     broker: null,
     decode: null,
     intermediate: null,
+    normalization: null,
     follow_up_decodes: [],
   };
 
@@ -226,12 +233,40 @@ export async function runControlledKeychain({
             ...nativeOptions,
             maxOutputBytes: maxIntermediateOutputBytes,
           });
+          const repeatMaterialMatch = first.result.status === "intermediate_ready"
+            && second.result.status === "intermediate_ready"
+            && first.result.material.sha256 === second.result.material.sha256;
           result.intermediate = {
             ...first.result,
-            repeat_material_match: first.result.status === "intermediate_ready"
-              && second.result.status === "intermediate_ready"
-              && first.result.material.sha256 === second.result.material.sha256,
+            repeat_material_match: repeatMaterialMatch,
           };
+          if (normalizeProof && repeatMaterialMatch) {
+            const flightCount = first.result.material.flight_count;
+            const canonicalFlightIds = Array.from(
+              { length: flightCount },
+              (_, index) => `phase0-${fixtureId}-flight-${index}`,
+            );
+            result.normalization = normalizeDjiIntermediate(first, {
+              organization_id: "phase0-local-research",
+              upload_batch_id: `phase0-${fixtureId}-batch`,
+              raw_source_id: `phase0-${fixtureId}-source`,
+              import_item_id: `phase0-${fixtureId}-item`,
+              processing_attempt_id: `phase0-${fixtureId}-attempt`,
+              processing_revision_id: `phase0-${fixtureId}-revision`,
+              canonical_flight_ids: canonicalFlightIds,
+              flight_assignments: canonicalFlightIds.map((canonicalFlightId) => ({
+                canonical_flight_id: canonicalFlightId,
+                state: "awaiting_review",
+                pilot_id: null,
+                aircraft_id: null,
+                pilot_assignment_provenance: null,
+                aircraft_assignment_provenance: null,
+              })),
+              display_timezone: displayTimezone,
+              display_timezone_source: "phase0_proof_default",
+              active_overrides: [],
+            }).result;
+          }
         }
       } else {
         result.decode = await runIsolatedDecode({
@@ -313,6 +348,8 @@ async function main(argv) {
     ),
     memoryMb: positiveInteger(argv, "--memory-mb", 128),
     nativeExecutable,
+    normalizeProof: argv.includes("--normalize-proof"),
+    displayTimezone: value(argv, "--display-timezone", "UTC"),
   });
 }
 

@@ -2,6 +2,12 @@ import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import pg from "pg";
 import {
+  DownloadAuthorizationError,
+  MAX_DOWNLOAD_TTL_MS,
+  deriveObjectKey,
+  issueAuthorizedDownload,
+} from "../src/downloads.mjs";
+import {
   loadFlightForJob,
   withOrganization,
 } from "../src/repositories.mjs";
@@ -13,6 +19,33 @@ const bootstrapPool = new Pool({
   max: 1,
   user: process.env.DRONEWORKS_PG_BOOTSTRAP_USER,
 });
+
+const fixedNow = new Date("2026-07-15T12:00:00Z");
+
+function recordingSigner() {
+  const calls = [];
+  const issued = new Map();
+  return {
+    calls,
+    async issue(input) {
+      calls.push(input);
+      const url = `https://download.invalid/token-${calls.length}`;
+      issued.set(url, input.expiresAt);
+      return { url };
+    },
+    verify(url, now) {
+      const expiresAt = issued.get(url);
+      return expiresAt instanceof Date && expiresAt > now;
+    },
+  };
+}
+
+function isHiddenDownloadDenial(error) {
+  return error instanceof DownloadAuthorizationError
+    && error.code === "download_not_found"
+    && error.status === 404
+    && error.message === "Download is not available";
+}
 
 after(async () => {
   await Promise.all([
@@ -52,7 +85,7 @@ test("ordinary connections are non-owner, non-superuser, and unable to bypass RL
         AND c.relkind = 'r'
       ORDER BY c.relname`,
   );
-  assert.equal(tables.rowCount, 7);
+  assert.equal(tables.rowCount, 9);
   for (const table of tables.rows) {
     assert.equal(table.owner, "droneworks_migrator");
     assert.equal(table.relrowsecurity, true);
@@ -65,6 +98,12 @@ test("missing organization context fails closed for reads and writes", async () 
     "SELECT id FROM droneworks.canonical_flights",
   );
   assert.deepEqual(flights.rows, []);
+  const artifacts = await applicationPool.query(
+    `SELECT id FROM droneworks.raw_sources
+     UNION ALL
+     SELECT id FROM droneworks.export_artifacts`,
+  );
+  assert.deepEqual(artifacts.rows, []);
 
   await assert.rejects(
     applicationPool.query(
@@ -72,6 +111,140 @@ test("missing organization context fails closed for reads and writes", async () 
     ),
     (error) => error.code === "42501" && /row-level security policy/.test(error.message),
   );
+});
+
+test("authorized raw-source and export downloads derive short-lived organization keys", async () => {
+  const signer = recordingSigner();
+  const rawDownload = await issueAuthorizedDownload(applicationPool, {
+    organizationId: "org-alpha",
+    userId: "user-alpha",
+    resourceType: "raw_source",
+    resourceId: "raw-alpha",
+  }, signer, { now: fixedNow });
+  const exportDownload = await issueAuthorizedDownload(applicationPool, {
+    organizationId: "org-beta",
+    userId: "user-beta",
+    resourceType: "export",
+    resourceId: "export-beta",
+  }, signer, { now: fixedNow, ttlMs: 60_000 });
+
+  assert.deepEqual(rawDownload, {
+    url: "https://download.invalid/token-1",
+    expiresAt: "2026-07-15T12:05:00.000Z",
+  });
+  assert.deepEqual(exportDownload, {
+    url: "https://download.invalid/token-2",
+    expiresAt: "2026-07-15T12:01:00.000Z",
+  });
+  assert.deepEqual(signer.calls, [{
+    objectKey: "organizations/org-alpha/raw-sources/raw-alpha/revisions/raw-revision-alpha",
+    expiresAt: new Date("2026-07-15T12:05:00.000Z"),
+  }, {
+    objectKey: "organizations/org-beta/exports/export-beta/artifact-beta",
+    expiresAt: new Date("2026-07-15T12:01:00.000Z"),
+  }]);
+  assert.equal(Object.hasOwn(rawDownload, "objectKey"), false);
+});
+
+test("cross-organization, viewer, deleted, and expired download denials are indistinguishable", async () => {
+  const signer = recordingSigner();
+  const deniedInputs = [{
+    organizationId: "org-beta",
+    userId: "user-beta",
+    resourceType: "raw_source",
+    resourceId: "raw-alpha",
+  }, {
+    organizationId: "org-alpha",
+    userId: "user-alpha-viewer",
+    resourceType: "raw_source",
+    resourceId: "raw-alpha",
+  }, {
+    organizationId: "org-alpha",
+    userId: "user-alpha",
+    resourceType: "raw_source",
+    resourceId: "raw-alpha-deleted",
+  }, {
+    organizationId: "org-alpha",
+    userId: "user-alpha",
+    resourceType: "export",
+    resourceId: "export-alpha-expired",
+  }, {
+    organizationId: "org-alpha",
+    userId: "user-alpha",
+    resourceType: "export",
+    resourceId: "export-does-not-exist",
+  }];
+
+  for (const input of deniedInputs) {
+    await assert.rejects(
+      issueAuthorizedDownload(applicationPool, input, signer, { now: fixedNow }),
+      isHiddenDownloadDenial,
+    );
+  }
+  assert.deepEqual(signer.calls, []);
+});
+
+test("membership revocation prevents refreshing a previously authorized download", async () => {
+  const signer = recordingSigner();
+  const previous = await issueAuthorizedDownload(applicationPool, {
+    organizationId: "org-alpha",
+    userId: "user-alpha-former",
+    resourceType: "export",
+    resourceId: "export-alpha",
+  }, signer, { now: fixedNow, ttlMs: 1_000 });
+  assert.equal(previous.expiresAt, "2026-07-15T12:00:01.000Z");
+  assert.equal(signer.verify(previous.url, new Date("2026-07-15T12:00:00.500Z")), true);
+
+  const revoked = await withOrganization(
+    applicationPool,
+    "org-alpha",
+    (repositories) => repositories.revokeMembership("user-alpha-former"),
+  );
+  assert.deepEqual(revoked, {
+    organization_id: "org-alpha",
+    user_id: "user-alpha-former",
+  });
+
+  await assert.rejects(
+    issueAuthorizedDownload(applicationPool, {
+      organizationId: "org-alpha",
+      userId: "user-alpha-former",
+      resourceType: "export",
+      resourceId: "export-alpha",
+    }, signer, { now: new Date("2026-07-15T12:00:02Z") }),
+    isHiddenDownloadDenial,
+  );
+  assert.equal(signer.verify(previous.url, new Date("2026-07-15T12:00:02Z")), false);
+  assert.equal(signer.calls.length, 1);
+});
+
+test("object keys cannot be client supplied and every segment is escaped", async () => {
+  const signer = recordingSigner();
+  await assert.rejects(
+    issueAuthorizedDownload(applicationPool, {
+      organizationId: "org-alpha",
+      userId: "user-alpha",
+      resourceType: "raw_source",
+      resourceId: "raw-alpha",
+      objectKey: "organizations/org-beta/raw-sources/raw-beta",
+    }, signer, { now: fixedNow }),
+    /objectKey is derived from an authorized resource/,
+  );
+  await assert.rejects(
+    issueAuthorizedDownload(applicationPool, {
+      organizationId: "org-alpha",
+      userId: "user-alpha",
+      resourceType: "raw_source",
+      resourceId: "raw-alpha",
+    }, signer, { now: fixedNow, ttlMs: MAX_DOWNLOAD_TTL_MS + 1 }),
+    /ttlMs must be between/,
+  );
+  assert.equal(deriveObjectKey("raw_source", {
+    organization_id: "org/alpha",
+    resource_id: "raw/../beta",
+    object_component: "revision?1",
+  }), "organizations/org%2Falpha/raw-sources/raw%2F..%2Fbeta/revisions/revision%3F1");
+  assert.deepEqual(signer.calls, []);
 });
 
 test("Alpha and Beta direct reads, joins, aggregates, and exports remain isolated", async () => {

@@ -22,9 +22,11 @@ erDiagram
     AIRCRAFT ||--o{ CANONICAL_FLIGHT : operated_with
     CANONICAL_FLIGHT ||--o{ FLIGHT_REVISION : revised_as
     FLIGHT_REVISION ||--o{ TELEMETRY_SAMPLE : contains
+    ORGANIZATION ||--o{ RAW_SOURCE : owns
+    ORGANIZATION ||--o{ EXPORT_ARTIFACT : owns
 ```
 
-Every child has a non-null `organization_id`. Parent keys and foreign keys include that organization identifier, so a Beta flight cannot reference an Alpha pilot, aircraft, revision, or telemetry parent even if an application mutation supplies exact resource IDs. This relational slice persists generic flight facts and capability names; source-specific parser structures remain outside it.
+Every child has a non-null `organization_id`. Parent keys and foreign keys include that organization identifier, so a Beta flight cannot reference an Alpha pilot, aircraft, revision, or telemetry parent even if an application mutation supplies exact resource IDs. Raw-source and export-artifact references are also organization-owned RLS rows; their physical object keys are derived only after authorization and are not accepted as client input. This relational slice persists generic flight facts and capability names; source-specific parser structures remain outside it.
 
 The full canonical schema still validates provenance, effective facts, sample counts, and fingerprint integrity before persistence. This spike does not duplicate that complete validator as database constraints.
 
@@ -63,12 +65,13 @@ Repository methods do not accept an optional organization filter. They can run o
 The integration suite currently proves, with synthetic Alpha and Beta records:
 
 - ordinary-role attributes and table ownership;
-- RLS enabled and forced on all seven tables;
+- RLS enabled and forced on all nine tables;
 - missing-context read and write denial;
 - direct-ID, join, aggregate, export, and mutation isolation;
 - cross-organization relationship rejection through composite foreign keys;
 - transaction-safe reuse of the same pooled backend;
-- fail-closed job lookup; and
+- fail-closed job lookup;
+- organization-derived raw-source/export keys, bounded link lifetime, uniform denial, and membership-revocation checks; and
 - forced RLS behavior for the table owner, alongside explicit superuser bypass evidence.
 
 Run it with native PostgreSQL 18:
@@ -79,26 +82,26 @@ npm --prefix spikes/postgres-rls test
 
 The runner creates and destroys an ephemeral socket-only cluster. It does not start a persistent service or use Docker.
 
-## Object and download boundary for the next slice
+## Object and download boundary
 
-Object paths should be derived only after an organization-owned database row is authorized. The proposed shape is:
+Object paths are derived only after an organization-owned database row is authorized. The executable shape is:
 
 ```text
 organizations/{organization_id}/raw-sources/{raw_source_id}/revisions/{source_revision_id}
 organizations/{organization_id}/exports/{export_id}/{artifact_id}
 ```
 
-The path is defense-in-depth metadata, not authority. A download operation must select the raw-source or export row inside current organization context, recheck current membership and role, derive the object key from the authorized row, and issue a short-lived URL. A client-supplied object key or possession of an expired URL must never substitute for current authorization.
+The path is defense-in-depth metadata, not authority. The executable boundary selects the raw-source or export row inside current organization context, joins the current membership, requires the first owner/admin role subset, derives and escapes every object-key segment from the authorized row, and calls an injected signer with a maximum 15-minute lifetime. Client-supplied object keys are rejected. Missing, cross-organization, viewer, deleted, expired, revoked, and unknown resources return one indistinguishable `download_not_found` denial and never invoke the signer.
 
-This flow remains design evidence until exercised against real object-storage artifacts and revocation behavior.
+The authorization query holds a row lock on the membership and artifact until signing completes. The revocation test proves a previously authorized one-second link expires and that the removed admin cannot mint a replacement. The signer is deliberately a deterministic test adapter: real object-storage URL expiry, provider-side object access, deletion, and revocation still require production-shaped evidence.
 
 ## Remaining P0-05 proof obligations
 
-- Integrate membership and Phase 1 role authorization at an API boundary.
+- Integrate the complete Phase 1 membership/role matrix, including pilot-own-flight raw/export scope, at an API boundary.
 - Exercise the organization-required contract through a real background queue and retry path.
-- Implement and negatively test object-key derivation, signed-download issuance, expiry, and membership revocation.
+- Exercise object-key derivation, URL expiry, membership revocation, and deletion against real object-storage artifacts rather than the signer adapter alone.
 - Define explicit, narrow, observable production migration and maintenance access without giving ordinary processes bypass privileges.
 - Confirm a reviewed migration tool preserves policies, grants, ownership, and forced RLS.
-- Extend isolation tests across raw sources, imports, overrides, audit events, generated exports, cached organization-linked secrets, and deletion paths as those schemas become executable.
+- Extend isolation tests across imports, overrides, audit events, cached organization-linked secrets, and deletion paths as those schemas become executable.
 
 D-002 remains proposed until the non-relational and privileged-access obligations above are closed.

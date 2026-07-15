@@ -48,7 +48,9 @@ Use organization identifiers on every customer-owned record, require organizatio
 
 The first native PostgreSQL 18 spike validates the leading relational mechanism against the generic canonical ownership model. A non-owner, non-superuser, non-`BYPASSRLS` application role is constrained by forced RLS on organizations, memberships, pilots, aircraft, canonical flights, revisions, and telemetry. Composite organization foreign keys prevent cross-organization relationships. Transaction-local context is proven to clear before the same pooled backend is reused; direct reads, joins, aggregates, exports, writes, owner behavior, and organization-required job lookup have Alpha-versus-Beta negative tests.
 
-This evidence does not yet accept D-002. API role authorization, a real queue, object-key and signed-download enforcement, privileged maintenance observability, the remaining customer-owned resource types, and deletion paths remain open. See `../architecture/TENANCY.md`.
+The follow-up slice adds forced-RLS raw-source and export-artifact references plus an authorization boundary that rechecks current membership, derives escaped organization-prefixed keys only from visible rows, bounds link lifetime, and returns one denial for cross-organization, insufficient-role, expired, deleted, revoked, or missing resources. A removed admin cannot refresh a previously issued link after it expires. The executable signer remains a deterministic adapter rather than a real object-storage provider.
+
+This evidence does not yet accept D-002. The complete API role matrix, a real queue, provider-side signed-URL expiry and object deletion, privileged maintenance observability, the remaining customer-owned resource types, and deletion paths remain open. See `../architecture/TENANCY.md`.
 
 ## D-003 — Canonical normalized flight model
 

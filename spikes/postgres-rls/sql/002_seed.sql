@@ -4,6 +4,8 @@ INSERT INTO droneworks.organizations (id, name) VALUES
 
 INSERT INTO droneworks.memberships (organization_id, user_id, role) VALUES
   ('org-alpha', 'user-alpha', 'admin'),
+  ('org-alpha', 'user-alpha-former', 'admin'),
+  ('org-alpha', 'user-alpha-viewer', 'viewer'),
   ('org-beta', 'user-beta', 'admin');
 
 INSERT INTO droneworks.pilot_profiles (
@@ -66,3 +68,24 @@ INSERT INTO droneworks.telemetry_samples (
   ('org-alpha', 'revision-alpha', 1000, 12),
   ('org-beta', 'revision-beta', 0, 20),
   ('org-beta', 'revision-beta', 1000, 24);
+
+INSERT INTO droneworks.raw_sources (
+  organization_id,
+  id,
+  object_revision_id,
+  state
+) VALUES
+  ('org-alpha', 'raw-alpha', 'raw-revision-alpha', 'retained'),
+  ('org-alpha', 'raw-alpha-deleted', 'raw-revision-alpha-deleted', 'deleted'),
+  ('org-beta', 'raw-beta', 'raw-revision-beta', 'retained');
+
+INSERT INTO droneworks.export_artifacts (
+  organization_id,
+  id,
+  object_artifact_id,
+  state,
+  available_until
+) VALUES
+  ('org-alpha', 'export-alpha', 'artifact-alpha', 'ready', '2100-01-01T00:00:00Z'),
+  ('org-alpha', 'export-alpha-expired', 'artifact-alpha-expired', 'ready', '2000-01-01T00:00:00Z'),
+  ('org-beta', 'export-beta', 'artifact-beta', 'ready', '2100-01-01T00:00:00Z');

@@ -112,6 +112,31 @@ CREATE TABLE droneworks.telemetry_samples (
     ON DELETE CASCADE
 );
 
+CREATE TABLE droneworks.raw_sources (
+  organization_id text NOT NULL,
+  id text NOT NULL,
+  object_revision_id text NOT NULL,
+  state text NOT NULL CHECK (state IN ('retained', 'deleted')),
+  PRIMARY KEY (organization_id, id),
+  UNIQUE (organization_id, object_revision_id),
+  FOREIGN KEY (organization_id)
+    REFERENCES droneworks.organizations (id)
+    ON DELETE CASCADE
+);
+
+CREATE TABLE droneworks.export_artifacts (
+  organization_id text NOT NULL,
+  id text NOT NULL,
+  object_artifact_id text NOT NULL,
+  state text NOT NULL CHECK (state IN ('ready', 'expired', 'deleted')),
+  available_until timestamptz NOT NULL,
+  PRIMARY KEY (organization_id, id),
+  UNIQUE (organization_id, object_artifact_id),
+  FOREIGN KEY (organization_id)
+    REFERENCES droneworks.organizations (id)
+    ON DELETE CASCADE
+);
+
 ALTER TABLE droneworks.organizations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE droneworks.organizations FORCE ROW LEVEL SECURITY;
 CREATE POLICY organization_isolation ON droneworks.organizations
@@ -151,6 +176,18 @@ CREATE POLICY organization_isolation ON droneworks.flight_revisions
 ALTER TABLE droneworks.telemetry_samples ENABLE ROW LEVEL SECURITY;
 ALTER TABLE droneworks.telemetry_samples FORCE ROW LEVEL SECURITY;
 CREATE POLICY organization_isolation ON droneworks.telemetry_samples
+  USING (organization_id = droneworks.current_organization_id())
+  WITH CHECK (organization_id = droneworks.current_organization_id());
+
+ALTER TABLE droneworks.raw_sources ENABLE ROW LEVEL SECURITY;
+ALTER TABLE droneworks.raw_sources FORCE ROW LEVEL SECURITY;
+CREATE POLICY organization_isolation ON droneworks.raw_sources
+  USING (organization_id = droneworks.current_organization_id())
+  WITH CHECK (organization_id = droneworks.current_organization_id());
+
+ALTER TABLE droneworks.export_artifacts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE droneworks.export_artifacts FORCE ROW LEVEL SECURITY;
+CREATE POLICY organization_isolation ON droneworks.export_artifacts
   USING (organization_id = droneworks.current_organization_id())
   WITH CHECK (organization_id = droneworks.current_organization_id());
 

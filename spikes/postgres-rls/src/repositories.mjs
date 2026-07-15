@@ -102,6 +102,58 @@ export function createRepositories(client) {
       );
       return result.rows[0];
     },
+
+    async findDownloadableObject({ userId, resourceType, resourceId, now }) {
+      requireId(userId, "userId");
+      requireId(resourceId, "resourceId");
+      if (!["raw_source", "export"].includes(resourceType)) {
+        throw new TypeError("resourceType must be raw_source or export");
+      }
+      if (!(now instanceof Date) || Number.isNaN(now.valueOf())) {
+        throw new TypeError("now must be a valid Date");
+      }
+
+      const resourceQuery = resourceType === "raw_source"
+        ? `SELECT r.organization_id,
+                  r.id AS resource_id,
+                  r.object_revision_id AS object_component
+             FROM droneworks.memberships AS m
+             JOIN droneworks.raw_sources AS r
+               ON r.organization_id = m.organization_id
+            WHERE m.user_id = $1
+              AND m.role IN ('owner', 'admin')
+              AND r.id = $2
+              AND r.state = 'retained'
+            FOR KEY SHARE OF m, r`
+        : `SELECT e.organization_id,
+                  e.id AS resource_id,
+                  e.object_artifact_id AS object_component
+             FROM droneworks.memberships AS m
+             JOIN droneworks.export_artifacts AS e
+               ON e.organization_id = m.organization_id
+            WHERE m.user_id = $1
+              AND m.role IN ('owner', 'admin')
+              AND e.id = $2
+              AND e.state = 'ready'
+              AND e.available_until > $3
+            FOR KEY SHARE OF m, e`;
+      const parameters = resourceType === "raw_source"
+        ? [userId, resourceId]
+        : [userId, resourceId, now.toISOString()];
+      const result = await client.query(resourceQuery, parameters);
+      return result.rows[0] ?? null;
+    },
+
+    async revokeMembership(userId) {
+      requireId(userId, "userId");
+      const result = await client.query(
+        `DELETE FROM droneworks.memberships
+          WHERE user_id = $1
+          RETURNING organization_id, user_id`,
+        [userId],
+      );
+      return result.rows[0] ?? null;
+    },
   });
 }
 

@@ -1,12 +1,12 @@
 ---
 type: north-star
 status: active
-last-updated: 2026-07-15-1309
+last-updated: 2026-07-15-1726
 tags: [project/drone-works, north-star]
 related:
   - "[[project-history]]"
   - "[[memory]]"
-  - "[[2026-07-15-1309-canonical-provenance-proof]]"
+  - "[[2026-07-15-1726-canonical-model-proof]]"
 ---
 
 # Drone.Works — North Star
@@ -31,14 +31,14 @@ Drone.Works is an explainable operational record for small professional drone te
 
 ## Now
 
-- **Phase:** Phase 0, workstream P0-04 — canonical model and provenance proof.
-- **Branch:** published source baseline `a3c5da6` on `main` is synchronized with `origin/main`; this wrap-up adds one local vault-only closeout commit above it.
-- **Completed evidence:** the private canonical-v1 adapter maps representative parser output into provenance-aware flight revisions, preserves missing and multi-battery evidence, requires truthful pilot/aircraft assignments, and reapplies active user overrides across parser revisions. The authorized proof produced one private flight candidate with 27,228 samples and all seven canonical capabilities.
-- **Verification baseline:** 71 host tests pass with zero skips/failures. Hosted run `29403024703` passed parser tests, Linux containment, native reproducibility/audit/evidence/attestations, and the comparison build. Syntax, diff, credential-ignore, and privacy checks pass. No Docker was used locally.
-- **Blocking evidence:** P0-04 still needs a generic canonical schema, exact-normalized fingerprint evidence, and executable deletion/restoration/reprocessing transitions. Broader fixture coverage remains permission-gated; production D-012 gates remain separate.
-- **Next technical action:** extract the generic canonical schema, then prove exact-normalized fingerprints and lifecycle transitions, including zero-flight outcomes.
+- **Phase:** Phase 0; P0-04 canonical model proof is complete and P0-05 organization isolation is next.
+- **Branch:** source commit `14a47aa` is local on `main`, which is two commits ahead of `origin/main` before this vault-only closeout commit; nothing was pushed in this working block.
+- **Completed evidence:** the vendor-neutral canonical revision schema and validator enforce ownership, provenance, sample counts, effective facts, and fingerprint integrity. Exact-normalized-v1 evidence is deterministic across parser/provenance/override changes and sensitive to normalized operational material. Executable transitions preserve flight identity across reprocessing, update active totals, enforce the 30-day restoration boundary, purge customer payload, retain shared sources, and handle zero-flight outcomes.
+- **Verification baseline:** 78 host tests pass with zero skips/failures, including loopback provider behavior and real macOS parser network denial. Schema JSON, JavaScript syntax, Git whitespace, credential-ignore, and privacy checks pass. Hosted run `29403024703` remains the latest Linux release-evidence baseline. No Docker was used locally.
+- **Blocking evidence:** P0-04's source-free proof is closed, but persistence enforcement and real database/object-storage/export/log/backup deletion are not yet proven. Broader fixture coverage remains permission-gated; production D-012 gates remain separate.
+- **Next technical action:** begin P0-05 with database constraints, organization-required repositories, pooled-connection RLS behavior, jobs, aggregates, exports, and object-key isolation against the generic canonical ownership model.
 - **Next external decision:** decide whether the remaining fixtures may use DJI processing; production terms, notice/consent, managed-secret, retention, and deletion gates remain separate under D-012.
-- **After P0-04 mapping:** use the canonical ownership model to begin P0-05 tenancy proof and the representative telemetry shape to begin P0-06 benchmarks.
+- **Parallel follow-up:** use the versioned telemetry shape and representative sample count to begin P0-06 benchmarks after the P0-05 harness boundary is clear.
 - **Privacy:** raw fixtures remain ignored and local. No raw values, coordinates, identifiers, keychain feature points, credentials, or generated parser artifacts belong in this vault.
 
 ## Workstream status
@@ -48,9 +48,9 @@ Drone.Works is an explainable operational record for small professional drone te
 | P0-01 constraints and scorecard | Evidence drafted | Quality attributes and stack scorecard exist; final component choices remain proposed. |
 | P0-02 fixture policy and inventory | Local research gate satisfied | Policy, manifest, three private v14 logs, and one controlled truncation exist. |
 | P0-03 parser/key feasibility | Core proof complete; external gates remain | Native containment, truncation, private intermediate, representative measurements, hosted reproducibility, strict audit, evidence upload, and attestations pass; broader fixtures and production D-012 gates remain open. |
-| P0-04 canonical model | Active; first slice passes | Domain relationships, ownership/lifecycle draft, private canonical-v1 adapter, representative normalization, provenance, asset evidence, capabilities, and override survival pass; schema/fingerprint/transition proofs remain. |
-| P0-05 organization isolation | Ready after P0-04 schema | Ownership model exists; executable Postgres/RLS proof should consume the finalized generic resource schema. |
-| P0-06 telemetry benchmark | Ready after P0-04 schema | Representative 27,228-sample telemetry shape exists; benchmark should consume the finalized generic series schema. |
+| P0-04 canonical model | Core proof complete | Generic schema/validator, ownership/lifecycle, canonical-v1 adapter, provenance, asset evidence, capabilities, override survival, exact-normalized fingerprint, totals, deletion/restoration, and zero-flight transitions pass. |
+| P0-05 organization isolation | Next | Finalized ownership and identity rules are ready for executable Postgres/RLS, repository, job, aggregate, export, and object-key isolation proof. |
+| P0-06 telemetry benchmark | Ready | Versioned telemetry shape and representative 27,228-sample evidence are ready for storage/downsampling benchmarks. |
 | P0-07 runtime/deployment selection | Proposed | TypeScript/Next/Fastify/worker/Postgres shortlist needs remaining proofs. |
 | P0-08 threat model | Not started | Parser/key boundaries provide initial inputs. |
 | P0-09 Phase 1A backlog | Not started | Final Phase 0 synthesis. |

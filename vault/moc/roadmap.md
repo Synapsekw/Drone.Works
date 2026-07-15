@@ -14,11 +14,11 @@ related: ["[[00-north-star]]", "[[project-history]]"]
 ## Current critical path
 
 ```text
-P0-04 canonical model
-  -> generic schema + exact-normalized fingerprint + lifecycle transitions
-  -> P0-05 tenancy + P0-06 telemetry proofs
+P0-04 canonical model complete
+  -> P0-05 tenancy proof (next)
+  -> P0-06 telemetry proof
   -> P0-07/08 stack and threat-model closure
   -> P0-09 Phase 1A backlog
 ```
 
-P0-03's core technical proof is complete: D-009 selects a minimal native Rust CLI inside the proven Linux boundary, and private intermediate evidence passes. P0-04 now has its first canonical-v1 adapter, ownership model, representative normalization, and override-preservation proof. Finish the generic schema, exact-normalized fingerprint, and lifecycle transitions before starting the dependent P0-05/P0-06 proofs; broader fixture validation remains permission-gated.
+P0-03's core technical proof is complete: D-009 selects a minimal native Rust CLI inside the proven Linux boundary, and private intermediate evidence passes. P0-04 is now source-free complete with its generic schema/validator, canonical-v1 adapter, provenance and ownership model, exact-normalized fingerprint, stable reprocessing identity, deletion/restoration, totals, shared-source retention, and zero-flight transitions. Start P0-05 from that ownership contract; P0-06 can consume the versioned telemetry shape. Broader fixture validation remains permission-gated.

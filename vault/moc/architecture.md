@@ -16,7 +16,6 @@ related: ["[[00-north-star]]"]
 
 ## Open Phase 0 architecture outputs
 
-- Generic canonical schema, exact-normalized fingerprint, and lifecycle-transition proof.
 - Tenancy and database-enforced isolation proof.
 - Telemetry storage/downsampling benchmark.
 - System and security-boundary documents.

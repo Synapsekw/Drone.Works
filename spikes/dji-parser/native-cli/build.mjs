@@ -44,6 +44,14 @@ function sha256(path) {
   return createHash("sha256").update(readFileSync(path)).digest("hex");
 }
 
+function deterministicUuid(value) {
+  const bytes = createHash("sha256").update(value).digest().subarray(0, 16);
+  bytes[6] = (bytes[6] & 0x0f) | 0x50;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = bytes.toString("hex");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 function files(root, current = root) {
   return readdirSync(current, { withFileTypes: true }).flatMap((entry) => {
     const path = join(current, entry.name);
@@ -156,7 +164,16 @@ if (localBomReferenceCount < 1) {
 const stableBomPrefix = `${configuration.upstream.repository.replace(/\.git$/, "")}/tree/${configuration.upstream.commit}`;
 const normalizedSbomValue = generatedSbomValue.replaceAll(localBomPrefix, stableBomPrefix);
 if (normalizedSbomValue.includes(sourceRoot)) throw new Error("Local build path remains in normalized native SBOM");
-writeFileSync(join(outputRoot, "sbom.cdx.json"), normalizedSbomValue);
+const normalizedSbom = JSON.parse(normalizedSbomValue);
+normalizedSbom.serialNumber ??= `urn:uuid:${deterministicUuid([
+  configuration.upstream.commit,
+  target,
+  normalizedSbomValue,
+].join("\0"))}`;
+if (!/^urn:uuid:[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(normalizedSbom.serialNumber)) {
+  throw new Error("Native SBOM serial number is not a deterministic UUID URN");
+}
+writeFileSync(join(outputRoot, "sbom.cdx.json"), `${JSON.stringify(normalizedSbom, null, 2)}\n`);
 
 run("node", [
   join(directory, "..", "internal-build", "generate-compliance.mjs"),

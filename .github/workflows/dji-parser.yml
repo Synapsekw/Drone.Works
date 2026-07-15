@@ -153,8 +153,9 @@ jobs:
           subject-path: /tmp/dji-native-out-1/droneworks-dji-parser-cli
           sbom-path: /tmp/dji-native-out-1/sbom.cdx.json
       - name: Upload native Linux release evidence
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: dji-native-linux-evidence
           path: /tmp/dji-native-out-1
-          if-no-files-found: error
+          if-no-files-found: warn

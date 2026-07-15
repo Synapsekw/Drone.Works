@@ -165,13 +165,15 @@ The trusted application worker remains outside this boundary. It resolves organi
 
 Parser failures require structured supervisor classification, and every operation remains independently terminable because the reviewed upstream decoder contains unchecked reads on malformed data. Parser code receives no organization credential, DJI API credential, durable keychain payload, or network access.
 
-The native boundary produced the same 27,228 frames and validation/capability summary as the JS/WASM binding on the first authorized v14 fixture while reducing observed peak RSS from approximately 410 MB to 70 MB. A fresh valid child succeeded after the controlled truncated derivative caused an upstream panic. The wrapper converts such panics to `parser_internal_error`, but accurate `truncated_records` classification still requires a parser patch that distinguishes clean record completion from unexpected EOF. This classification gap blocks final parser acceptance, not the isolation technology decision.
+The native boundary produced the same 27,228 frames and validation/capability summary as the JS/WASM binding on the first authorized v14 fixture while reducing observed peak RSS from approximately 410 MB to 70 MB. A fresh valid child succeeded after the controlled truncated derivative caused an upstream panic. The hardened build replaces unchecked short-record reads with I/O errors and retains the outer panic guard.
+
+For v13+ logs, the native wrapper returns `truncated_records` only when the terminal record envelope is incomplete, the decoded prefix passes time/coordinate/battery validation, and decoded flight time remains more than one second short of the source-declared total. This avoids labeling the valid fixture's harmless partial terminal record as truncation, and avoids mislabeling invalid key/data output, while classifying the controlled derivative from source evidence rather than its fixture identity. This rule remains subject to representative-fixture validation.
 
 The JS/WASM binding remains useful as a research comparator; it is not the production parser runtime. The native build must retain pinned-source verification, target-specific SBOM/notices, advisory checks, artifact attestation, and the Linux containment proof in CI.
 
 ### Reconsideration triggers
 
-- The Rust candidate cannot expose a defensible parse-termination reason without an incompatible fork.
+- The combined envelope, decoded-prefix, and duration rule does not generalize across representative supported fixtures.
 - Representative supported fixtures exceed the accepted Linux resource envelope.
 - A maintained parser with stronger correctness and supply-chain evidence materially changes the trade-off.
 

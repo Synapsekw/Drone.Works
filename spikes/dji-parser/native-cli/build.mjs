@@ -76,12 +76,15 @@ const fetchEnd = library.indexOf("    /// Retrieves the parsed raw records", fet
 if (fetchStart < 0 || fetchEnd < 0) throw new Error("Unable to remove provider methods");
 writeFileSync(libraryPath, `${library.slice(0, fetchStart)}${library.slice(fetchEnd)}`);
 cpSync(join(directory, "keychain-api.rs"), join(sourceRoot, "dji-log-parser", "src", "keychain", "api.rs"));
+run("git", ["apply", "--unidiff-zero", "--check", join(directory, "decoder-hardening.patch")], { cwd: sourceRoot });
+run("git", ["apply", "--unidiff-zero", join(directory, "decoder-hardening.patch")], { cwd: sourceRoot });
 
 const crateRoot = join(sourceRoot, crateName);
 mkdirSync(join(crateRoot, "src"), { recursive: true });
 cpSync(join(directory, "Cargo.toml"), join(crateRoot, "Cargo.toml"));
 cpSync(join(directory, "src", "main.rs"), join(crateRoot, "src", "main.rs"));
 
+run("cargo", ["test", "--release", "--package", crateName], { cwd: sourceRoot });
 run("cargo", ["build", "--release", "--package", crateName], { cwd: sourceRoot });
 const executableName = process.platform === "win32" ? `${crateName}.exe` : crateName;
 const built = join(sourceRoot, "target", "release", executableName);
@@ -110,6 +113,8 @@ const manifest = {
     provider_network_source_removed: true,
     provider_network_dependencies_removed: true,
     panic_to_structured_failure: true,
+    short_record_reads_return_io_errors: true,
+    truncation_basis: "incomplete_v13_envelope_valid_prefix_and_declared_duration_gap",
     keychain_transport: "bounded_stdin",
   },
   artifact: {

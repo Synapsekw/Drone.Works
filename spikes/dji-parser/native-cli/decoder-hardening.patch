@@ -1,0 +1,114 @@
+diff --git a/dji-log-parser/src/decoder.rs b/dji-log-parser/src/decoder.rs
+index ce05f98..72b3b83 100644
+--- a/dji-log-parser/src/decoder.rs
++++ b/dji-log-parser/src/decoder.rs
+@@ -57,6 +57,11 @@ where
+-                            let aes_reader = AesDecoder::new(
+-                                XorDecoder::new(reader, record_type),
+-                                &value.0,
+-                                &value.1,
+-                                size - 2, // firstChar and lastChar are not part of the content
+-                            );
++                            let payload_size = match size.checked_sub(2) {
++                                Some(size) => size,
++                                None => return Box::new(FailedDecoder::invalid_data()),
++                            };
++                            let xor_reader = XorDecoder::new(reader, record_type);
++                            let aes_reader =
++                                match AesDecoder::new(xor_reader, &value.0, &value.1, payload_size)
++                                {
++                                    Ok(decoder) => decoder,
++                                    Err(error) => return Box::new(FailedDecoder::from(error)),
++                                };
+@@ -86,0 +92 @@ pub struct XorDecoder<R> {
++    initialization_error: Option<ErrorKind>,
+@@ -92 +98,4 @@ impl<R: Read + Seek> XorDecoder<R> {
+-        reader.read_exact(&mut first_byte).unwrap();
++        let read_error = reader
++            .read_exact(&mut first_byte)
++            .err()
++            .map(|error| error.kind());
+@@ -95 +104,4 @@ impl<R: Read + Seek> XorDecoder<R> {
+-        let start_position = reader.stream_position().unwrap();
++        let (start_position, position_error) = match reader.stream_position() {
++            Ok(position) => (position, None),
++            Err(error) => (0, Some(error.kind())),
++        };
+@@ -108,0 +121 @@ impl<R: Read + Seek> XorDecoder<R> {
++            initialization_error: read_error.or(position_error),
+@@ -114,0 +128,3 @@ impl<R: Read> Read for XorDecoder<R> {
++        if let Some(kind) = self.initialization_error {
++            return Err(Error::new(kind, "XOR decoder initialization failed"));
++        }
+@@ -125,0 +142,3 @@ impl<R: Seek> Seek for XorDecoder<R> {
++        if let Some(kind) = self.initialization_error {
++            return Err(Error::new(kind, "XOR decoder initialization failed"));
++        }
+@@ -128 +147,4 @@ impl<R: Seek> Seek for XorDecoder<R> {
+-                self.decode_position = (position - self.start_position) as usize;
++                self.decode_position =
++                    position.checked_sub(self.start_position).ok_or_else(|| {
++                        Error::new(ErrorKind::InvalidInput, "seek before record payload")
++                    })? as usize;
+@@ -143 +165 @@ impl AesDecoder {
+-    pub fn new<R: Read>(mut reader: R, iv: &[u8], key: &[u8], size: u16) -> AesDecoder {
++    pub fn new<R: Read>(mut reader: R, iv: &[u8], key: &[u8], size: u16) -> Result<AesDecoder> {
+@@ -145 +167,8 @@ impl AesDecoder {
+-        reader.read_exact(&mut buffer).unwrap();
++        reader.read_exact(&mut buffer)?;
++
++        if buffer.len() < Aes256::block_size() {
++            return Err(Error::new(
++                ErrorKind::InvalidData,
++                "encrypted record payload is smaller than one block",
++            ));
++        }
+@@ -150 +179,2 @@ impl AesDecoder {
+-        let dec: cbc::Decryptor<Aes256> = Aes256CbcDec::new_from_slices(key, iv).unwrap();
++        let dec: cbc::Decryptor<Aes256> = Aes256CbcDec::new_from_slices(key, iv)
++            .map_err(|_| Error::new(ErrorKind::InvalidData, "invalid AES key or IV length"))?;
+@@ -156 +186 @@ impl AesDecoder {
+-        AesDecoder {
++        Ok(AesDecoder {
+@@ -159 +189 @@ impl AesDecoder {
+-        }
++        })
+@@ -166 +196,37 @@ impl Read for AesDecoder {
+-        Ok(buf.len()) // always return buffer length to avoid padding issues
++        Ok(buf.len()) // preserve upstream padding behavior after safe initialization
++    }
++}
++
++struct FailedDecoder {
++    kind: ErrorKind,
++}
++
++impl FailedDecoder {
++    fn invalid_data() -> Self {
++        Self {
++            kind: ErrorKind::InvalidData,
++        }
++    }
++}
++
++impl From<Error> for FailedDecoder {
++    fn from(error: Error) -> Self {
++        Self { kind: error.kind() }
++    }
++}
++
++impl Read for FailedDecoder {
++    fn read(&mut self, _buf: &mut [u8]) -> Result<usize> {
++        Err(Error::new(
++            self.kind,
++            "record decoder initialization failed",
++        ))
++    }
++}
++
++impl Seek for FailedDecoder {
++    fn seek(&mut self, _pos: SeekFrom) -> Result<u64> {
++        Err(Error::new(
++            self.kind,
++            "record decoder initialization failed",
++        ))

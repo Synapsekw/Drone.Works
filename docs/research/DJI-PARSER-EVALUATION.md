@@ -1,6 +1,6 @@
 # DJI parser evaluation
 
-Status: in progress; native runtime selected, truncation classification remains open
+Status: in progress; native runtime and controlled truncation classification pass
 Candidate: pinned `dji-log-parser@0.5.7` behind a minimal Rust CLI
 Last updated: 2026-07-15
 
@@ -18,11 +18,12 @@ The candidate is suitable for continued local evaluation:
 - General, non-sensitive details can be read without a keychain.
 - Full record/frame decoding requires a DJI keychain for version 14.
 - The controlled truncated derivative fails independently during keyed frame decoding, and a later fresh child still decodes the valid parent.
+- The hardened native artifact classifies the derivative as `truncated_records` from structural and declared-duration evidence, with zero stderr.
 - The minimal native CLI matches the JS/WASM result at 27,228 frames and uses approximately 70 MB peak RSS instead of 410 MB.
 - D-009 now selects the native CLI inside the existing Linux hard-container boundary; JS/WASM remains a research comparator.
 - The official DJI comparator documents v13 only, so it does not currently displace the candidate for these v14 fixtures.
 
-This is not yet final parser acceptance. Representative fixture coverage, duration/normalization validation, defensible truncation classification, native release attestation, and the production DJI key-service/legal gates remain unresolved.
+This is not yet final parser acceptance. Representative fixture coverage, normalization validation, native release attestation, and the production DJI key-service/legal gates remain unresolved.
 
 The local prefix/details probe is reproducible through [`../../spikes/dji-parser/`](../../spikes/dji-parser/). The first authorized fixture now has sanitized frame-validity, capability, memory, and recovery evidence; broader fixture coverage, duration validation, normalization, and native release hardening remain open.
 
@@ -178,7 +179,7 @@ The first fixture request contains one group, nine allowlisted wire feature poin
 
 At the initial 128 MB V8 old-space limit, decode terminated cleanly as `parser_memory_limit`. With 256 MB of V8 old space, the same fixture decoded 27,228 frames. Two successful observations measured approximately 421–528 ms inside `frames()`, 444–549 ms total worker time, 411–413 MB RSS, and 143–176 MB used JavaScript heap. Time was monotonic, coordinates and battery values remained in bounds, and location, battery, signal, and attitude capabilities were present.
 
-One later provider call supplied the same ephemeral keychain to three fresh no-network children. The valid source decoded, the controlled truncated derivative failed, and a later valid child decoded the same 27,228 frames. This proves per-operation failure isolation and recovery without sending derivative metadata to DJI. The JS/WASM child returns generic `decode_failed`, while the guarded native child returns `parser_internal_error`; distinguishing unexpected EOF as `truncated_records` remains an implementation requirement.
+One later provider call supplied the same ephemeral keychain to three fresh no-network children. The valid source decoded, the controlled truncated derivative failed, and a later valid child decoded the same 27,228 frames. This proves per-operation failure isolation and recovery without sending derivative metadata to DJI. The JS/WASM child still returns generic `decode_failed`; the selected native artifact now returns `truncated_records` from the combined evidence described below.
 
 ## Native Rust boundary comparison
 
@@ -192,7 +193,9 @@ One controlled comparison reused a single authorized parent response in memory. 
 | Worker time | 435 ms | 213 ms |
 | Peak RSS | 410 MB | 70 MB |
 
-The native valid → truncated derivative → valid sequence ended with the same 27,228-frame result. The unpatched native comparator exited with Rust panic code 101 on the derivative, while the following fresh child remained unaffected. Source inspection identified unchecked reads in the upstream decoder and a record loop that discards the record parse error. Because that API does not expose whether termination was clean EOF, unexpected EOF, or another parse error, labeling the derivative `truncated_records` today would be guesswork. The selected native wrapper contains the panic; the next parser patch must preserve and classify the termination cause before P0-03 closes.
+The native valid → truncated derivative → valid sequence ended with the same 27,228-frame result. The unpatched native comparator exited with Rust panic code 101 on the derivative, while the following fresh child remained unaffected. Source inspection identified unchecked decoder reads and enum fallback that can reinterpret a final partial record.
+
+The hardened build replaces those unchecked short reads with I/O errors and retains the panic guard. Because valid v13+ logs may also finish with a partial terminal record, the wrapper requires three agreeing signals before returning `truncated_records`: an incomplete raw record envelope, a decoded prefix that passes monotonic-time and coordinate/battery bounds, and decoded flight time more than one second short of the source-declared total. Invalid decoded output remains a generic decode failure rather than being mislabeled as truncation. The valid parent reached effectively 100% completion and remained a 27,228-frame success; the controlled derivative reached approximately 45.7%, returned `truncated_records` with exit code 2 and zero stderr, and the next valid child again produced 27,228 frames. Four source-free Rust tests cover complete, incomplete, corrupt, and combined-evidence behavior.
 
 ## Preliminary constructor timing
 
@@ -291,7 +294,7 @@ No parser error message may include raw payload, coordinates, serials, or full f
 - [x] Execute the first controlled live request and validate the bounded DJI response without publishing payload values.
 - [x] Decode the first authorized fixture and validate positive frame count, monotonic time, coordinate/battery bounds, and capability coverage.
 - [x] Prove that the controlled truncated derivative fails independently and a later valid fixture still processes.
-- [ ] Classify the controlled derivative as `truncated_records` instead of generic `decode_failed`.
+- [x] Classify the controlled derivative as `truncated_records` using incomplete-envelope plus declared-duration evidence, without fixture-identity inference.
 - [ ] Validate duration and representative output on the remaining fixture matrix.
 - [ ] Complete process-startup, key-retrieval, normalization, and output-volume measurements; JS and native decode/worker/RSS observations now exist.
 - [x] Decide whether the JS binding is acceptable in a Node worker or whether a Rust CLI boundary is safer. Select the native CLI and retain JS/WASM only as a comparator.

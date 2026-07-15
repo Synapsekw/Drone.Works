@@ -9,6 +9,17 @@ use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::time::Instant;
 
 const MAX_INPUT_BYTES: u64 = 262_144;
+const PREFIX_SIZE: usize = 100;
+const VERSION_OFFSET: usize = 10;
+const MAX_TERMINAL_TIME_GAP_SECONDS: f64 = 1.0;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum EnvelopeStatus {
+    Complete,
+    IncompleteTerminalRecord,
+    Invalid,
+    Unavailable,
+}
 
 #[derive(Deserialize)]
 struct SensitiveInput {
@@ -42,6 +53,7 @@ struct Metrics {
     decode_ms: f64,
     worker_total_ms: f64,
     max_rss_bytes: u64,
+    completion_ratio: Option<f64>,
 }
 
 #[derive(Serialize)]
@@ -73,6 +85,78 @@ fn fail(code: &'static str) -> ! {
     let _ = serde_json::to_writer(io::stdout(), &output);
     println!();
     std::process::exit(2);
+}
+
+fn inspect_record_envelopes(bytes: &[u8]) -> EnvelopeStatus {
+    if bytes.len() < PREFIX_SIZE {
+        return EnvelopeStatus::Invalid;
+    }
+    if bytes[VERSION_OFFSET] < 13 {
+        return EnvelopeStatus::Unavailable;
+    }
+
+    let detail_offset = u64::from_le_bytes(bytes[0..8].try_into().unwrap());
+    let Ok(mut offset) = usize::try_from(detail_offset) else {
+        return EnvelopeStatus::Invalid;
+    };
+    if offset < PREFIX_SIZE || offset > bytes.len() {
+        return EnvelopeStatus::Invalid;
+    }
+
+    while offset < bytes.len() {
+        let remaining = bytes.len() - offset;
+        if remaining < 3 {
+            return EnvelopeStatus::IncompleteTerminalRecord;
+        }
+        let size = u16::from_le_bytes([bytes[offset + 1], bytes[offset + 2]]) as usize;
+        if size <= 2 {
+            return EnvelopeStatus::Invalid;
+        }
+        let Some(record_bytes) = 3usize
+            .checked_add(size)
+            .and_then(|value| value.checked_add(1))
+        else {
+            return EnvelopeStatus::Invalid;
+        };
+        if record_bytes > remaining {
+            return EnvelopeStatus::IncompleteTerminalRecord;
+        }
+        if bytes[offset + record_bytes - 1] != 0xff {
+            return EnvelopeStatus::Invalid;
+        }
+        offset += record_bytes;
+    }
+
+    EnvelopeStatus::Complete
+}
+
+fn completion_ratio(frames: &[Frame], declared_time: f64) -> Option<f64> {
+    if !declared_time.is_finite() || declared_time <= 0.0 {
+        return None;
+    }
+    let observed_time = frames
+        .iter()
+        .map(|frame| frame.osd.fly_time as f64)
+        .filter(|value| value.is_finite())
+        .fold(0.0_f64, f64::max);
+    Some((observed_time / declared_time).clamp(0.0, 1.0))
+}
+
+fn has_material_terminal_gap(completion_ratio: Option<f64>, declared_time: f64) -> bool {
+    completion_ratio
+        .map(|ratio| declared_time * (1.0 - ratio) > MAX_TERMINAL_TIME_GAP_SECONDS)
+        .unwrap_or(false)
+}
+
+fn should_classify_truncated(
+    envelope_status: EnvelopeStatus,
+    completion_ratio: Option<f64>,
+    declared_time: f64,
+    decoded_prefix_valid: bool,
+) -> bool {
+    envelope_status == EnvelopeStatus::IncompleteTerminalRecord
+        && decoded_prefix_valid
+        && has_material_terminal_gap(completion_ratio, declared_time)
 }
 
 fn max_rss_bytes() -> u64 {
@@ -175,6 +259,10 @@ fn main() {
     let read_started = Instant::now();
     let bytes = fs::read(path).unwrap_or_else(|_| fail("fixture_unavailable"));
     let read_ms = read_started.elapsed().as_secs_f64() * 1000.0;
+    let envelope_status = inspect_record_envelopes(&bytes);
+    if envelope_status == EnvelopeStatus::Invalid {
+        fail("decode_failed");
+    }
 
     let parse_started = Instant::now();
     let parser = DJILog::from_bytes(bytes).unwrap_or_else(|_| fail("invalid_or_corrupt_prefix"));
@@ -192,7 +280,21 @@ fn main() {
         Err(_) => fail("parser_internal_error"),
     };
     let decode_ms = decode_started.elapsed().as_secs_f64() * 1000.0;
+    let declared_time = parser.details.total_time;
+    let completion_ratio = completion_ratio(&frames, declared_time);
     let (validation, capabilities) = summarize(&frames, &secret);
+    let decoded_prefix_valid = validation.frame_count_positive
+        && validation.time_monotonic
+        && validation.coordinates_in_bounds
+        && validation.battery_in_bounds;
+    if should_classify_truncated(
+        envelope_status,
+        completion_ratio,
+        declared_time,
+        decoded_prefix_valid,
+    ) {
+        fail("truncated_records");
+    }
 
     let output = Success {
         schema_version: 1,
@@ -208,8 +310,71 @@ fn main() {
             decode_ms,
             worker_total_ms: started.elapsed().as_secs_f64() * 1000.0,
             max_rss_bytes: max_rss_bytes(),
+            completion_ratio,
         },
     };
     serde_json::to_writer(io::stdout(), &output).unwrap_or_else(|_| fail("serialization_failed"));
     println!();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn v14_bytes(record: &[u8]) -> Vec<u8> {
+        let mut bytes = vec![0; PREFIX_SIZE];
+        bytes[0..8].copy_from_slice(&(PREFIX_SIZE as u64).to_le_bytes());
+        bytes[VERSION_OFFSET] = 14;
+        bytes.extend_from_slice(record);
+        bytes
+    }
+
+    #[test]
+    fn accepts_complete_v14_record_envelopes() {
+        let bytes = v14_bytes(&[1, 3, 0, 4, 5, 6, 0xff]);
+        assert_eq!(inspect_record_envelopes(&bytes), EnvelopeStatus::Complete);
+    }
+
+    #[test]
+    fn identifies_an_incomplete_terminal_record() {
+        let bytes = v14_bytes(&[1, 8, 0, 4, 5]);
+        assert_eq!(
+            inspect_record_envelopes(&bytes),
+            EnvelopeStatus::IncompleteTerminalRecord
+        );
+    }
+
+    #[test]
+    fn rejects_an_invalid_record_terminator() {
+        let bytes = v14_bytes(&[1, 3, 0, 4, 5, 6, 0]);
+        assert_eq!(inspect_record_envelopes(&bytes), EnvelopeStatus::Invalid);
+    }
+
+    #[test]
+    fn requires_all_three_truncation_signals() {
+        assert!(!should_classify_truncated(
+            EnvelopeStatus::Complete,
+            Some(0.45),
+            100.0,
+            true
+        ));
+        assert!(!should_classify_truncated(
+            EnvelopeStatus::IncompleteTerminalRecord,
+            Some(1.0),
+            100.0,
+            true
+        ));
+        assert!(!should_classify_truncated(
+            EnvelopeStatus::IncompleteTerminalRecord,
+            Some(0.45),
+            100.0,
+            false
+        ));
+        assert!(should_classify_truncated(
+            EnvelopeStatus::IncompleteTerminalRecord,
+            Some(0.45),
+            100.0,
+            true
+        ));
+    }
 }

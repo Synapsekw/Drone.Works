@@ -10,7 +10,8 @@ The resulting CLI:
 - reads a single source path from its only argument;
 - accepts validated keychains only through bounded standard input;
 - emits one sanitized JSON summary;
-- converts unchecked upstream decoder panics into `parser_internal_error`;
+- replaces unchecked short-record reads with I/O errors while retaining a panic guard;
+- classifies truncation only when an incomplete v13+ record envelope, valid decoded prefix, and source-declared duration gap agree;
 - contains no DJI credential or provider-networking path.
 
 Build in disposable directories:
@@ -21,9 +22,14 @@ node spikes/dji-parser/native-cli/build.mjs /tmp/dji-native-work /tmp/dji-native
 
 Production execution remains inside the Linux boundary in `../container/`; the CLI itself is not a
 sandbox. Before release, the native target still needs target-specific SBOM/notices, advisory audit,
-repeatable Linux artifact verification, and a parser patch that reports clean record completion versus
-unexpected EOF. Without that termination signal, a controlled truncated file can be contained and
-sanitized but cannot be honestly classified as `truncated_records`.
+repeatable Linux artifact verification, and CI execution.
+
+DJI v13+ logs can end with a partial record even when their declared flight duration is complete. The
+wrapper therefore does not treat a short terminal envelope alone as truncation. It returns
+`truncated_records` only when the envelope is incomplete, the decoded prefix passes time/coordinate/
+battery validation, and decoded flight time remains more than one second short of the source-declared
+total. Invalid complete envelopes and invalid decoded prefixes remain generic decode failures.
+Four source-free Rust unit tests cover complete, incomplete, corrupt, and combined-evidence behavior.
 
 ## 2026-07-15 comparison
 
@@ -38,6 +44,6 @@ keychain was supplied over standard input to fresh no-network processes. Sanitiz
 | Peak RSS | 410 MB | 70 MB |
 
 Validation flags and declared capabilities matched. A valid → controlled-truncated → valid native
-sequence recovered to the same 27,228 frames. The unpatched comparator exited with Rust panic code 101
-for the derivative, confirming that the production wrapper must retain the panic guard and external
-process/container boundary.
+sequence recovered to the same 27,228 frames. The hardened artifact classified the derivative as
+`truncated_records` with exit code 2 and zero stderr; both valid operations reached effectively 100% of
+their source-declared duration. The external process/container boundary remains mandatory.

@@ -12,11 +12,12 @@ related: ["[[00-north-star]]"]
 - [Stack scorecard](../../docs/architecture/STACK-SCORECARD.md)
 - [DJI keychain boundary](../../docs/architecture/KEYCHAIN-BOUNDARY.md)
 - [Canonical domain model and provenance proof](../../docs/architecture/DOMAIN-MODEL.md)
+- [Organization isolation and Postgres/RLS proof](../../docs/architecture/TENANCY.md)
 - [Canonical decision log](../../docs/product/DECISIONS.md)
 
 ## Open Phase 0 architecture outputs
 
-- Tenancy and database-enforced isolation proof.
+- Remaining P0-05 API-role, real-queue, object/download, privileged-access, and deletion isolation gates.
 - Telemetry storage/downsampling benchmark.
 - System and security-boundary documents.
 - Environments, deployment, recovery, and cost evidence.

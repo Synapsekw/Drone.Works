@@ -1,12 +1,12 @@
 ---
 type: north-star
 status: active
-last-updated: 2026-07-15-1726
+last-updated: 2026-07-15-1826
 tags: [project/drone-works, north-star]
 related:
   - "[[project-history]]"
   - "[[memory]]"
-  - "[[2026-07-15-1726-canonical-model-proof]]"
+  - "[[2026-07-15-1826-postgres-rls-isolation]]"
 ---
 
 # Drone.Works — North Star
@@ -31,12 +31,12 @@ Drone.Works is an explainable operational record for small professional drone te
 
 ## Now
 
-- **Phase:** Phase 0; P0-04 canonical model proof is complete and P0-05 organization isolation is next.
-- **Branch:** source commit `14a47aa` is local on `main`, which is two commits ahead of `origin/main` before this vault-only closeout commit; nothing was pushed in this working block.
-- **Completed evidence:** the vendor-neutral canonical revision schema and validator enforce ownership, provenance, sample counts, effective facts, and fingerprint integrity. Exact-normalized-v1 evidence is deterministic across parser/provenance/override changes and sensitive to normalized operational material. Executable transitions preserve flight identity across reprocessing, update active totals, enforce the 30-day restoration boundary, purge customer payload, retain shared sources, and handle zero-flight outcomes.
-- **Verification baseline:** 78 host tests pass with zero skips/failures, including loopback provider behavior and real macOS parser network denial. Schema JSON, JavaScript syntax, Git whitespace, credential-ignore, and privacy checks pass. Hosted run `29403024703` remains the latest Linux release-evidence baseline. No Docker was used locally.
-- **Blocking evidence:** P0-04's source-free proof is closed, but persistence enforcement and real database/object-storage/export/log/backup deletion are not yet proven. Broader fixture coverage remains permission-gated; production D-012 gates remain separate.
-- **Next technical action:** begin P0-05 with database constraints, organization-required repositories, pooled-connection RLS behavior, jobs, aggregates, exports, and object-key isolation against the generic canonical ownership model.
+- **Phase:** Phase 0; P0-05 organization isolation is active and its first relational Postgres/RLS slice is complete.
+- **Branch:** source commit `ec9d5f6` is local on `main`, which is four commits ahead of `origin/main` before this vault-only closeout commit; nothing was pushed in this working block.
+- **Completed evidence:** a native PostgreSQL 18 spike maps the generic ownership graph into seven forced-RLS tables with non-owner/non-`BYPASSRLS` application access, composite organization foreign keys, transaction-local pooled context, and organization-required repository/job operations. Alpha/Beta direct reads, joins, aggregates, exports, writes, missing context, owner behavior, and same-backend pool reuse fail closed.
+- **Verification baseline:** 7 native PostgreSQL integration tests and 78 existing host tests pass with zero skips/failures. JavaScript syntax, JSON, Git whitespace, privacy, role/table policy state, loopback provider behavior, and real macOS parser network denial pass. Hosted run `29403024703` remains the latest Linux release-evidence baseline. No Docker or persistent PostgreSQL service was used.
+- **Blocking evidence:** D-002 remains proposed because API role authorization, a real queue, object-key/signed-download enforcement and revocation, observable privileged access, remaining resource types, and deletion paths are not yet executable. Broader fixture coverage remains permission-gated; production D-012 gates remain separate.
+- **Next technical action:** continue P0-05 with organization-owned raw-source/export references and an object-key/download proof that reauthorizes membership before minting a short-lived URL; then exercise the organization-required job contract through a real queue.
 - **Next external decision:** decide whether the remaining fixtures may use DJI processing; production terms, notice/consent, managed-secret, retention, and deletion gates remain separate under D-012.
 - **Parallel follow-up:** use the versioned telemetry shape and representative sample count to begin P0-06 benchmarks after the P0-05 harness boundary is clear.
 - **Privacy:** raw fixtures remain ignored and local. No raw values, coordinates, identifiers, keychain feature points, credentials, or generated parser artifacts belong in this vault.
@@ -49,7 +49,7 @@ Drone.Works is an explainable operational record for small professional drone te
 | P0-02 fixture policy and inventory | Local research gate satisfied | Policy, manifest, three private v14 logs, and one controlled truncation exist. |
 | P0-03 parser/key feasibility | Core proof complete; external gates remain | Native containment, truncation, private intermediate, representative measurements, hosted reproducibility, strict audit, evidence upload, and attestations pass; broader fixtures and production D-012 gates remain open. |
 | P0-04 canonical model | Core proof complete | Generic schema/validator, ownership/lifecycle, canonical-v1 adapter, provenance, asset evidence, capabilities, override survival, exact-normalized fingerprint, totals, deletion/restoration, and zero-flight transitions pass. |
-| P0-05 organization isolation | Next | Finalized ownership and identity rules are ready for executable Postgres/RLS, repository, job, aggregate, export, and object-key isolation proof. |
+| P0-05 organization isolation | Active; relational core proven | Native Postgres forced RLS, composite ownership constraints, pooled context, repositories, jobs, aggregates, and relational exports pass; API roles, real queue, objects/downloads, privileged access, remaining resource types, and deletion remain open. |
 | P0-06 telemetry benchmark | Ready | Versioned telemetry shape and representative 27,228-sample evidence are ready for storage/downsampling benchmarks. |
 | P0-07 runtime/deployment selection | Proposed | TypeScript/Next/Fastify/worker/Postgres shortlist needs remaining proofs. |
 | P0-08 threat model | Not started | Parser/key boundaries provide initial inputs. |

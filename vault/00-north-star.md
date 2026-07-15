@@ -1,12 +1,12 @@
 ---
 type: north-star
 status: active
-last-updated: 2026-07-15-1007
+last-updated: 2026-07-15-1115
 tags: [project/drone-works, north-star]
 related:
   - "[[project-history]]"
   - "[[memory]]"
-  - "[[2026-07-15-1007-classify-truncated-records]]"
+  - "[[2026-07-15-1115-native-release-evidence]]"
 ---
 
 # Drone.Works — North Star
@@ -32,11 +32,11 @@ Drone.Works is an explainable operational record for small professional drone te
 ## Now
 
 - **Phase:** Phase 0, workstream P0-03 — DJI parser and key feasibility.
-- **Branch:** `main` at `90f33bd`, nine commits ahead of `origin/main` before this vault wrap-up; evidence-based native truncation classification is committed.
-- **Completed evidence:** the native Rust CLI still decodes the authorized valid fixture to 27,228 frames with unchanged validation and capabilities. The controlled derivative now returns structured `truncated_records`, based on an incomplete terminal record, a validated decoded prefix, and decoded time materially short of the source-declared total; a fresh valid child then reproduces all 27,228 frames.
-- **Verification baseline:** the exact pinned native source applies the tracked hardening patch, passes four Rust release tests, and builds cleanly. All 57 parser/orchestration tests pass outside the outer sandbox with zero skips; the live valid → derivative → valid sequence returns 27,228 frames → `truncated_records` → 27,228 frames with zero derivative stderr. Linux hard-container and JS/WASM reproducibility/advisory CI evidence remain green.
-- **Blocking evidence:** native target SBOM/notices, advisory audit, Linux artifact attestation, and CI execution remain open. Representative fixture coverage and duration-threshold validation, normalization, process-startup, and output-volume measurements also remain open.
-- **Next technical action:** add native target SBOM/notices, advisory audit, Linux artifact attestation, and CI execution; then validate the duration threshold and representative intermediate output before starting P0-04 normalization.
+- **Branch:** `main` at `52db979`, eleven commits ahead of `origin/main` before this vault wrap-up; native release-evidence tooling and CI are committed locally.
+- **Completed evidence:** the selected native build now emits a normalized target-specific CycloneDX SBOM, complete third-party notices/license texts, SHA-256 artifact/input manifests, and a deterministic evidence inventory. Two clean host-target builds produced 80 byte-identical files; strict target-filtered RustSec checks found zero vulnerabilities and zero warnings across 39 target components. The Ubuntu two-build, evidence-upload, binary-provenance, and SBOM-attestation job is defined.
+- **Verification baseline:** each clean pinned-source build passed four Rust release tests and produced the same 903,232-byte executable digest. All 58 parser/orchestration tests pass outside the outer sandbox with zero skips; JavaScript syntax, Rust formatting, workflow YAML parsing, repository diff integrity, local-path/provider-marker scans, and the 80-file repeatability comparison pass. No Docker was used locally.
+- **Blocking evidence:** the new native job has not run on hosted Ubuntu because this working block did not push; Linux byte identity, uploaded evidence, and published attestations remain open. Representative fixture coverage and duration-threshold validation, normalization, process-startup, and output-volume measurements also remain open.
+- **Next technical action:** push the committed workflow when explicitly requested, verify the hosted `native-parser-build` evidence and both attestations, then validate representative duration/output before starting P0-04 normalization.
 - **Next external decision:** decide whether the remaining fixtures may use DJI processing; production terms, notice/consent, managed-secret, retention, and deletion gates remain separate under D-012.
 - **After representative output:** begin P0-04 canonical model/provenance proof; P0-05 tenancy and P0-06 telemetry work follow the Phase 0 dependency gates.
 - **Privacy:** raw fixtures remain ignored and local. No raw values, coordinates, identifiers, keychain feature points, credentials, or generated parser artifacts belong in this vault.
@@ -47,7 +47,7 @@ Drone.Works is an explainable operational record for small professional drone te
 |---|---|---|
 | P0-01 constraints and scorecard | Evidence drafted | Quality attributes and stack scorecard exist; final component choices remain proposed. |
 | P0-02 fixture policy and inventory | Local research gate satisfied | Policy, manifest, three private v14 logs, and one controlled truncation exist. |
-| P0-03 parser/key feasibility | Active | D-009 selects the native Rust CLI in the Linux boundary and controlled truncation classification is proven; native release gates, broader coverage, and normalization measurements remain open. |
+| P0-03 parser/key feasibility | Active | Native runtime, truncation, local SBOM/notices, strict advisory, and repeat-build gates pass; hosted Linux attestations, broader coverage, and normalization measurements remain open. |
 | P0-04 canonical model | Waiting | Requires representative intermediate parser output. |
 | P0-05 organization isolation | Not started | Requires ownership model and executable Postgres/RLS proof. |
 | P0-06 telemetry benchmark | Not started | Requires representative telemetry shape. |

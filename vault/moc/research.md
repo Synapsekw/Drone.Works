@@ -18,6 +18,6 @@ related: ["[[00-north-star]]"]
 ## Unresolved evidence
 
 - Representative decoded coverage beyond the first authorized v14 fixture.
-- Native target SBOM/notices, advisory audit, Linux artifact attestation, and CI execution.
+- Hosted native Linux reproducibility, uploaded evidence, and published binary/SBOM attestations.
 - Representative duration-threshold validation, normalization, process-startup, and output-volume validation.
 - Production key-service/legal acceptance and final D-012 status.

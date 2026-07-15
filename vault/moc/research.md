@@ -18,7 +18,6 @@ related: ["[[00-north-star]]"]
 ## Unresolved evidence
 
 - Representative decoded coverage beyond the first authorized v14 fixture.
-- A parser termination signal that distinguishes clean EOF, unexpected EOF, and corrupt records.
 - Native target SBOM/notices, advisory audit, Linux artifact attestation, and CI execution.
-- Duration, normalization, process-startup, and output-volume validation.
+- Representative duration-threshold validation, normalization, process-startup, and output-volume validation.
 - Production key-service/legal acceptance and final D-012 status.

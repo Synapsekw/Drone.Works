@@ -11,11 +11,12 @@ related: ["[[00-north-star]]"]
 - [Quality attributes](../../docs/architecture/QUALITY-ATTRIBUTES.md)
 - [Stack scorecard](../../docs/architecture/STACK-SCORECARD.md)
 - [DJI keychain boundary](../../docs/architecture/KEYCHAIN-BOUNDARY.md)
+- [Canonical domain model and provenance proof](../../docs/architecture/DOMAIN-MODEL.md)
 - [Canonical decision log](../../docs/product/DECISIONS.md)
 
 ## Open Phase 0 architecture outputs
 
-- Domain model and provenance proof.
+- Generic canonical schema, exact-normalized fingerprint, and lifecycle-transition proof.
 - Tenancy and database-enforced isolation proof.
 - Telemetry storage/downsampling benchmark.
 - System and security-boundary documents.

@@ -18,5 +18,5 @@ related: ["[[00-north-star]]"]
 ## Unresolved evidence
 
 - Representative decoded coverage beyond the first authorized v14 fixture.
-- Representative duration-threshold validation, normalization, process-startup, and output-volume validation.
+- Generic canonical schema, exact-normalized fingerprint, and lifecycle-transition evidence after the first representative normalization.
 - Production key-service/legal acceptance and final D-012 status.

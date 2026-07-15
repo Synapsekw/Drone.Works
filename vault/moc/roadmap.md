@@ -14,12 +14,11 @@ related: ["[[00-north-star]]", "[[project-history]]"]
 ## Current critical path
 
 ```text
-P0-03 parser/key feasibility
-  -> representative intermediate output + remaining fixture gates
-  -> P0-04 canonical model
+P0-04 canonical model
+  -> generic schema + exact-normalized fingerprint + lifecycle transitions
   -> P0-05 tenancy + P0-06 telemetry proofs
   -> P0-07/08 stack and threat-model closure
   -> P0-09 Phase 1A backlog
 ```
 
-D-009 selects a minimal native Rust CLI inside the proven Linux hard-container boundary. Controlled truncation and hosted Linux reproducibility, strict advisory, evidence upload, and binary/SBOM attestation now pass. The next gate is a privacy-safe representative intermediate output and its measurements before P0-04 consumes that contract; broader fixture validation remains permission-gated.
+P0-03's core technical proof is complete: D-009 selects a minimal native Rust CLI inside the proven Linux boundary, and private intermediate evidence passes. P0-04 now has its first canonical-v1 adapter, ownership model, representative normalization, and override-preservation proof. Finish the generic schema, exact-normalized fingerprint, and lifecycle transitions before starting the dependent P0-05/P0-06 proofs; broader fixture validation remains permission-gated.

@@ -17,7 +17,7 @@ related: ["[[00-north-star]]"]
 
 ## Open Phase 0 architecture outputs
 
-- Remaining P0-05 API-role, real-queue, object/download, privileged-access, and deletion isolation gates.
+- Remaining P0-05 API-role, real-queue, real-object-provider, privileged-access, and deletion isolation gates.
 - Telemetry storage/downsampling benchmark.
 - System and security-boundary documents.
 - Environments, deployment, recovery, and cost evidence.

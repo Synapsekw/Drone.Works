@@ -1,12 +1,12 @@
 ---
 type: north-star
 status: active
-last-updated: 2026-07-15-1845
+last-updated: 2026-07-15-1857
 tags: [project/drone-works, north-star]
 related:
   - "[[project-history]]"
   - "[[memory]]"
-  - "[[2026-07-15-1845-real-queue-retry-isolation]]"
+  - "[[2026-07-15-1857-versioned-api-role-isolation]]"
 ---
 
 # Drone.Works — North Star
@@ -31,12 +31,12 @@ Drone.Works is an explainable operational record for small professional drone te
 
 ## Now
 
-- **Phase:** Phase 0; P0-05 organization isolation is active, with relational RLS, derived object/download authorization, and real-queue retry isolation proven.
-- **Branch:** source commit `e2d1a2b` is local on `main`, which is eight commits ahead of `origin/main` before this vault-only closeout commit; nothing was pushed in this working block.
-- **Completed evidence:** pg-boss now runs against the native ephemeral PostgreSQL cluster through a non-superuser role that owns only its queue schema. Durable jobs contain only a version, organization ID, and flight ID; enqueue and execution reject ID-only or unexpected material. Alpha remains Alpha-scoped through a failed attempt and retry on the one-connection RLS pool, a Beta-scoped Alpha ID is hidden, and a bypass-inserted malformed job fails before domain handling. The prior forced-RLS and download-authorization evidence remains passing.
-- **Verification baseline:** 13 native PostgreSQL integration tests and 78 existing host tests pass with zero skips/failures. Git whitespace, role/schema/table privileges, durable payload state, pooled retry, loopback provider behavior, and real macOS parser network denial pass. Hosted run `29403024703` remains the latest Linux release-evidence baseline. No Docker, persistent PostgreSQL service, real object provider, or customer data was used.
-- **Blocking evidence:** D-002 remains proposed because the full API role matrix, real provider-side URL/object/deletion behavior, observable privileged access, remaining resource types, and deletion paths are not yet executable. D-011 also remains proposed pending worker termination, cancellation, queue-age, and idempotent-mutation evidence. Broader fixture coverage remains permission-gated; production D-012 gates remain separate.
-- **Next technical action:** continue P0-05 with the smallest versioned API authorization proof over the current schema, including owner/admin/viewer/pilot-own-flight scope and cross-organization IDOR denial.
+- **Phase:** Phase 0; P0-05 organization isolation is active, with relational RLS, derived downloads, real-queue retry, and the first versioned API role boundary proven.
+- **Branch:** source commit `e2eb152` is local on `main`, which is ten commits ahead of `origin/main` before this vault-only closeout commit; nothing was pushed in this working block.
+- **Completed evidence:** eleven forced-RLS customer tables now include raw-source/export flight scope and organization pilot restrictions. Real `/api/v1/` loopback requests prove every role can view organization flights; owner/admin downloads, viewer denial, pilot-own-flight scope, mixed-pilot denial, disabled pilot policy, cross-organization exact-ID hiding, and authenticated-identity precedence all pass without selecting an API framework or session provider. The prior pooled RLS, signer, revocation, and queue-retry evidence remains passing.
+- **Verification baseline:** 16 native PostgreSQL/API integration tests and 78 existing host tests pass with zero skips/failures. JavaScript syntax, Git whitespace, forced-RLS ownership, pooled context, RFC 9457 denial shape, no-signer denial, loopback provider behavior, and real macOS parser network denial pass. Hosted run `29403024703` remains the latest Linux release-evidence baseline. No Docker, persistent PostgreSQL service, real object provider, or customer data was used.
+- **Blocking evidence:** D-002 remains proposed because the API mutation/administration matrix, real provider-side URL/object/deletion behavior, observable privileged access, remaining resource types, and deletion paths are not yet executable. D-011 remains proposed pending worker termination, cancellation, queue-age, and idempotent-mutation evidence. Broader fixture coverage remains permission-gated; production D-012 gates remain separate.
+- **Next technical action:** continue P0-05 with a flight-mutation API role slice covering manual creation, pilot-own note editing, owner/admin reassignment and delete/restore, viewer denial, and cross-organization IDOR behavior.
 - **Next external decision:** decide whether the remaining fixtures may use DJI processing; production terms, notice/consent, managed-secret, retention, and deletion gates remain separate under D-012.
 - **Parallel follow-up:** use the versioned telemetry shape and representative sample count to begin P0-06 benchmarks after the P0-05 harness boundary is clear.
 - **Privacy:** raw fixtures remain ignored and local. No raw values, coordinates, identifiers, keychain feature points, credentials, or generated parser artifacts belong in this vault.
@@ -49,7 +49,7 @@ Drone.Works is an explainable operational record for small professional drone te
 | P0-02 fixture policy and inventory | Local research gate satisfied | Policy, manifest, three private v14 logs, and one controlled truncation exist. |
 | P0-03 parser/key feasibility | Core proof complete; external gates remain | Native containment, truncation, private intermediate, representative measurements, hosted reproducibility, strict audit, evidence upload, and attestations pass; broader fixtures and production D-012 gates remain open. |
 | P0-04 canonical model | Core proof complete | Generic schema/validator, ownership/lifecycle, canonical-v1 adapter, provenance, asset evidence, capabilities, override survival, exact-normalized fingerprint, totals, deletion/restoration, and zero-flight transitions pass. |
-| P0-05 organization isolation | Active; relational, signer, and queue boundaries proven | Native Postgres forced RLS, composite ownership, pooled context, relational exports, derived object keys, bounded downloads, membership revocation, strict durable payloads, cross-organization retry isolation, and queue-role separation pass; full API roles, real provider, privileged access, remaining resources, and deletion remain open. |
+| P0-05 organization isolation | Active; relational, signer, queue, and first API boundaries proven | Native Postgres forced RLS, composite ownership, pooled context, derived keys, bounded downloads, membership revocation, strict durable payloads, retry isolation, role-scoped `/api/v1/` reads/downloads, policy restrictions, and uniform IDOR denial pass; API mutations/admin, real provider, privileged access, remaining resources, and deletion remain open. |
 | P0-06 telemetry benchmark | Ready | Versioned telemetry shape and representative 27,228-sample evidence are ready for storage/downsampling benchmarks. |
 | P0-07 runtime/deployment selection | Proposed | TypeScript/Next/Fastify/worker/Postgres shortlist needs remaining proofs. |
 | P0-08 threat model | Not started | Parser/key boundaries provide initial inputs. |

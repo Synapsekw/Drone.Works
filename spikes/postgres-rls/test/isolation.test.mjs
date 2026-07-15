@@ -1,12 +1,18 @@
 import assert from "node:assert/strict";
-import { after, test } from "node:test";
+import { after, before, test } from "node:test";
 import pg from "pg";
+import { PgBoss } from "pg-boss";
 import {
   DownloadAuthorizationError,
   MAX_DOWNLOAD_TTL_MS,
   deriveObjectKey,
   issueAuthorizedDownload,
 } from "../src/downloads.mjs";
+import {
+  FLIGHT_REFRESH_QUEUE,
+  enqueueFlightRefresh,
+  processNextFlightRefresh,
+} from "../src/jobs.mjs";
 import {
   loadFlightForJob,
   withOrganization,
@@ -18,6 +24,17 @@ const applicationPool = new Pool({ max: 1 });
 const bootstrapPool = new Pool({
   max: 1,
   user: process.env.DRONEWORKS_PG_BOOTSTRAP_USER,
+});
+const queueBoss = new PgBoss({
+  host: process.env.PGHOST,
+  port: Number(process.env.PGPORT),
+  database: process.env.PGDATABASE,
+  user: process.env.DRONEWORKS_PG_QUEUE_USER,
+  schema: process.env.DRONEWORKS_PG_QUEUE_SCHEMA,
+  application_name: "droneworks-queue-proof",
+  createSchema: false,
+  schedule: false,
+  supervise: false,
 });
 
 const fixedNow = new Date("2026-07-15T12:00:00Z");
@@ -47,11 +64,20 @@ function isHiddenDownloadDenial(error) {
     && error.message === "Download is not available";
 }
 
+before(async () => {
+  queueBoss.on("error", () => {});
+  await queueBoss.start();
+  await queueBoss.createQueue(FLIGHT_REFRESH_QUEUE, {
+    retryLimit: 1,
+    retryDelay: 0,
+    deleteAfterSeconds: 3600,
+  });
+});
+
 after(async () => {
-  await Promise.all([
-    applicationPool.end(),
-    bootstrapPool.end(),
-  ]);
+  await queueBoss.stop({ graceful: false });
+  await applicationPool.end();
+  await bootstrapPool.end();
 });
 
 test("ordinary connections are non-owner, non-superuser, and unable to bypass RLS", async () => {
@@ -91,6 +117,31 @@ test("ordinary connections are non-owner, non-superuser, and unable to bypass RL
     assert.equal(table.relrowsecurity, true);
     assert.equal(table.relforcerowsecurity, true);
   }
+});
+
+test("queue ownership is limited to infrastructure and cannot read customer tables", async () => {
+  const roleResult = await bootstrapPool.query(
+    `SELECT rolsuper,
+            rolcreaterole,
+            rolcreatedb,
+            rolcanlogin,
+            rolbypassrls,
+            has_schema_privilege('droneworks_queue', 'droneworks_jobs', 'USAGE') AS owns_queue_schema,
+            has_table_privilege('droneworks_queue', 'droneworks.canonical_flights', 'SELECT') AS reads_customer_flights,
+            has_schema_privilege('droneworks_app', 'droneworks_jobs', 'USAGE') AS app_reads_queue_schema
+       FROM pg_roles
+      WHERE rolname = 'droneworks_queue'`,
+  );
+  assert.deepEqual(roleResult.rows[0], {
+    rolsuper: false,
+    rolcreaterole: false,
+    rolcreatedb: false,
+    rolcanlogin: true,
+    rolbypassrls: false,
+    owns_queue_schema: true,
+    reads_customer_flights: false,
+    app_reads_queue_schema: false,
+  });
 });
 
 test("missing organization context fails closed for reads and writes", async () => {
@@ -377,6 +428,114 @@ test("background jobs require organization context and cannot load by a global f
     flightId: "flight-alpha",
   });
   assert.equal(flight.id, "flight-alpha");
+});
+
+test("durable queue jobs reject ID-only payloads and preserve organization isolation across retry", async () => {
+  await assert.rejects(
+    enqueueFlightRefresh(queueBoss, {
+      schemaVersion: 1,
+      flightId: "flight-alpha",
+    }),
+    /only schemaVersion, organizationId, and flightId/,
+  );
+  await assert.rejects(
+    enqueueFlightRefresh(queueBoss, {
+      schemaVersion: 1,
+      organizationId: "org-alpha",
+      flightId: "flight-alpha",
+      parserPayload: { coordinates: "must-not-be-durable" },
+    }),
+    /only schemaVersion, organizationId, and flightId/,
+  );
+  assert.deepEqual(await queueBoss.findJobs(FLIGHT_REFRESH_QUEUE), []);
+
+  const alphaJobId = await enqueueFlightRefresh(queueBoss, {
+    schemaVersion: 1,
+    organizationId: "org-alpha",
+    flightId: "flight-alpha",
+  });
+  const durableAlpha = await queueBoss.getJobById(
+    FLIGHT_REFRESH_QUEUE,
+    alphaJobId,
+  );
+  assert.deepEqual(durableAlpha.data, {
+    schemaVersion: 1,
+    organizationId: "org-alpha",
+    flightId: "flight-alpha",
+  });
+
+  const attempts = [];
+  await assert.rejects(
+    processNextFlightRefresh(queueBoss, applicationPool, async (input) => {
+      attempts.push({
+        organizationId: input.organizationId,
+        flightId: input.flightId,
+        visibleOrganizationId: input.flight.organization_id,
+      });
+      throw new Error("synthetic transient failure");
+    }),
+    /synthetic transient failure/,
+  );
+  const retry = await processNextFlightRefresh(
+    queueBoss,
+    applicationPool,
+    async (input) => {
+      attempts.push({
+        organizationId: input.organizationId,
+        flightId: input.flightId,
+        visibleOrganizationId: input.flight.organization_id,
+      });
+      return { revision: "synthetic-retry-success" };
+    },
+  );
+  assert.equal(retry.jobId, alphaJobId);
+  assert.deepEqual(retry.outcome, {
+    status: "processed",
+    result: { revision: "synthetic-retry-success" },
+  });
+  assert.deepEqual(attempts, [{
+    organizationId: "org-alpha",
+    flightId: "flight-alpha",
+    visibleOrganizationId: "org-alpha",
+  }, {
+    organizationId: "org-alpha",
+    flightId: "flight-alpha",
+    visibleOrganizationId: "org-alpha",
+  }]);
+
+  const crossOrganizationJobId = await enqueueFlightRefresh(queueBoss, {
+    schemaVersion: 1,
+    organizationId: "org-beta",
+    flightId: "flight-alpha",
+  });
+  let crossOrganizationHandlerCalls = 0;
+  const hidden = await processNextFlightRefresh(
+    queueBoss,
+    applicationPool,
+    async () => {
+      crossOrganizationHandlerCalls += 1;
+    },
+  );
+  assert.equal(hidden.jobId, crossOrganizationJobId);
+  assert.deepEqual(hidden.outcome, { status: "not_found" });
+  assert.equal(crossOrganizationHandlerCalls, 0);
+
+  const malformedJobId = await queueBoss.send(
+    FLIGHT_REFRESH_QUEUE,
+    { flightId: "flight-beta" },
+    { retryLimit: 0 },
+  );
+  await assert.rejects(
+    processNextFlightRefresh(queueBoss, applicationPool, async () => {
+      assert.fail("malformed durable payload reached the domain handler");
+    }),
+    /only schemaVersion, organizationId, and flightId/,
+  );
+  const malformed = await queueBoss.getJobById(
+    FLIGHT_REFRESH_QUEUE,
+    malformedJobId,
+  );
+  assert.equal(malformed.state, "failed");
 });
 
 test("FORCE RLS applies to the migration owner while bootstrap bypass stays explicit", async () => {

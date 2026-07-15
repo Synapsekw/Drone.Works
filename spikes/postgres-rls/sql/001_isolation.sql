@@ -18,7 +18,19 @@ CREATE ROLE droneworks_app
   NOREPLICATION
   NOBYPASSRLS;
 
+CREATE ROLE droneworks_queue
+  LOGIN
+  NOINHERIT
+  NOSUPERUSER
+  NOCREATEDB
+  NOCREATEROLE
+  NOREPLICATION
+  NOBYPASSRLS;
+
 CREATE SCHEMA droneworks AUTHORIZATION droneworks_migrator;
+CREATE SCHEMA droneworks_jobs AUTHORIZATION droneworks_queue;
+
+REVOKE ALL ON SCHEMA droneworks_jobs FROM PUBLIC;
 
 SET ROLE droneworks_migrator;
 

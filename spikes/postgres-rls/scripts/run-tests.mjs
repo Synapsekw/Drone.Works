@@ -98,6 +98,8 @@ try {
     PGDATABASE: "postgres",
     PGUSER: "droneworks_app",
     DRONEWORKS_PG_BOOTSTRAP_USER: bootstrapUser,
+    DRONEWORKS_PG_QUEUE_USER: "droneworks_queue",
+    DRONEWORKS_PG_QUEUE_SCHEMA: "droneworks_jobs",
   });
 } catch (error) {
   if (serverStarted) {

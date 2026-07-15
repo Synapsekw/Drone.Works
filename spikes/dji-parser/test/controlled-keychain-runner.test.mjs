@@ -31,9 +31,9 @@ after(async () => {
   })));
 });
 
-function fixture(externalServiceProcessing = true) {
+function fixture(externalServiceProcessing = true, id = "controlled-fixture") {
   return {
-    id: "controlled-fixture",
+    id,
     review: { status: "approved_local" },
     provenance: {
       commercial_evaluation: true,
@@ -69,12 +69,25 @@ test("dry-run builds only sanitized request metadata without a provider", async 
 
 test("live mode fetches and decodes through the broker without serializing secrets", async () => {
   const fixturePath = await temporaryFile("fixture.bin", "success");
+  const followUpPath = await temporaryFile("follow-up.bin", "success");
   const provider = new MockKeychainProvider({
     responses: new Map([["controlled-fixture", keychains]]),
   });
   const result = await runControlledKeychain({
     fixture: fixture(true),
     fixturePath,
+    followUpFixtures: [
+      {
+        fixture: fixture(false, "offline-follow-up"),
+        fixtureId: "offline-follow-up",
+        fixturePath: followUpPath,
+      },
+      {
+        fixture: fixture(false, "controlled-fixture"),
+        fixtureId: "controlled-fixture",
+        fixturePath,
+      },
+    ],
     provider,
     allowDjiRequest: true,
     workerPath: fakeWorker,
@@ -86,6 +99,11 @@ test("live mode fetches and decodes through the broker without serializing secre
   assert.equal(result.decode.status, "decoded");
   assert.equal(result.decode.validation.secret_in_arguments, false);
   assert.equal(result.decode.validation.secret_in_environment, false);
+  assert.deepEqual(
+    result.follow_up_decodes.map((decode) => decode.fixture_id),
+    ["offline-follow-up", "controlled-fixture"],
+  );
+  assert.equal(result.follow_up_decodes.every((decode) => decode.status === "decoded"), true);
   assert.equal(provider.sanitizedCalls.length, 1);
   assert.equal(JSON.stringify(result).includes(keychains[0][0].aesKey), false);
   assert.equal(JSON.stringify(result).includes(keychains[0][0].aesIv), false);
@@ -100,6 +118,28 @@ test("live mode rejects a fixture without external-processing authorization befo
     workerPath: fakeWorker,
     networkIsolation: "test_only_none",
   }), /not authorized/);
+});
+
+test("live mode rejects an unauthorized offline follow-up before the provider call", async () => {
+  const fixturePath = await temporaryFile("fixture.bin", "success");
+  const provider = new MockKeychainProvider();
+  const unauthorized = fixture(false, "unauthorized-follow-up");
+  unauthorized.provenance.commercial_evaluation = false;
+
+  await assert.rejects(runControlledKeychain({
+    fixture: fixture(true),
+    fixturePath,
+    followUpFixtures: [{
+      fixture: unauthorized,
+      fixtureId: unauthorized.id,
+      fixturePath,
+    }],
+    provider,
+    allowDjiRequest: true,
+    workerPath: fakeWorker,
+    networkIsolation: "test_only_none",
+  }), /not authorized/);
+  assert.equal(provider.sanitizedCalls.length, 0);
 });
 
 test("credential reader accepts the one named local value", async () => {

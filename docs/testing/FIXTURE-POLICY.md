@@ -170,6 +170,6 @@ Before using any fixture:
 
 ## Current Phase 0 state
 
-Three contributor-provided candidate DJI logs and one controlled truncated derivative are inventoried as local-only fixtures. Their raw bytes remain ignored by Git and local probing identifies the three source logs as encrypted DJI format version 14. The repository owner explicitly authorized one controlled external-processing request for the first fixture on 2026-07-14; external processing remains false for the other two source logs and the derivative. The authorized request has not left the workspace because the host external-disclosure policy blocked the live runner before process creation.
+Three contributor-provided candidate DJI logs and one controlled truncated derivative are inventoried as local-only fixtures. Their raw bytes remain ignored by Git and local probing identifies the three source logs as encrypted DJI format version 14. The repository owner explicitly authorized controlled external processing for the first fixture on 2026-07-14; after a separate host disclosure acknowledgement on 2026-07-15, its bounded keychain request was sent to DJI and returned a valid response. External processing remains false for the other two source logs and the derivative; the derivative was decoded offline with the parent's ephemeral keychain and no derivative metadata was transmitted.
 
 The P0-02 handling and inventory gate is satisfied for local research. Parser feasibility and confirmation that at least one candidate is a valid supported log remain P0-03 evidence.

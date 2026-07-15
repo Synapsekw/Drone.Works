@@ -86,6 +86,16 @@ npm run keychain -- --fixture dji-log-001 --allow-dji-request
 
 Live mode uses the exact allowlisted DJI endpoint, holds the returned keychain only in an encrypted in-memory cache for the process lifetime, sends it to a fresh no-network child over bounded standard input, destroys the cache, and emits only the broker and decode summaries. It remains a Phase 0 research command, not a production credential or persistence path.
 
+An authorized primary request can drive additional offline decodes before the cache is destroyed. Each follow-up fixture must independently permit controlled local keychain use, but its metadata is not sent to DJI:
+
+```sh
+npm run keychain -- --fixture dji-log-001 --allow-dji-request --memory-mb 256 \
+  --follow-up-fixture dji-log-001-truncated-4m \
+  --follow-up-fixture dji-log-001
+```
+
+This sequence supports valid → truncated → valid recovery evidence with one provider call and a fresh no-network parser child for every decode.
+
 The intended production boundary is documented in [`../../docs/architecture/KEYCHAIN-BOUNDARY.md`](../../docs/architecture/KEYCHAIN-BOUNDARY.md).
 
 ## Security boundary

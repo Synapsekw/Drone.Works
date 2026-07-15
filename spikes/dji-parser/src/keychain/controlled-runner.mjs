@@ -87,21 +87,27 @@ export async function readCredentialFile(path) {
   return credential;
 }
 
-function assertFixtureAuthorization(fixture, now = new Date()) {
+function assertKeychainUseAuthorization(fixture, now = new Date()) {
   const approved = fixture?.review?.status === "approved_local"
     || fixture?.review?.status === "approved_repository";
   if (!approved
-    || fixture?.provenance?.commercial_evaluation !== true
-    || fixture?.provenance?.external_service_processing !== true) {
-    throw new Error("Fixture is not authorized for external DJI processing");
+    || fixture?.provenance?.commercial_evaluation !== true) {
+    throw new Error("Fixture is not authorized for controlled keychain use");
   }
 
   const reviewOn = fixture.provenance.review_on;
   if (typeof reviewOn === "string") {
     const reviewDate = new Date(`${reviewOn}T23:59:59.999Z`);
     if (!Number.isFinite(reviewDate.valueOf()) || now > reviewDate) {
-      throw new Error("Fixture external-processing authorization requires review");
+      throw new Error("Fixture authorization requires review");
     }
+  }
+}
+
+function assertFixtureAuthorization(fixture, now = new Date()) {
+  assertKeychainUseAuthorization(fixture, now);
+  if (fixture?.provenance?.external_service_processing !== true) {
+    throw new Error("Fixture is not authorized for external DJI processing");
   }
 }
 
@@ -130,6 +136,7 @@ export async function runControlledKeychain({
   fixture,
   fixturePath,
   fixtureId = fixture?.id,
+  followUpFixtures = [],
   provider,
   allowDjiRequest = false,
   workerPath,
@@ -141,6 +148,9 @@ export async function runControlledKeychain({
 }) {
   if (allowDjiRequest) {
     assertFixtureAuthorization(fixture, now);
+    for (const followUp of followUpFixtures) {
+      assertKeychainUseAuthorization(followUp.fixture, now);
+    }
     if (!provider) {
       throw new TypeError("A provider is required for an authorized DJI request");
     }
@@ -164,6 +174,7 @@ export async function runControlledKeychain({
     request: privateRequest.result,
     broker: null,
     decode: null,
+    follow_up_decodes: [],
   };
 
   if (privateRequest.result.status !== "keychain_request_ready" || !allowDjiRequest) {
@@ -193,6 +204,14 @@ export async function runControlledKeychain({
         ...childOptions,
         keychains,
       });
+      for (const followUp of followUpFixtures) {
+        result.follow_up_decodes.push(await runIsolatedDecode({
+          ...childOptions,
+          fixtureId: followUp.fixtureId,
+          fixturePath: followUp.fixturePath,
+          keychains,
+        }));
+      }
     }
     return result;
   } finally {
@@ -209,6 +228,12 @@ async function main(argv) {
   const allowDjiRequest = argv.includes("--allow-dji-request");
   const manifestPath = value(argv, "--manifest", "fixtures/manifest.json");
   const { fixture, fixturePath } = await loadControlledFixture({ manifestPath, fixtureId });
+  const followUpFixtures = await Promise.all(values(argv, "--follow-up-fixture").map(
+    async (followUpId) => {
+      const loaded = await loadControlledFixture({ manifestPath, fixtureId: followUpId });
+      return { ...loaded, fixtureId: followUpId };
+    },
+  ));
 
   let provider;
   if (allowDjiRequest) {
@@ -226,6 +251,7 @@ async function main(argv) {
     fixture,
     fixturePath,
     fixtureId,
+    followUpFixtures,
     provider,
     allowDjiRequest,
     timeoutMs: positiveInteger(argv, "--timeout-ms", 5_000),

@@ -1,6 +1,6 @@
 # DJI parser evaluation
 
-Status: in progress; one controlled fixture authorized, live disclosure blocked by host policy
+Status: in progress; first authorized v14 decode and truncation-recovery sequence pass
 Candidate: `dji-log-parser-js@0.5.7`
 Last updated: 2026-07-14
 
@@ -17,14 +17,14 @@ The candidate is suitable for continued local evaluation:
 - All three are detected as DJI format version 14.
 - General, non-sensitive details can be read without a keychain.
 - Full record/frame decoding requires a DJI keychain for version 14.
-- The controlled truncated file still contains enough prefix/detail data for initialization, so its failure behavior cannot be tested fully until a keychain is available.
+- The controlled truncated derivative fails independently during keyed frame decoding, and a later fresh child still decodes the valid parent.
 - The official DJI comparator documents v13 only, so it does not currently displace the candidate for these v14 fixtures.
 
 This is not yet a parser acceptance decision. Frame correctness, corrupt-file isolation, resource limits, normalization coverage, supply-chain remediation, and the DJI API/key terms remain unresolved.
 
-The local prefix/details probe is now reproducible through [`../../spikes/dji-parser/`](../../spikes/dji-parser/). Full frame correctness and record-level truncation behavior remain blocked on an authorized keychain flow.
+The local prefix/details probe is reproducible through [`../../spikes/dji-parser/`](../../spikes/dji-parser/). The first authorized fixture now has sanitized frame-validity, capability, memory, and recovery evidence; broader fixture coverage, duration validation, normalization, and final runtime selection remain open.
 
-A trusted keychain broker, encrypted cache, private parser/keychain IPC, disabled-by-default provider adapter, and explicit one-shot research runner are implemented. The provider contract has been exercised against a loopback mock server and the real fixture request path passes a no-network dry run. The host rejected the first live transmission before process creation, so no DJI API call or decoded frame result exists yet.
+A trusted keychain broker, encrypted cache, private parser/keychain IPC, disabled-by-default provider adapter, and explicit one-shot research runner are implemented. After explicit authorization, the real path fetched one validated keychain response from DJI and decoded only in fresh no-network children. The result contained no credential, request values, keys, IVs, coordinates, or unexpected worker fields.
 
 The detailed [supply-chain review](DJI-PARSER-SUPPLY-CHAIN.md) and [official-library comparison](DJI-OFFICIAL-PARSER-COMPARISON.md) retain the candidate only conditionally. A reproducible private build now supplies an SBOM/notices, replaces the unmaintained target dependency, removes parser-side DJI networking, and passes the Linux containment and target-specific advisory gates in CI. Authorized frame validation and legal/key-service approval remain open.
 
@@ -67,7 +67,7 @@ The npm package was downloaded into temporary storage for inspection. It has not
 
 [`../../spikes/dji-parser/internal-build/`](../../spikes/dji-parser/internal-build/) rebuilds the tagged source into a private Node/WebAssembly package. It pins the upstream commit and toolchain, replaces `tsify-next` with `tsify`, removes the WebAssembly HTTP implementation and `fetchKeychains` export, verifies artifact hashes and the expected API, and emits a CycloneDX SBOM plus a complete target-specific license bundle.
 
-Two clean builds produced 104 byte-identical output files. Compared with the npm package, the only parser method removed is `fetchKeychains`; no parser method was added. The generated JavaScript and declarations contain no DJI endpoint, API-key header, or fetch binding. The internally built parser still detects each private fixture as version 14 and constructs its local keychain request. No DJI request was made.
+Two clean builds produced 104 byte-identical output files. Compared with the npm package, the only parser method removed is `fetchKeychains`; no parser method was added. The generated JavaScript and declarations contain no DJI endpoint, API-key header, or fetch binding. The internally built parser still detects each private fixture as version 14 and constructs its local keychain request. That build-comparison step made no DJI request.
 
 ### Alternative official library
 
@@ -164,7 +164,7 @@ Key material is not passed through arguments, environment variables, temporary f
 
 The provider adapter models the documented DJI POST endpoint, `Api-Key` header, and `{ "data": ... }` envelope. Exact endpoint allowlisting, HTTPS enforcement, an explicit external-network authorization flag, pre-credential request validation, redirect rejection, runtime credential injection, end-to-end timeout, bounded response reading, and sanitized failure codes are enforced before integration. Twelve provider scenarios run against configuration checks and a loopback mock HTTP server; no DJI hostname is contacted.
 
-The full spike runner reports 56 passing tests, including broker/cache, IPC, provider, controlled-runner, wire-identifier validation, and parser-isolation evidence. The complete suite passes outside the outer sandbox, including the mock listener and real macOS network-denial checks.
+The full spike runner reports 57 passing tests, including broker/cache, IPC, provider, controlled-runner, offline follow-up authorization, wire-identifier validation, and parser-isolation evidence. The complete suite passes outside the outer sandbox, including the mock listener and real macOS network-denial checks.
 
 ## Controlled one-shot runner evidence
 
@@ -172,7 +172,11 @@ The Phase 0 runner in [`../../spikes/dji-parser/src/keychain/controlled-runner.m
 
 Live mode additionally requires `--allow-dji-request`, current `approved_local` or `approved_repository` review, commercial-evaluation permission, explicit external-service permission, and a non-expired review date. Only the trusted parent reads the ignored `.env.local`; the parser child receives neither the credential nor ordinary parent environment. Returned keychains would be validated, held only in an encrypted in-memory cache, passed over bounded standard input to a fresh no-network child, and destroyed before process exit.
 
-The first fixture dry run passed with one group, nine allowlisted wire feature points, and a 3,825-byte request. An attempted live run was rejected by the host external-disclosure policy before the runner process started. Therefore provider status, keychain response shape, frame validation, truncation behavior, and decode measurements remain unknown, and no DJI request was made.
+The first fixture request contains one group, nine allowlisted wire feature points, and 3,825 serialized bytes. DJI returned one validated group with nine feature points and 1,331 serialized bytes. These payloads remained private; ordinary output recorded only their bounded metadata.
+
+At the initial 128 MB V8 old-space limit, decode terminated cleanly as `parser_memory_limit`. With 256 MB of V8 old space, the same fixture decoded 27,228 frames. Two successful observations measured approximately 421–528 ms inside `frames()`, 444–549 ms total worker time, 411–413 MB RSS, and 143–176 MB used JavaScript heap. Time was monotonic, coordinates and battery values remained in bounds, and location, battery, signal, and attitude capabilities were present.
+
+One later provider call supplied the same ephemeral keychain to three fresh no-network children. The valid source decoded, the controlled truncated derivative failed, and a later valid child decoded the same 27,228 frames. This proves per-operation failure isolation and recovery without sending derivative metadata to DJI. The derivative currently returns generic `decode_failed`; distinguishing it as `truncated_records` remains an implementation requirement.
 
 ## Preliminary constructor timing
 
@@ -268,10 +272,12 @@ No parser error message may include raw payload, coordinates, serials, or full f
 - [x] Build the parser reproducibly from pinned source with maintained dependencies, no parser-side network API, an SBOM, and complete notices.
 - [x] Compare the official DJI library on version scope, output, and operational constraints.
 - [ ] Decide whether key retrieval can be authorized for all local fixtures. The first fixture is authorized; the other fixtures remain closed.
-- [ ] Execute the first controlled live request; the host external-disclosure policy currently blocks process creation.
-- [ ] If authorized, decode frames and validate counts, duration, monotonic time, coordinates bounds, battery ranges, and capability coverage without publishing values.
-- [ ] Prove that the truncated fixture fails independently and a later valid fixture still processes.
-- [ ] Measure process startup, peak memory, key retrieval separately, frame decode, normalization, and output volume.
+- [x] Execute the first controlled live request and validate the bounded DJI response without publishing payload values.
+- [x] Decode the first authorized fixture and validate positive frame count, monotonic time, coordinate/battery bounds, and capability coverage.
+- [x] Prove that the controlled truncated derivative fails independently and a later valid fixture still processes.
+- [ ] Classify the controlled derivative as `truncated_records` instead of generic `decode_failed`.
+- [ ] Validate duration and representative output on the remaining fixture matrix.
+- [ ] Complete process-startup, key-retrieval, normalization, and output-volume measurements; JS decode time, worker time, RSS, and heap observations now exist.
 - [ ] Decide whether the JS binding is acceptable in a Node worker or whether a Rust CLI boundary is safer.
 - [ ] Record acceptance, rejection, or a revised D-009 parser-isolation decision.
 

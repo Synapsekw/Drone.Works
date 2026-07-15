@@ -1,13 +1,13 @@
 # DJI keychain trust boundary
 
-Status: proposed; controlled one-shot runner dry-run proven, live disclosure blocked by host policy
+Status: proposed; controlled live broker, decode, and offline recovery path proven
 Last updated: 2026-07-14
 
 ## Decision summary
 
 DJI API credentials and network access belong to a trusted keychain broker, never to the parser process. Parsing remains in a no-network, resource-limited child. The broker separately enforces authorization to decode a log and authorization to transmit a keychain request to DJI.
 
-A production-shaped DJI provider adapter is wired only into an explicit Phase 0 one-shot runner, not an application or worker runtime. The runner defaults to no-network dry-run mode, requires an individually authorized fixture plus `--allow-dji-request` for live mode, reads a temporary ignored development credential only in the broker, and destroys its encrypted in-memory cache before exit. No DJI API call has been made: the first live execution was rejected by the host's external-disclosure policy before the runner process started.
+A production-shaped DJI provider adapter is wired only into an explicit Phase 0 one-shot runner, not an application or worker runtime. The runner defaults to no-network dry-run mode, requires an individually authorized fixture plus `--allow-dji-request` for live mode, reads a temporary ignored development credential only in the broker, and destroys its encrypted in-memory cache before exit. After explicit owner and host approval, the runner fetched and validated one keychain response for the first fixture and decoded it in a fresh no-network child without placing the credential or keychain in serialized output.
 
 ## Trust flow
 
@@ -176,9 +176,11 @@ Nine broker/cache tests prove:
 
 Five parser IPC tests additionally prove private request serialization, invalid-request rejection, absence of key material from arguments/environment/result output, validation before child spawn, and bounded sensitive input.
 
-Twelve provider scenarios prove exact endpoint allowlisting, HTTPS enforcement, the external-network kill switch, pre-credential request validation, runtime credential delivery, request shape, redirect rejection, authentication and rate-limit classification, response-size and JSON validation, end-to-end timeout, and credential redaction. Controlled-runner and wire-identifier tests additionally prove default dry-run behavior, authorization rejection before parsing, broker-to-child secret isolation, cache destruction, credential-file parsing, and the finite DJI feature-point allowlist. The integration scenarios use a local mock server and never resolve or contact a DJI host.
+Twelve provider scenarios prove exact endpoint allowlisting, HTTPS enforcement, the external-network kill switch, pre-credential request validation, runtime credential delivery, request shape, redirect rejection, authentication and rate-limit classification, response-size and JSON validation, end-to-end timeout, and credential redaction. Controlled-runner and wire-identifier tests additionally prove default dry-run behavior, authorization rejection before parsing, broker-to-child secret isolation, cache destruction, credential-file parsing, offline follow-up authorization, and the finite DJI feature-point allowlist. The integration scenarios use a local mock server and never resolve or contact a DJI host.
 
-The real first fixture produced one bounded dry-run request containing one group and nine allowlisted feature points. The parent serialized only counts and sizes. A requested live execution was denied by the host before process creation because fixture-derived private data would have left the workspace, so it produced no provider or decode result.
+The real first fixture produced one bounded request containing one group and nine allowlisted feature points. DJI returned one validated group with nine feature points; the broker serialized only counts and sizes. A 128 MB V8 old-space run failed cleanly as `parser_memory_limit`; at 256 MB, the valid fixture decoded 27,228 frames with monotonic time, bounded coordinates and battery values, and the expected location, battery, signal, and attitude capabilities. Observed child RSS was approximately 411–413 MB, showing that V8 old-space and total process memory require separate limits.
+
+One subsequent provider call drove three offline decodes with the same ephemeral keychain in fresh children: valid, controlled truncation, then valid again. The derivative failed independently and the later valid source reproduced 27,228 frames, proving recovery. The derivative currently reports generic `decode_failed`, so production-quality `truncated_records` classification remains open. No derivative request or metadata was sent to DJI.
 
 ## Acceptance gates before a real request
 

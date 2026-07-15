@@ -1,6 +1,6 @@
 # DJI parser supply-chain review
 
-Status: completed for Phase 0; legal, authorized-decode, and upgrade-review gates remain
+Status: completed for Phase 0; legal, broader-decode, and upgrade-review gates remain
 Candidate: `dji-log-parser-js@0.5.7`
 Reviewed: 2026-07-12
 Last updated: 2026-07-14
@@ -11,7 +11,7 @@ The candidate can remain in the isolated Phase 0 evaluation, but the published n
 
 The npm package has no npm dependencies and the current npm advisory service reports no known vulnerabilities. That result does not cover the Rust crates compiled into its bundled WebAssembly module. The tagged upstream WebAssembly target resolves to 51 packages: the two local parser crates plus 49 registry crates. Their declared license expressions are permissive-looking and none is missing a license declaration, but the published npm tarball omits the upstream license text and provides no SBOM or reproducible-build attestation.
 
-The tagged target tree contains `tsify-next@0.5.3`, which RustSec classifies as unmaintained. The internal build replaces it with maintained `tsify@0.5.6`, removes the WebAssembly DJI HTTP client and `fetchKeychains` export, and retains local keychain-request construction plus offline decoding. CI enforcement, repeatable target-specific advisory checks, and the parser container boundary now pass; production use still requires the unresolved DJI/legal gates, authorized frame evidence, and source review for each upgrade.
+The tagged target tree contains `tsify-next@0.5.3`, which RustSec classifies as unmaintained. The internal build replaces it with maintained `tsify@0.5.6`, removes the WebAssembly DJI HTTP client and `fetchKeychains` export, and retains local keychain-request construction plus offline decoding. CI enforcement, repeatable target-specific advisory checks, and the parser container boundary now pass; the first authorized fixture also decodes successfully. Production use still requires the unresolved DJI/legal gates, broader fixture evidence, memory/runtime selection, and source review for each upgrade.
 
 This review is engineering evidence, not legal advice.
 
@@ -122,4 +122,4 @@ Evidence recorded on 2026-07-14:
 
 The generated package remains ignored and private. License overrides cover only dependency texts omitted from three crate archives; each text is stored locally with its immutable upstream URL and verified SHA-256 checksum.
 
-Until the remaining legal, authorized-decode, and upgrade-review gates pass, the published `dji-log-parser-js@0.5.7` artifact remains a disposable research dependency. The internally built package is stronger Phase 0 evidence, not yet an accepted production component.
+Until the remaining legal, broader-decode, runtime-selection, and upgrade-review gates pass, the published `dji-log-parser-js@0.5.7` artifact remains a disposable research dependency. The internally built package is stronger Phase 0 evidence, not yet an accepted production component.

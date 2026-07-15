@@ -1,0 +1,418 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://drone.works/schemas/canonical/import-revision-v1.json",
+  "title": "Drone.Works canonical import revision",
+  "description": "Source-independent private persistence contract produced by every parser adapter.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "kind",
+    "organization_id",
+    "upload_batch_id",
+    "raw_source",
+    "import_item_id",
+    "processing_attempt_id",
+    "processing_revision_id",
+    "parser_revision",
+    "flights"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "kind": { "const": "canonical_import_revision" },
+    "organization_id": { "$ref": "#/$defs/id" },
+    "upload_batch_id": { "$ref": "#/$defs/id" },
+    "raw_source": { "$ref": "#/$defs/rawSource" },
+    "import_item_id": { "$ref": "#/$defs/id" },
+    "processing_attempt_id": { "$ref": "#/$defs/id" },
+    "processing_revision_id": { "$ref": "#/$defs/id" },
+    "parser_revision": { "$ref": "#/$defs/parserRevision" },
+    "flights": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/flight" }
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "nullableNumber": { "type": ["number", "null"] },
+    "nullableNonNegativeNumber": { "type": ["number", "null"], "minimum": 0 },
+    "nullableNonNegativeInteger": { "type": ["integer", "null"], "minimum": 0 },
+    "nullableString": { "type": ["string", "null"], "maxLength": 4096 },
+    "parserRevision": {
+      "type": "object",
+      "required": ["id", "version", "source_commit"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "version": { "$ref": "#/$defs/id" },
+        "source_commit": { "$ref": "#/$defs/id" }
+      }
+    },
+    "rawSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["raw_source_id", "sha256", "bytes", "format_family", "format_version", "immutable"],
+      "properties": {
+        "raw_source_id": { "$ref": "#/$defs/id" },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "bytes": { "type": "integer", "minimum": 1 },
+        "format_family": { "$ref": "#/$defs/id" },
+        "format_version": { "type": ["integer", "string"], "minLength": 1 },
+        "immutable": { "const": true }
+      }
+    },
+    "sourceProvenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "origin",
+        "raw_source_id",
+        "import_item_id",
+        "processing_attempt_id",
+        "processing_revision_id",
+        "parser",
+        "source_sha256",
+        "intermediate_path",
+        "source_value"
+      ],
+      "properties": {
+        "origin": { "const": "imported" },
+        "raw_source_id": { "$ref": "#/$defs/id" },
+        "import_item_id": { "$ref": "#/$defs/id" },
+        "processing_attempt_id": { "$ref": "#/$defs/id" },
+        "processing_revision_id": { "$ref": "#/$defs/id" },
+        "parser": { "$ref": "#/$defs/parserRevision" },
+        "source_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "intermediate_path": { "$ref": "#/$defs/id" },
+        "source_value": {}
+      }
+    },
+    "overrideProvenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["origin", "organization_id", "audit_event_id", "actor_id", "occurred_at"],
+      "properties": {
+        "origin": { "const": "user_override" },
+        "organization_id": { "$ref": "#/$defs/id" },
+        "audit_event_id": { "$ref": "#/$defs/id" },
+        "actor_id": { "$ref": "#/$defs/id" },
+        "occurred_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "importedEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "provenance"],
+      "properties": {
+        "value": {},
+        "provenance": { "$ref": "#/$defs/sourceProvenance" }
+      }
+    },
+    "derivedEvidence": {
+      "type": ["object", "null"],
+      "required": ["value", "provenance"],
+      "properties": {
+        "value": {},
+        "provenance": {
+          "type": "object",
+          "required": ["origin", "derivation_id", "derivation_version"],
+          "properties": {
+            "origin": { "const": "derived" },
+            "derivation_id": { "$ref": "#/$defs/id" },
+            "derivation_version": { "$ref": "#/$defs/id" }
+          }
+        }
+      }
+    },
+    "overrideEvidence": {
+      "type": ["object", "null"],
+      "required": ["canonical_flight_id", "field", "value", "provenance"],
+      "properties": {
+        "canonical_flight_id": { "$ref": "#/$defs/id" },
+        "field": { "$ref": "#/$defs/id" },
+        "value": {},
+        "provenance": { "$ref": "#/$defs/overrideProvenance" }
+      }
+    },
+    "fact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["imported", "derived", "user_override", "base_preference", "effective"],
+      "properties": {
+        "imported": { "$ref": "#/$defs/importedEvidence" },
+        "derived": { "$ref": "#/$defs/derivedEvidence" },
+        "user_override": { "$ref": "#/$defs/overrideEvidence" },
+        "base_preference": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "enum": ["imported", "derived"] },
+          "uniqueItems": true
+        },
+        "effective": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["origin", "value"],
+          "properties": {
+            "origin": { "enum": ["imported", "derived", "user_override", "unavailable"] },
+            "value": {}
+          }
+        }
+      }
+    },
+    "facts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "takeoff_time_utc",
+        "duration_ms",
+        "distance_m",
+        "max_height_m",
+        "max_horizontal_speed_mps",
+        "max_vertical_speed_mps",
+        "aircraft_name",
+        "aircraft_model",
+        "application_platform",
+        "application_version"
+      ],
+      "properties": {
+        "takeoff_time_utc": { "$ref": "#/$defs/fact" },
+        "duration_ms": { "$ref": "#/$defs/fact" },
+        "distance_m": { "$ref": "#/$defs/fact" },
+        "max_height_m": { "$ref": "#/$defs/fact" },
+        "max_horizontal_speed_mps": { "$ref": "#/$defs/fact" },
+        "max_vertical_speed_mps": { "$ref": "#/$defs/fact" },
+        "aircraft_name": { "$ref": "#/$defs/fact" },
+        "aircraft_model": { "$ref": "#/$defs/fact" },
+        "application_platform": { "$ref": "#/$defs/fact" },
+        "application_version": { "$ref": "#/$defs/fact" }
+      }
+    },
+    "assignmentProvenance": {
+      "type": ["object", "null"],
+      "required": ["origin", "occurred_at"],
+      "properties": {
+        "origin": { "enum": ["user_assignment", "asset_match"] },
+        "occurred_at": { "type": "string", "format": "date-time" },
+        "audit_event_id": { "$ref": "#/$defs/id" },
+        "actor_id": { "$ref": "#/$defs/id" },
+        "match_evidence_id": { "$ref": "#/$defs/id" },
+        "matcher_version": { "$ref": "#/$defs/id" }
+      }
+    },
+    "identifierEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["identifier_type", "value", "asset_id", "match_status", "provenance"],
+      "properties": {
+        "identifier_type": { "$ref": "#/$defs/id" },
+        "value": { "$ref": "#/$defs/id" },
+        "asset_id": { "anyOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] },
+        "match_status": { "enum": ["unresolved", "matched", "assigned", "unavailable"] },
+        "provenance": { "$ref": "#/$defs/sourceProvenance" }
+      }
+    },
+    "assignedAsset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["asset_id", "match_status", "assignment_provenance", "identifiers"],
+      "properties": {
+        "asset_id": { "anyOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] },
+        "match_status": { "enum": ["unresolved", "matched", "assigned", "unavailable"] },
+        "assignment_provenance": { "$ref": "#/$defs/assignmentProvenance" },
+        "identifiers": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/identifierEvidence" }
+        }
+      }
+    },
+    "sample": {
+      "type": "object",
+      "description": "Versioned SI telemetry sample. Null means unavailable; zero remains a measured zero.",
+      "additionalProperties": false,
+      "required": ["elapsed_ms", "position", "altitude_msl_m", "height_agl_m", "velocity", "attitude", "battery", "gps", "signal"],
+      "properties": {
+        "elapsed_ms": { "$ref": "#/$defs/nullableNonNegativeInteger" },
+        "position": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "required": ["latitude_deg", "longitude_deg"],
+          "properties": {
+            "latitude_deg": { "type": "number", "minimum": -90, "maximum": 90 },
+            "longitude_deg": { "type": "number", "minimum": -180, "maximum": 180 }
+          }
+        },
+        "altitude_msl_m": { "$ref": "#/$defs/nullableNumber" },
+        "height_agl_m": { "$ref": "#/$defs/nullableNumber" },
+        "velocity": { "$ref": "#/$defs/vector" },
+        "attitude": { "$ref": "#/$defs/attitude" },
+        "battery": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "required": ["charge_percent", "voltage_v", "current_a", "temperature_c"],
+          "properties": {
+            "charge_percent": { "type": "integer", "minimum": 0, "maximum": 100 },
+            "voltage_v": { "$ref": "#/$defs/nullableNumber" },
+            "current_a": { "$ref": "#/$defs/nullableNumber" },
+            "temperature_c": { "$ref": "#/$defs/nullableNumber" }
+          }
+        },
+        "gps": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["satellites", "signal_level", "position_used"],
+          "properties": {
+            "satellites": { "type": "integer", "minimum": 0 },
+            "signal_level": { "type": "integer", "minimum": 0 },
+            "position_used": { "type": "boolean" }
+          }
+        },
+        "signal": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "required": ["uplink_percent", "downlink_percent"],
+          "properties": {
+            "uplink_percent": { "$ref": "#/$defs/nullableNonNegativeInteger" },
+            "downlink_percent": { "$ref": "#/$defs/nullableNonNegativeInteger" }
+          }
+        }
+      }
+    },
+    "vector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x_mps", "y_mps", "z_mps"],
+      "properties": {
+        "x_mps": { "$ref": "#/$defs/nullableNumber" },
+        "y_mps": { "$ref": "#/$defs/nullableNumber" },
+        "z_mps": { "$ref": "#/$defs/nullableNumber" }
+      }
+    },
+    "attitude": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pitch_deg", "roll_deg", "yaw_deg"],
+      "properties": {
+        "pitch_deg": { "$ref": "#/$defs/nullableNumber" },
+        "roll_deg": { "$ref": "#/$defs/nullableNumber" },
+        "yaw_deg": { "$ref": "#/$defs/nullableNumber" }
+      }
+    },
+    "telemetryProvenance": {
+      "type": "object",
+      "required": ["origin", "raw_source_id", "processing_revision_id", "parser", "source_sha256", "intermediate_path", "fields"],
+      "properties": {
+        "origin": { "const": "imported" },
+        "raw_source_id": { "$ref": "#/$defs/id" },
+        "processing_revision_id": { "$ref": "#/$defs/id" },
+        "parser": { "$ref": "#/$defs/parserRevision" },
+        "source_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "intermediate_path": { "$ref": "#/$defs/id" },
+        "fields": { "type": "object", "minProperties": 1 }
+      }
+    },
+    "fingerprintEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["classification", "version", "algorithm", "status", "digest", "match_fields", "missing_requirements"],
+      "properties": {
+        "classification": { "const": "exact_normalized" },
+        "version": { "const": "exact-normalized-v1" },
+        "algorithm": { "const": "sha256" },
+        "status": { "enum": ["eligible", "insufficient_evidence"] },
+        "digest": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
+        "match_fields": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        },
+        "missing_requirements": {
+          "type": "array",
+          "items": { "enum": ["aircraft_identifier", "takeoff_time_utc", "duration_ms"] },
+          "uniqueItems": true
+        }
+      }
+    },
+    "flight": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canonical_flight_id",
+        "organization_id",
+        "import_item_id",
+        "processing_revision_id",
+        "source_flight_index",
+        "state",
+        "facts",
+        "time_interpretation",
+        "capabilities",
+        "asset_evidence",
+        "telemetry",
+        "duplicate_evidence"
+      ],
+      "properties": {
+        "canonical_flight_id": { "$ref": "#/$defs/id" },
+        "organization_id": { "$ref": "#/$defs/id" },
+        "import_item_id": { "$ref": "#/$defs/id" },
+        "processing_revision_id": { "$ref": "#/$defs/id" },
+        "source_flight_index": { "type": "integer", "minimum": 0 },
+        "state": { "enum": ["awaiting_review", "active"] },
+        "facts": { "$ref": "#/$defs/facts" },
+        "time_interpretation": {
+          "type": "object",
+          "required": ["instant_source", "source_offset", "assumed", "review_required", "display_timezone", "display_timezone_source"],
+          "properties": {
+            "instant_source": { "enum": ["source_explicit_offset", "source_timezone_unavailable"] },
+            "source_offset": { "type": ["string", "null"] },
+            "assumed": { "type": "boolean" },
+            "review_required": { "type": "boolean" },
+            "display_timezone": { "$ref": "#/$defs/id" },
+            "display_timezone_source": { "$ref": "#/$defs/id" }
+          }
+        },
+        "capabilities": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["schema_version", "names"],
+          "properties": {
+            "schema_version": { "const": 1 },
+            "names": {
+              "type": "array",
+              "items": { "type": "string", "pattern": "^[a-z][a-z0-9_.-]+$" },
+              "uniqueItems": true
+            }
+          }
+        },
+        "asset_evidence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["pilot", "aircraft", "batteries", "cameras", "controllers"],
+          "properties": {
+            "pilot": { "$ref": "#/$defs/assignedAsset" },
+            "aircraft": { "$ref": "#/$defs/assignedAsset" },
+            "batteries": { "type": "array", "items": { "$ref": "#/$defs/identifierEvidence" } },
+            "cameras": { "type": "array", "items": { "$ref": "#/$defs/identifierEvidence" } },
+            "controllers": { "type": "array", "items": { "$ref": "#/$defs/identifierEvidence" } }
+          }
+        },
+        "telemetry": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["schema_version", "sample_count", "samples", "provenance"],
+          "properties": {
+            "schema_version": { "const": 1 },
+            "sample_count": { "type": "integer", "minimum": 0 },
+            "samples": { "type": "array", "items": { "$ref": "#/$defs/sample" } },
+            "provenance": { "$ref": "#/$defs/telemetryProvenance" }
+          }
+        },
+        "duplicate_evidence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["exact_normalized"],
+          "properties": {
+            "exact_normalized": { "$ref": "#/$defs/fingerprintEvidence" }
+          }
+        }
+      }
+    }
+  }
+}

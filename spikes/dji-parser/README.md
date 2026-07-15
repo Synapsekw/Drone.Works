@@ -99,9 +99,10 @@ match. The validated raw intermediate remains behind the trusted worker's `value
 accessor and is never included in ordinary JSON serialization.
 
 `--normalize-proof` additionally feeds the first matching private intermediate to the canonical-v1
-adapter. It returns only flight/sample counts and capability names; the private canonical revision
-remains behind `valueForPersistence()`. `--display-timezone` can supply the trusted organization
-display timezone for the Phase 0 proof and defaults to `UTC`.
+adapter. It returns only flight/sample counts, the count of eligible exact-normalized fingerprints,
+and capability names; the private canonical revision remains behind `valueForPersistence()`.
+`--display-timezone` can supply the trusted organization display timezone for the Phase 0 proof and
+defaults to `UTC`.
 
 An authorized primary request can drive additional offline decodes before the cache is destroyed. Each follow-up fixture must independently permit controlled local keychain use, but its metadata is not sent to DJI:
 
@@ -124,6 +125,13 @@ missing and multi-battery evidence; requires explicit organization context; and 
 overrides after parser revisions. An active canonical flight additionally requires trusted pilot and
 aircraft assignments. Ordinary JSON serialization contains counts and capability names, not customer
 telemetry, identifiers, organization IDs, or source hashes.
+
+[`src/normalization/canonical.schema.json`](src/normalization/canonical.schema.json) is the generic,
+vendor-neutral revision contract. [`src/normalization/canonical-model.mjs`](src/normalization/canonical-model.mjs)
+validates cross-resource invariants, creates versioned exact-normalized SHA-256 evidence from
+source-independent operational material, and supplies the executable import/reprocess/delete/restore/
+permanent-delete state proof. The tests also cover zero-flight completion and a later parser revision
+creating the first canonical flight without inventing one during the original attempt.
 
 The model and draft Phase 1A resource shape are documented in
 [`../../docs/architecture/DOMAIN-MODEL.md`](../../docs/architecture/DOMAIN-MODEL.md).

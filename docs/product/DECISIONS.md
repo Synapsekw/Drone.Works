@@ -59,7 +59,7 @@ Parsers emit a versioned intermediate result which is normalized into one canoni
 
 ### Consequences
 
-Source values and parser/model versions must be retained as provenance. The canonical schema must support missing fields and multi-battery flights.
+Source values and parser/model versions must be retained as provenance. The canonical schema must support missing fields and multi-battery flights. Canonical import revision version 1 is a vendor-neutral private persistence contract; source adapters must validate against it before persistence.
 
 ## D-004 — Raw source immutability and deletion
 
@@ -76,7 +76,7 @@ Retained raw objects are immutable. They remain available while legitimately ref
 
 ### Consequences
 
-Object references need lifecycle tracking. A raw object shared by processing revisions is not deleted prematurely. Technical caches must be de-identified if retained beyond customer deletion.
+Object references need lifecycle tracking. A raw object shared by processing revisions is not deleted prematurely. Technical caches must be de-identified if retained beyond customer deletion. The Phase 0 lifecycle proof keeps immutable revisions separate from mutable delete/restore state and makes source deletion eligibility explicit; database, object-storage, export, log, and backup enforcement remain later proof obligations.
 
 ## D-005 — Flight facts and user overrides
 
@@ -111,6 +111,8 @@ Classify duplicates as exact file duplicates, exact normalized duplicates, or pr
 ### Consequences
 
 Fingerprint versions and match reasons are stored. Product behavior cannot rely on battery serial being present or singular.
+
+`exact-normalized-v1` uses SHA-256 over deterministic, source-independent canonical operational material: imported normalized timing and summary facts, sorted stable aircraft identifiers, any present battery identifiers, capabilities, and telemetry samples. It excludes source/parser/provenance/organization/flight identifiers, assignments, and user overrides. Eligibility requires stable aircraft identity, reliable normalized takeoff time, and duration; a battery identifier is included when available but is not required or treated as positive evidence when absent.
 
 ## D-007 — Separate aircraft state dimensions
 

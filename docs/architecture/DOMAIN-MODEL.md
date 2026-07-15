@@ -5,9 +5,9 @@ Last updated: 2026-07-15
 
 ## Purpose
 
-This model proves that a versioned private parser result can become a source-independent flight revision without losing evidence, inventing missing assets, or overwriting human corrections. It implements the accepted direction in D-003 and D-005; it does not select a database schema or settle duplicate-scoring thresholds.
+This model proves that a versioned private parser result can become a source-independent flight revision without losing evidence, inventing missing assets, or overwriting human corrections. It implements the accepted direction in D-003, D-004, D-005, and D-006; it does not select a database schema or settle probable-duplicate scoring thresholds.
 
-The executable proof is [`../../spikes/dji-parser/src/normalization/canonical-v1.mjs`](../../spikes/dji-parser/src/normalization/canonical-v1.mjs). Its input and full output are private application data. Ordinary serialization exposes structural counts and capability names only.
+The vendor-neutral persistence contract is [`../../spikes/dji-parser/src/normalization/canonical.schema.json`](../../spikes/dji-parser/src/normalization/canonical.schema.json). Generic validation, fingerprinting, and lifecycle transitions live in [`../../spikes/dji-parser/src/normalization/canonical-model.mjs`](../../spikes/dji-parser/src/normalization/canonical-model.mjs); [`../../spikes/dji-parser/src/normalization/canonical-v1.mjs`](../../spikes/dji-parser/src/normalization/canonical-v1.mjs) is the first source adapter. Parser input and full canonical output are private application data. Ordinary serialization exposes structural counts, capability names, and the number of eligible fingerprints only.
 
 ## Resource relationships
 
@@ -33,6 +33,19 @@ erDiagram
 ```
 
 One import item can yield zero, one, or multiple flight candidates. A candidate becomes an active canonical flight only after it has organization-owned pilot and aircraft assignments. Reprocessing adds a flight revision under the existing canonical flight identity; it does not create another flight.
+
+## Generic canonical revision schema
+
+`canonical_import_revision` version 1 is the private contract shared by every future parser adapter. It defines organization and import ownership, immutable source identity, parser revision, zero-or-more flight revisions, provenance-aware facts, assignment and identifier evidence, capabilities, SI telemetry, and exact-normalized duplicate evidence. It deliberately contains no DJI intermediate names or parser-specific field paths outside provenance values supplied by an adapter.
+
+The executable validator additionally proves invariants that JSON Schema alone cannot express economically:
+
+- flight organization, import-item, and processing-revision identities equal their parent revision;
+- canonical flight IDs are unique within a revision;
+- imported fact, asset-identifier, and telemetry provenance points to the same source and revision;
+- telemetry sample counts equal the actual sample array length;
+- every important fact retains imported evidence and an explicit effective-value rule;
+- stored exact-normalized evidence recomputes from the canonical material exactly.
 
 ## Ownership and lifecycle
 
@@ -74,7 +87,9 @@ stateDiagram-v2
     Deleted --> PermanentlyDeleted
 ```
 
-Zero-flight parser output completes the processing attempt with no canonical flight. Multiple parser flights receive distinct canonical flight IDs but retain the same import-item and raw-source evidence.
+Zero-flight parser output completes the processing attempt with no canonical flight and retains the immutable source as import evidence. A later parser revision may create the first canonical flight from that zero-flight item. After canonical flights exist, reprocessing must reuse every retained flight identity and cannot run against a soft-deleted or permanently deleted flight. Multiple parser flights receive distinct canonical flight IDs but retain the same import-item and raw-source evidence.
+
+The executable lifecycle proof keeps deletion state outside immutable flight revisions. Soft deletion starts an exact 30-day restoration window, immediately removes the flight from active totals, and retains its customer payload. Restoration before the deadline returns the prior `active` or `awaiting_review` state and its contribution to totals. At or after the deadline, permanent deletion clears revision payload and telemetry, retains only non-sensitive audit metadata, and makes the raw source eligible for deletion when no retained canonical flight still references it. Real database, object-storage, export, log, and backup deletion remain Phase 1 acceptance work.
 
 ## Canonical fact envelope
 
@@ -149,7 +164,7 @@ Canonical capability contract version 1 maps parser capability names to:
 
 Capabilities describe fields actually present in normalized data. Missing scalar or sample values remain `null`; zero is retained only when the source actually reports zero. Manual flights use an empty telemetry-capability list.
 
-## Duplicate evidence draft
+## Exact-normalized fingerprint evidence
 
 Duplicate classification remains separate from normalization:
 
@@ -160,6 +175,18 @@ Duplicate classification remains separate from normalization:
 | Probable | Versioned reasons such as time, track, aircraft, or duration similarity | Never discard automatically; create a reversible review item. |
 
 Battery absence is never positive match evidence. Fingerprint versions and reasons must be retained.
+
+`exact-normalized-v1` is a SHA-256 digest over deterministic JSON containing only normalized operational material:
+
+- imported canonical takeoff instant and duration;
+- sorted stable aircraft identifiers and any present battery identifiers;
+- normalized distance, height, and speed facts;
+- the versioned capability names; and
+- the versioned telemetry samples in elapsed-time order.
+
+It excludes organization, source, import, attempt, revision, parser, provenance, assignment, canonical-flight, and audit identifiers, plus user overrides. Therefore identical normalized output from a later parser revision retains the same fingerprint, and a human correction cannot turn two different source results into an exact duplicate. Eligibility requires at least one stable aircraft identifier, a reliable canonical takeoff instant, and a non-negative integral duration. Battery identity is included when present but is never required; missing batteries therefore supply no positive match reason. Changing normalized telemetry or another included fact changes the digest.
+
+Stored evidence includes the algorithm, fingerprint version, eligibility status, included match-field names, and missing requirements. Exact classification requires the same organization, version, digest, and explainable stable-identifier/timing evidence. Probable duplicate scoring remains a separate, review-only future proof.
 
 ## Draft Phase 1A API resources
 
@@ -181,12 +208,18 @@ Private parser/intermediate structures are never returned by these resources. Pu
 
 Source-free tests currently prove:
 
+- the adapter output satisfies a vendor-neutral canonical revision contract;
 - imported fact provenance and UTC conversion;
 - unavailable values remain `null`;
 - private canonical serialization does not reveal identifiers or telemetry;
 - one import item can yield multiple distinct flight identities;
 - multi-battery and missing-battery evidence remain truthful;
 - an active override survives a simulated parser revision under the same canonical flight ID;
+- exact-normalized fingerprints are deterministic across parser/provenance/override changes and change with normalized telemetry;
+- fingerprint eligibility requires stable aircraft and timing evidence but not a battery identifier;
+- reprocessing updates the retained revision and totals without creating a second flight identity;
+- deletion excludes active totals, restoration reinstates them, and grace expiry purges customer payload;
+- zero-flight processing completes without a fictional flight and may later produce the first flight on reprocessing;
 - raw intermediate objects, invalid override values, cross-organization overrides, invalid active assignments, and identity-count mismatches fail closed.
 
-The next P0-04 slices are a generic normalized schema independent of the DJI adapter, exact-normalized fingerprint evidence, deletion/restoration transition tests, and a persistence-oriented ownership model that P0-05 can enforce.
+P0-04 now has its generic schema, exact-normalized fingerprint, lifecycle-transition proof, provenance model, and representative adapter evidence. P0-05 should translate this ownership and identity contract into database constraints and organization-enforced access; P0-06 should benchmark the versioned telemetry shape. Object-storage and backup deletion still require their later production-shaped proofs.

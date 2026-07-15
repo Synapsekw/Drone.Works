@@ -21,11 +21,11 @@ The candidate is suitable for continued local evaluation:
 - The hardened native artifact classifies the derivative as `truncated_records` from structural and declared-duration evidence, with zero stderr.
 - The minimal native CLI matches the JS/WASM result at 27,228 frames and uses approximately 70 MB peak RSS instead of 410 MB.
 - The versioned private intermediate is deterministic, source-hash bound, and validated before normalization, which unlocks the P0-04 normalizer slice.
-- The first private canonical-v1 normalization succeeds on the authorized result while ordinary output retains only flight/sample counts and capability names.
+- The first private canonical-v1 normalization succeeds on the authorized result while ordinary output retains only flight/sample counts, eligible-fingerprint count, and capability names.
 - D-009 now selects the native CLI inside the existing Linux hard-container boundary; JS/WASM remains a research comparator.
 - The official DJI comparator documents v13 only, so it does not currently displace the candidate for these v14 fixtures.
 
-This is not yet final parser acceptance. Broader fixture coverage, the remaining P0-04 lifecycle proof, and the production DJI key-service/legal gates remain unresolved.
+This is not yet final parser acceptance. Broader fixture coverage and the production DJI key-service/legal gates remain unresolved; P0-04's source-free schema, fingerprint, and lifecycle proof is complete.
 
 The local prefix/details probe is reproducible through [`../../spikes/dji-parser/`](../../spikes/dji-parser/). The first authorized fixture now has sanitized frame-validity, capability, duration, output-volume, memory, recovery, canonical-normalization, and hosted Linux release evidence; broader fixture coverage remains open.
 
@@ -169,7 +169,7 @@ Key material is not passed through arguments, environment variables, temporary f
 
 The provider adapter models the documented DJI POST endpoint, `Api-Key` header, and `{ "data": ... }` envelope. Exact endpoint allowlisting, HTTPS enforcement, an explicit external-network authorization flag, pre-credential request validation, redirect rejection, runtime credential injection, end-to-end timeout, bounded response reading, and sanitized failure codes are enforced before integration. Twelve provider scenarios run against configuration checks and a loopback mock HTTP server; no DJI hostname is contacted.
 
-The full spike runner reports 71 passing tests, including canonical normalization/provenance, broker/cache, IPC, provider, controlled-runner, private-native-intermediate, trusted-source hashing, offline follow-up authorization, wire-identifier validation, and parser-isolation evidence. The complete suite passes outside the outer sandbox, including the mock listener and real macOS network-denial checks.
+The full spike runner reports 78 passing tests, including the generic canonical schema, exact-normalized fingerprints, lifecycle transitions, canonical normalization/provenance, broker/cache, IPC, provider, controlled-runner, private-native-intermediate, trusted-source hashing, offline follow-up authorization, wire-identifier validation, and parser-isolation evidence. The complete suite passes outside the outer sandbox, including the mock listener and real macOS network-denial checks.
 
 ## Controlled one-shot runner evidence
 
@@ -205,9 +205,9 @@ The native CLI's [`../../spikes/dji-parser/native-cli/intermediate.schema.json`]
 
 Two fresh native processes decoded the authorized fixture to the same intermediate digest. Sanitized evidence recorded one flight, 27,228 samples, a 2,722,900 ms elapsed span, all seven declared capabilities, and a 12,698,658-byte intermediate (approximately 466 bytes per sample). Position and battery were present for all samples; signal was absent in seven samples and represented as `null`. The source digest was verified, the 32 MiB output limit had ample headroom, both children produced zero stderr, and the raw result was neither printed nor persisted.
 
-The measured native operation used approximately 197 ms for decoding, 224 ms total worker time, 250 ms supervisor wall time, and 70 MB peak RSS. A private-intermediate process completed in approximately 293 ms including process startup and bounded IPC. These host observations exclude the external key request and do not replace the product-level import target. They establish representative output, duration, startup, and output-volume evidence for the first authorized fixture only; the remaining fixture matrix and broader canonical lifecycle proof remain open.
+The measured native operation used approximately 197 ms for decoding, 224 ms total worker time, 250 ms supervisor wall time, and 70 MB peak RSS. A private-intermediate process completed in approximately 293 ms including process startup and bounded IPC. These host observations exclude the external key request and do not replace the product-level import target. They establish representative output, duration, startup, and output-volume evidence for the first authorized fixture only; the remaining fixture matrix remains open.
 
-The same authorized private result passed the canonical-v1 adapter behind the trusted accessor. Sanitized output reported one flight revision candidate, 27,228 telemetry samples, and all seven namespaced canonical capabilities. The full canonical candidate, source identifiers, and telemetry remained private; because the parser cannot identify an organization-owned pilot or finalize aircraft reconciliation, the candidate correctly remains review-bound rather than inventing assignments. The architecture mapping and source-free provenance examples are recorded in [`../architecture/DOMAIN-MODEL.md`](../architecture/DOMAIN-MODEL.md).
+The same authorized private result passed the canonical-v1 adapter behind the trusted accessor. Sanitized output reported one flight revision candidate, 27,228 telemetry samples, and all seven namespaced canonical capabilities. The full canonical candidate, source identifiers, fingerprint, and telemetry remained private; because the parser cannot identify an organization-owned pilot or finalize aircraft reconciliation, the candidate correctly remains review-bound rather than inventing assignments. The generic schema, versioned fingerprint, lifecycle proof, architecture mapping, and source-free provenance examples are recorded in [`../architecture/DOMAIN-MODEL.md`](../architecture/DOMAIN-MODEL.md).
 
 The native release-evidence build pins Rust 1.96.1 and cargo-cyclonedx 0.5.9, normalizes local source references to the accepted upstream commit, and emits the binary, CycloneDX 1.5 SBOM, license index/texts, notices, and SHA-256 input/artifact manifests. For the private-intermediate revision, two clean `aarch64-apple-darwin` builds produced 86 byte-identical files. The host-target SBOM and notice set each cover 42 components. A current strict RustSec pass found zero target vulnerabilities and zero target warnings while excluding four vulnerabilities and two warnings that exist only in unrelated packages in the upstream workspace lockfile. The 981,472-byte host executable has SHA-256 `53c6d965031d91f4e34e0245a084b599f55f3efe119e5e143b87e43976b95060`.
 
@@ -314,7 +314,7 @@ No parser error message may include raw payload, coordinates, serials, or full f
 - [x] Define and validate a deterministic, source-hash-bound private intermediate result on the first authorized fixture.
 - [x] Measure native process startup and output volume on the first authorized fixture.
 - [ ] Validate duration and representative output on the remaining fixture matrix.
-- [x] Validate the first private canonical-v1 normalization in P0-04; broader lifecycle, fingerprint, and persistence proofs remain in that workstream.
+- [x] Validate canonical-v1 normalization plus the generic schema, exact-normalized fingerprint, and lifecycle transitions in P0-04; persistence enforcement moves to P0-05.
 - [x] Decide whether the JS binding is acceptable in a Node worker or whether a Rust CLI boundary is safer. Select the native CLI and retain JS/WASM only as a comparator.
 - [x] Record acceptance, rejection, or a revised D-009 parser-isolation decision. D-009 now accepts the native CLI in the Linux hard-container boundary.
 - [x] Add native target SBOM/notices, strict advisory audit, repeat-build comparison, and the Linux attestation job to the internal build proof.

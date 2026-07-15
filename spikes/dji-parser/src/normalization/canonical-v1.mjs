@@ -1,3 +1,8 @@
+import {
+  createExactNormalizedFingerprint,
+  validateCanonicalRevision,
+} from "./canonical-model.mjs";
+
 const CANONICAL_CAPABILITIES = new Map([
   ["altitude", "telemetry.altitude"],
   ["attitude", "telemetry.attitude"],
@@ -266,7 +271,7 @@ function normalizeFlight(intermediate, flight, flightIndex, context, overrides) 
     return mapped;
   }).sort();
 
-  return {
+  const canonicalFlight = {
     canonical_flight_id: context.canonical_flight_ids[flightIndex],
     organization_id: context.organization_id,
     import_item_id: context.import_item_id,
@@ -339,6 +344,10 @@ function normalizeFlight(intermediate, flight, flightIndex, context, overrides) 
       provenance: telemetryProvenance(intermediate, context, flightIndex),
     },
   };
+  canonicalFlight.duplicate_evidence = {
+    exact_normalized: createExactNormalizedFingerprint(canonicalFlight),
+  };
+  return canonicalFlight;
 }
 
 function validateContext(context, flightCount) {
@@ -411,6 +420,9 @@ class PrivateCanonicalRevision {
       failure_code: null,
       flight_count: value.flights.length,
       telemetry_sample_count: telemetrySamples,
+      exact_normalized_fingerprint_count: value.flights.filter((flight) => (
+        flight.duplicate_evidence.exact_normalized.status === "eligible"
+      )).length,
       capability_names: [...capabilities].sort(),
     });
   }
@@ -460,6 +472,7 @@ export function normalizeDjiIntermediate(privateIntermediate, context) {
       overrides.get(context.canonical_flight_ids[index]) ?? new Map(),
     )),
   };
+  validateCanonicalRevision(value);
   return new PrivateCanonicalRevision(value);
 }
 

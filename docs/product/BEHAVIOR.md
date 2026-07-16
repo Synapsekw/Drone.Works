@@ -2,7 +2,7 @@
 
 Status: founding draft
 Version: 1.0
-Last updated: 2026-07-12
+Last updated: 2026-07-16
 
 This document defines observable product behavior. Technology choices and internal implementation details belong in `DECISIONS.md`. Acceptance examples for the first release live in `PHASE-1-ACCEPTANCE.md`.
 
@@ -12,6 +12,9 @@ This document defines observable product behavior. Technology choices and intern
 
 - All customer-owned domain resources belong to exactly one organization.
 - A user may belong to multiple organizations and operates in one selected organization at a time.
+- Creating an organization generates its identifier on the server, makes the
+  creating user its owner, and creates an active pilot profile linked to that
+  owner membership.
 - Organization boundaries apply to reads, writes, searches, exports, downloads, background jobs, and generated links.
 - A user must never infer the existence of another organization's resource from IDs, errors, counts, or timing-sensitive UI behavior.
 - An organization has a default timezone and unit preference. A user may override display units and timezone for their own account.
@@ -23,6 +26,9 @@ This document defines observable product behavior. Technology choices and intern
 - Flights reference pilot profiles, never authentication identities directly.
 - Deactivating a pilot prevents new assignment by default but does not alter historical flights.
 - A pilot profile linked to a departing member remains in the organization's history.
+- Removing a membership takes effect on the next organization operation,
+  unlinks but does not delete its pilot profile, and cannot remove or demote the
+  organization's last owner.
 
 ### Phase 1 role behavior
 

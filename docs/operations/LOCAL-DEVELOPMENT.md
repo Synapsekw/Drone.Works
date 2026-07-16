@@ -63,7 +63,7 @@ record is generated and safe to delete.
    Alpha/Beta isolation tests, and removes the cluster. It does not use your
    Homebrew service database.
 
-## Start and check the local foundation
+## Start and check the local application
 
 1. Start the generated local database and all loopback services:
 
@@ -73,8 +73,9 @@ record is generated and safe to delete.
 
    The final line prints the local web address. The port is chosen automatically
    so it does not collide with another project. Startup applies the same
-   checksum-pinned A04 migration used by the database tests and creates two
-   generated organizations.
+   checksum-pinned migration used by the database tests, creates two generated
+   organizations, and enables the server-owned Alpha/Beta persona control. The
+   persona control is not a login and exists only in this local process.
 
 2. In the same or another Terminal window, check web, API, worker, object,
    email, and PostgreSQL together:
@@ -102,9 +103,22 @@ record is generated and safe to delete.
 - `PostgreSQL`: a disposable native database with the reviewed A04 schema,
   migration ledger, and generated Alpha/Beta organization records.
 
-The production database schema and row-level organization isolation are now
-present locally. A05 adds a generated local-only identity for functional
-development; it is not a login and cannot run in hosted modes. Better Auth is
+The API receives only an opaque token issued for a named server-owned persona.
+It resolves the generated user ID on the server, then reloads the current
+membership and role from PostgreSQL for every organization operation. The
+browser cannot provide a user ID, organization, membership, or role claim to the
+persona control. `smoke:local` exercises this identity-to-membership path.
+
+Run the complete A05 configuration, role, membership, Alpha/Beta, exact-ID, and
+pooled-connection gate against another disposable native cluster with:
+
+```sh
+corepack pnpm test:authorization
+```
+
+The production database schema, row-level organization isolation, and A05
+app-owned authorization boundary are now present locally. The generated
+identity cannot start or register its control in hosted modes. Better Auth is
 deliberately deferred to A13b, after the functional local application passes,
 and AWS remains deferred to A14. No AWS help is needed for this foundation. When
 A14 reaches the cloud setup, the account-owner steps will be provided one at a

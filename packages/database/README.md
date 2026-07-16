@@ -17,6 +17,18 @@ table through a one-connection pool, checks cross-organization reads and
 writes, verifies role privileges, and removes the cluster when it finishes.
 It does not use Docker, AWS, or persistent customer data.
 
+Run the provider-neutral identity and app-owned organization authorization gate
+against a separate disposable cluster with:
+
+```sh
+corepack pnpm test:authorization
+```
+
+That suite keeps the same ordinary application role, forced RLS, and
+one-connection pool while exercising Alpha/Beta exact-ID denial, current
+membership roles and removal, last-owner protection, audit redaction, and the
+local/test-versus-hosted identity configuration matrix.
+
 ## Migration roles
 
 - `droneworks_migration_runner` can assume only the migration owner role.

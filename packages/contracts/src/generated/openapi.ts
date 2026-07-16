@@ -21,6 +21,75 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/organizations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create an organization */
+        post: operations["createOrganization"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organizations/{organization_id}/selection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Select an organization */
+        put: operations["selectOrganization"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organizations/{organization_id}/memberships": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List memberships */
+        get: operations["listMemberships"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organizations/{organization_id}/memberships/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Create or update a membership */
+        put: operations["putMembership"];
+        post?: never;
+        /** Remove a membership */
+        delete: operations["removeMembership"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -48,6 +117,44 @@ export interface components {
             service: "api";
             /** @enum {string} */
             version: "v1";
+        };
+        /** OrganizationPath */
+        "def-3": {
+            organization_id: string;
+        };
+        /** MembershipPath */
+        "def-4": {
+            organization_id: string;
+            user_id: string;
+        };
+        /** CreateOrganizationBody */
+        "def-5": {
+            name: string;
+            default_timezone: string;
+            unit_system: "metric" | "imperial";
+        };
+        /** OrganizationSelection */
+        "def-6": {
+            organization_id: string;
+            name: string;
+            default_timezone: string;
+            unit_system: "metric" | "imperial";
+            role: "owner" | "admin" | "pilot" | "viewer";
+            pilot_profile_id: string | null;
+        };
+        /** PutMembershipBody */
+        "def-7": {
+            role: "owner" | "admin" | "pilot" | "viewer";
+        };
+        /** Membership */
+        "def-8": {
+            user_id: string;
+            role: "owner" | "admin" | "pilot" | "viewer";
+            pilot_profile_id: string | null;
+        };
+        /** MembershipList */
+        "def-9": {
+            memberships: components["schemas"]["def-8"][];
         };
     };
     responses: never;
@@ -86,6 +193,320 @@ export interface operations {
                 };
             };
             /** @description The request could not be accepted. */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        type: string;
+                        title: string;
+                        status: number;
+                        detail: string;
+                        instance: string;
+                        correlation_id: string;
+                        errors?: components["schemas"]["def-0"][];
+                    };
+                };
+            };
+            /** @description The request could not be completed. */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        type: string;
+                        title: string;
+                        status: number;
+                        detail: string;
+                        instance: string;
+                        correlation_id: string;
+                        errors?: components["schemas"]["def-0"][];
+                    };
+                };
+            };
+        };
+    };
+    createOrganization: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name: string;
+                    default_timezone: string;
+                    unit_system: "metric" | "imperial";
+                };
+            };
+        };
+        responses: {
+            /** @description The organization and owner membership were created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        organization_id: string;
+                        name: string;
+                        default_timezone: string;
+                        unit_system: "metric" | "imperial";
+                        role: "owner" | "admin" | "pilot" | "viewer";
+                        pilot_profile_id: string | null;
+                    };
+                };
+            };
+            /** @description The request was denied or could not be accepted. */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        type: string;
+                        title: string;
+                        status: number;
+                        detail: string;
+                        instance: string;
+                        correlation_id: string;
+                        errors?: components["schemas"]["def-0"][];
+                    };
+                };
+            };
+            /** @description The request could not be completed. */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        type: string;
+                        title: string;
+                        status: number;
+                        detail: string;
+                        instance: string;
+                        correlation_id: string;
+                        errors?: components["schemas"]["def-0"][];
+                    };
+                };
+            };
+        };
+    };
+    selectOrganization: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                organization_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The current canonical membership was selected. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        organization_id: string;
+                        name: string;
+                        default_timezone: string;
+                        unit_system: "metric" | "imperial";
+                        role: "owner" | "admin" | "pilot" | "viewer";
+                        pilot_profile_id: string | null;
+                    };
+                };
+            };
+            /** @description The request was denied or could not be accepted. */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        type: string;
+                        title: string;
+                        status: number;
+                        detail: string;
+                        instance: string;
+                        correlation_id: string;
+                        errors?: components["schemas"]["def-0"][];
+                    };
+                };
+            };
+            /** @description The request could not be completed. */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        type: string;
+                        title: string;
+                        status: number;
+                        detail: string;
+                        instance: string;
+                        correlation_id: string;
+                        errors?: components["schemas"]["def-0"][];
+                    };
+                };
+            };
+        };
+    };
+    listMemberships: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                organization_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current organization memberships. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        memberships: components["schemas"]["def-8"][];
+                    };
+                };
+            };
+            /** @description The request was denied or could not be accepted. */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        type: string;
+                        title: string;
+                        status: number;
+                        detail: string;
+                        instance: string;
+                        correlation_id: string;
+                        errors?: components["schemas"]["def-0"][];
+                    };
+                };
+            };
+            /** @description The request could not be completed. */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        type: string;
+                        title: string;
+                        status: number;
+                        detail: string;
+                        instance: string;
+                        correlation_id: string;
+                        errors?: components["schemas"]["def-0"][];
+                    };
+                };
+            };
+        };
+    };
+    putMembership: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                organization_id: string;
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    role: "owner" | "admin" | "pilot" | "viewer";
+                };
+            };
+        };
+        responses: {
+            /** @description The canonical membership was created or updated. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        user_id: string;
+                        role: "owner" | "admin" | "pilot" | "viewer";
+                        pilot_profile_id: string | null;
+                    };
+                };
+            };
+            /** @description The request was denied or could not be accepted. */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        type: string;
+                        title: string;
+                        status: number;
+                        detail: string;
+                        instance: string;
+                        correlation_id: string;
+                        errors?: components["schemas"]["def-0"][];
+                    };
+                };
+            };
+            /** @description The request could not be completed. */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        type: string;
+                        title: string;
+                        status: number;
+                        detail: string;
+                        instance: string;
+                        correlation_id: string;
+                        errors?: components["schemas"]["def-0"][];
+                    };
+                };
+            };
+        };
+    };
+    removeMembership: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                organization_id: string;
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The membership was removed. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description The request was denied or could not be accepted. */
             "4XX": {
                 headers: {
                     [name: string]: unknown;

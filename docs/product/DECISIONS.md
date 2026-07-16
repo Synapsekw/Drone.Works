@@ -517,6 +517,30 @@ development; only managed RDS is deferred to A14.
   than replacing only the identity source.
 - The A13a functional path cannot be repeated unchanged under real sessions.
 
+### Phase 1A A05 evidence — 2026-07-16
+
+The production API now depends on a provider-neutral identity source. Its
+generated adapter issues only an opaque in-memory token for a named compiled
+persona, is enabled by a separate validated flag in `local` or `test`, and is
+rejected when either half of that interlock is absent. The control route is
+hidden from public OpenAPI and is not registered in hosted configuration.
+
+Organization creation generates IDs on the server and atomically creates the
+organization, owner membership, linked pilot profile, and payload-redacted
+audits. Selection and membership operations reload the actor's current
+canonical membership inside an organization-required transaction. Owner/admin
+membership management, pilot/viewer denial, immediate removal, retained pilot
+history, and organization-row-serialized last-owner protection sit behind the
+same ordinary application pool and forced RLS used by A04.
+
+The disposable native PostgreSQL suite proves local/test and hosted
+configuration matrices, arbitrary persona and forged-token rejection,
+Alpha/Beta exact-ID denial, all four roles, membership revocation, last-owner
+rules, audit redaction, and one-backend context clearing. An integrated local
+runtime smoke proves generated persona issuance through Alpha organization
+selection. Better Auth, credentials, cookies, invitations, email, AWS, RDS, and
+uploads remain absent.
+
 ## Open decisions
 
 The following require evidence before implementation commitment:

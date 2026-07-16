@@ -76,8 +76,13 @@ describe('versioned API contract', () => {
     expect([...built.routeInventory].sort()).toEqual(
       [...documentedApiRoutes].sort(),
     );
-    expect(Object.keys(built.app.swagger().paths ?? {})).toEqual([
+    expect(Object.keys(built.app.swagger().paths ?? {}).sort()).toEqual([
       '/api/v1/health',
+      '/api/v1/organizations',
+      '/api/v1/organizations/{organization_id}/memberships',
+      '/api/v1/organizations/{organization_id}/memberships/{user_id}',
+      '/api/v1/organizations/{organization_id}/selection',
     ]);
+    expect([...built.controlRouteInventory]).toEqual([]);
   });
 });

@@ -184,6 +184,13 @@ and pool configuration. Production startup cannot migrate.
 
 ### A05 — Establish the local identity seam and organization authorization
 
+**Status:** Complete (2026-07-16). Evidence: the provider-neutral identity
+source, generated-persona interlock/control, organization authorization
+repository, versioned organization/membership routes, and disposable native
+PostgreSQL suite in `apps/api`, `packages/database`, and `packages/contracts`;
+the local runtime smoke exercises persona issuance through canonical Alpha
+selection.
+
 **Outcome:** A generated local persona can create or enter an organization and
 exercise the real app-owned membership and role boundary without installing an
 authentication provider.

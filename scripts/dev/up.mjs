@@ -179,7 +179,14 @@ try {
     'api',
     process.execPath,
     [join(repositoryRoot, 'apps/api/dist/server.js')],
-    { DRONE_WORKS_ENV: 'local', HOST: '127.0.0.1', PORT: String(ports.api) },
+    {
+      ...databaseEnvironment,
+      DRONE_WORKS_ENV: 'local',
+      DRONE_WORKS_LOCAL_IDENTITY_ENABLED: 'true',
+      HOST: '127.0.0.1',
+      PGUSER: 'droneworks_app',
+      PORT: String(ports.api),
+    },
   );
   spawnService(
     'worker',
@@ -204,7 +211,9 @@ try {
 
   const state = {
     version: 1,
+    alpha_organization_id: '00000000-0000-4000-8000-0000000000a1',
     generated_organizations: 2,
+    generated_personas: ['alpha_owner', 'beta_owner'],
     endpoints: {
       api: `${apiUrl}/api/v1/health`,
       email: `http://127.0.0.1:${ports.email}/health`,

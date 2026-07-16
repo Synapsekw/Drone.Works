@@ -1,4 +1,20 @@
 export {
+  createApplicationPool,
+  type ApplicationPool,
+  type ApplicationPoolConfiguration,
+} from './application-pool.js';
+export {
+  LastOwnerError,
+  OrganizationAccessDeniedError,
+  OrganizationAuthorizationRepository,
+  organizationRoles,
+  type AppIdentity,
+  type CreateOrganizationInput,
+  type Membership,
+  type OrganizationRole,
+  type OrganizationSelection,
+} from './organization-authorization.js';
+export {
   applyReviewedMigration,
   applyReviewedMigrations,
   IsolationContractError,

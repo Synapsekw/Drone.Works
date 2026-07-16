@@ -6,13 +6,15 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
-    "test": "vitest run",
-    "test:contract": "vitest run test/contract.test.ts",
+    "test": "corepack pnpm --filter @drone-works/database run build && vitest run test/contract.test.ts",
+    "test:authorization": "corepack pnpm run build && node scripts/run-authorization-tests.mjs",
+    "test:contract": "corepack pnpm --filter @drone-works/database run build && vitest run test/contract.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@drone-works/config": "workspace:*",
     "@drone-works/contracts": "workspace:*",
+    "@drone-works/database": "workspace:*",
     "@fastify/swagger": "9.8.1",
     "@fastify/type-provider-typebox": "5.2.0",
     "@sinclair/typebox": "catalog:",

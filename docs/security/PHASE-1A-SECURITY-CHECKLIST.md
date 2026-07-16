@@ -19,9 +19,14 @@ An unchecked blocking item keeps the stated boundary disabled.
 
 ## Before staging promotion
 
-- [ ] Staging/production startup rejects the development identity adapter and hosted route inventories contain no persona control.
-- [ ] Alpha/Beta negative suite passes with the ordinary non-owner pooled database role.
-- [ ] Migration checksums, independent ledger, grants, owners, RLS, and isolation digest pass.
+- [x] Staging/production startup rejects the development identity adapter and
+  hosted route inventories contain no persona control. A05 configuration and
+  route-inventory tests run in `pnpm test:authorization`.
+- [x] Alpha/Beta negative suite passes with the ordinary non-owner pooled
+  database role. A04/A05 evidence runs in `pnpm test:database` and
+  `pnpm test:authorization`.
+- [x] Migration checksums, independent ledger, grants, owners, RLS, and
+  isolation digest pass in the A04 native PostgreSQL suite.
 - [ ] Outbox atomicity, stable dispatch, retry, cancellation, stale lease, and queue metrics pass.
 - [ ] Parser image signature/SBOM passes; no-network and every resource/output limit are asserted.
 - [ ] Poison input fails independently and a following valid parse succeeds.

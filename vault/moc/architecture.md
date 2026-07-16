@@ -25,6 +25,8 @@ related: ["[[00-north-star]]"]
 
 - A01–A04 provide the runnable, Docker-free foundation plus production-named
   PostgreSQL migrations, forced organization RLS, and pool-safe context.
-- A05 is the next boundary: verified Better Auth identity and sessions with
-  organization membership and authorization remaining app-owned.
+- A05 is the next boundary: a provider-neutral identity seam, server-owned
+  generated local personas, and real app-owned membership/role authorization.
+- A13a proves the functional local app; A13b then integrates Better Auth and
+  repeats the same path before any hosted deployment.
 - Hosted RDS and AWS conformance remain A14–A15 gates.

@@ -10,7 +10,7 @@ related: ["[[00-north-star]]", "[[project-history]]"]
 - [Delivery plan](../../docs/roadmap/DELIVERY-PLAN.md) — Phase 0 through the private-pilot learning gate.
 - [Phase 0 discovery](../../docs/roadmap/PHASE-0-DISCOVERY.md) — workstreams, dependencies, evidence gates, and stop conditions.
 - [Phase 0 exit review](../../docs/roadmap/PHASE-0-EXIT-REVIEW.md) — completion evidence and safe external gates.
-- [Phase 1A implementation backlog](../../docs/roadmap/PHASE-1A-BACKLOG.md) — sixteen ordered walking-skeleton issues.
+- [Phase 1A implementation backlog](../../docs/roadmap/PHASE-1A-BACKLOG.md) — seventeen ordered walking-skeleton tasks after the D-015 sequence revision.
 - [Phase 1B outcome outline](../../docs/roadmap/PHASE-1B-OUTLINE.md) — bounded next-increment outcomes.
 - [Delivery risk register](../../docs/roadmap/RISK-REGISTER.md) — owners, triggers, mitigations, and fallbacks.
 - [[project-history]] — completed milestones backed by commits.
@@ -23,10 +23,13 @@ Phase 0 complete
   -> A02 no-cloud local runtime (complete)
   -> A03 versioned API contract (complete)
   -> A04 PostgreSQL migration and forced-RLS boundary (complete)
-  -> A05 verified auth and app-owned organization membership
+  -> A05 local identity seam and app-owned authorization
+  -> A06–A13a functional local application
+  -> A13b verified auth and repeated end-to-end path
+  -> A14 AWS staging
   -> continue the ordered Phase 1A vertical path
 ```
 
-Resume at A05 using native PostgreSQL and local email capture; RDS is not needed.
-Keep A09 DJI enablement plus A14–A15 AWS hosted-data work fail-closed until their
-external authority and evidence pass.
+Resume at revised A05 using native PostgreSQL and generated personas; Better Auth
+waits for A13b and RDS waits for A14. Keep A09 DJI enablement plus A14–A15 AWS
+hosted-data work fail-closed until their external authority and evidence pass.

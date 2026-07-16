@@ -1,6 +1,6 @@
 # Organization isolation
 
-Status: accepted Phase 0 proof
+Status: accepted Phase 1A boundary
 Last updated: 2026-07-16
 
 ## Purpose
@@ -8,6 +8,26 @@ Last updated: 2026-07-16
 P0-05 must make cross-organization access difficult to express and easy to test. The first executable slice translates the generic ownership and identity rules from [`DOMAIN-MODEL.md`](DOMAIN-MODEL.md) into PostgreSQL constraints, forced row-level security (RLS), and an organization-required repository boundary.
 
 The native PostgreSQL spike lives in [`../../spikes/postgres-rls/`](../../spikes/postgres-rls/). It validates PostgreSQL as a viable relational isolation mechanism and exercises pg-boss as the provisional real-queue candidate without yet accepting D-002 or selecting Drizzle, pg-boss, a database host, or a production administration model.
+
+## Phase 1A production promotion
+
+The production boundary now lives in
+[`../../packages/database/`](../../packages/database/). A04 promotes only the
+fourteen customer tables required before authentication and upload integration,
+rather than copying the complete twenty-three-table Phase 0 spike. The reviewed
+SQL, exact SHA-256, deterministic isolation-contract digest, migration runner,
+independently owned ledger, and organization-required pooled transaction are
+production-named code. Queue and dispatcher roles exist but have no direct
+customer access; A07 must add their narrow outbox/pg-boss functions explicitly.
+
+The A04 suite creates a fresh socket-only PostgreSQL 18 cluster, applies the
+privileged role/ledger bootstrap, migrates through the non-inheriting runner,
+replays the migration, seeds generated Alpha/Beta graphs across every table,
+and destroys the cluster. It proves reads, writes, exact-ID denial, joins,
+aggregates, composite ownership, role/grant separation, checksum failure,
+isolation-digest tamper detection, and transaction-local clearing on one reused
+backend. The ordinary workspace boundary also rejects direct `pg` imports
+outside `packages/database`.
 
 ## Relational ownership slice
 
@@ -112,6 +132,12 @@ The integration suite currently proves, with synthetic Alpha and Beta records:
 - forced RLS behavior for the table owner, alongside explicit superuser bypass evidence.
 
 Run it with native PostgreSQL 18:
+
+```sh
+corepack pnpm test:database
+```
+
+The retained broader Phase 0 spike remains available with:
 
 ```sh
 npm --prefix spikes/postgres-rls test

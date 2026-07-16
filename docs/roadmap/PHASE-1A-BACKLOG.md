@@ -144,6 +144,11 @@ mandatory for later tasks.
 
 ### A04 — Promote the PostgreSQL migration and RLS boundary
 
+**Status:** Complete (2026-07-16). Evidence: the checksum-pinned migration,
+independently owned ledger, organization-required transaction wrapper, and
+native PostgreSQL suite in `packages/database/`; the no-cloud local runtime now
+applies the same migration and generated Alpha/Beta seed.
+
 **Outcome:** The production database package creates the minimum Phase 1A schema
 with forced organization isolation and reviewed migration roles.
 

@@ -8,8 +8,9 @@ Drone.Works turns raw drone flight logs into an explainable history of flights, 
 
 Phase 0 discovery is complete and Phase 1A implementation is underway. The
 repository now has a buildable web/API/worker workspace, a Docker-free local
-runtime, and a generated versioned API contract. Customer features, production
-authentication, and the production database schema have not started yet.
+runtime, a generated versioned API contract, and the first production-named
+PostgreSQL migration with forced organization isolation. Customer features and
+production authentication have not started yet.
 
 The first release is intentionally focused on small professional operators managing approximately 2–20 aircraft:
 

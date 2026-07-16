@@ -80,6 +80,29 @@ The final Phase 0 slice adds a Docker-free versioned-object service boundary. It
 
 D-002 is accepted as the Phase 1A architecture. Cached keychains remain disabled until D-012 passes. Customer-payload fields are forbidden from external logs, active S3 versions are permanently deleted, RDS backup retention is capped at 35 days, and every isolated restore must replay independently retained payload-free deletion receipts before exposure. Live AWS IAM/S3 conformance and the generated-data restore drill remain Phase 1A hosted-data gates; failure keeps customer uploads disabled rather than weakening isolation or deletion. See `../architecture/TENANCY.md`, `../architecture/SECURITY-BOUNDARIES.md`, and `../operations/RECOVERY.md`.
 
+### Phase 1A promotion — 2026-07-16
+
+A04 promotes the generic proof into `packages/database` without copying the
+full spike. One reviewed migration creates the fourteen customer tables needed
+before authentication and upload work: organizations, memberships, pilots,
+aircraft, raw sources, import batches/items/attempts, canonical flights and
+revisions, telemetry-object metadata, idempotency, audit, and transactional
+outbox references. Every table has composite organization ownership plus
+enabled and forced RLS.
+
+The production package pins both migration bytes and a deterministic isolation
+digest covering the exact table set, owners, grants, policies, and force flags.
+The migration runner may explicitly assume only the no-login schema owner; an
+independently owned operational ledger is reachable only through narrow
+security-definer functions. App queries require a validated transaction-local
+organization setting. Queue and dispatcher identities have no customer-table
+access at this gate; A07 owns their later pg-boss and leased-dispatch functions.
+Native PostgreSQL tests prove Alpha/Beta reads, writes, joins, aggregates,
+composite ownership, one-backend pool clearing, grants, replay, checksum
+failure, and digest tamper detection. Local startup applies the same migration
+to a disposable cluster. This is not RDS, auth integration, or a production
+credential-delivery decision.
+
 ## D-003 — Canonical normalized flight model
 
 Status: accepted

@@ -131,9 +131,40 @@ try {
     'droneworks_local',
     '--set',
     'ON_ERROR_STOP=1',
-    '--command',
-    "CREATE TABLE local_runtime_seed (key text PRIMARY KEY, value text NOT NULL); INSERT INTO local_runtime_seed VALUES ('seed', 'drone-works-generated-v1');",
+    '--file',
+    join(repositoryRoot, 'packages/database/sql/bootstrap.sql'),
   ]);
+
+  await runPnpm(['--filter', '@drone-works/database', 'run', 'build']);
+  const databaseEnvironment = {
+    PGHOST: postgresSocket,
+    PGPORT: String(ports.postgres),
+    PGDATABASE: 'droneworks_local',
+  };
+  await execFileAsync(
+    process.execPath,
+    [join(repositoryRoot, 'packages/database/scripts/migrate.mjs')],
+    {
+      cwd: repositoryRoot,
+      env: {
+        ...process.env,
+        ...databaseEnvironment,
+        PGUSER: 'droneworks_migration_runner',
+      },
+    },
+  );
+  await execFileAsync(
+    process.execPath,
+    [join(repositoryRoot, 'packages/database/scripts/seed-local.mjs')],
+    {
+      cwd: repositoryRoot,
+      env: {
+        ...process.env,
+        ...databaseEnvironment,
+        PGUSER: 'droneworks_app',
+      },
+    },
+  );
 
   const apiUrl = `http://127.0.0.1:${ports.api}`;
   await runPnpm(['build'], { API_INTERNAL_URL: apiUrl });
@@ -173,7 +204,7 @@ try {
 
   const state = {
     version: 1,
-    generated_seed: 'drone-works-generated-v1',
+    generated_organizations: 2,
     endpoints: {
       api: `${apiUrl}/api/v1/health`,
       email: `http://127.0.0.1:${ports.email}/health`,

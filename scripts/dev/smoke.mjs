@@ -32,11 +32,13 @@ const { stdout } = await execFileAsync(join(state.postgres.bin, 'psql'), [
   '--tuples-only',
   '--no-align',
   '--command',
-  "SELECT value FROM local_runtime_seed WHERE key = 'seed';",
+  `SELECT
+     (SELECT count(*) FROM droneworks.organizations)::text || ':' ||
+     (SELECT count(*) FROM droneworks_ops.migration_runs)::text;`,
 ]);
 
-if (stdout.trim() !== state.generated_seed) {
-  throw new Error('The generated local PostgreSQL seed is missing.');
+if (stdout.trim() !== `${state.generated_organizations}:1`) {
+  throw new Error('The migrated local PostgreSQL seed or ledger is missing.');
 }
 
 process.stdout.write(

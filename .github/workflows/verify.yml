@@ -22,3 +22,17 @@ jobs:
       - run: corepack pnpm install --frozen-lockfile
       - run: corepack pnpm verify
       - run: corepack pnpm build
+
+  database:
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: brew install postgresql@18
+      - run: corepack enable
+      - run: corepack pnpm install --frozen-lockfile
+      - run: corepack pnpm test:database

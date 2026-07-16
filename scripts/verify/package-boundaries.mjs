@@ -3,6 +3,7 @@ import { extname, join, relative, resolve } from 'node:path';
 
 const root = resolve(import.meta.dirname, '../..');
 const webRoot = join(root, 'apps', 'web');
+const productionRoots = ['apps', 'packages'].map((path) => join(root, path));
 const requiredPackages = [
   'apps/api',
   'apps/web',
@@ -41,6 +42,18 @@ for (const file of await sourceFiles(webRoot)) {
   }
   if (/^['"]use server['"];?/m.test(contents)) {
     throw new Error(`Web server action forbidden: ${relative(root, file)}`);
+  }
+}
+
+for (const productionRoot of productionRoots) {
+  for (const file of await sourceFiles(productionRoot)) {
+    if (file.startsWith(join(root, 'packages', 'database'))) continue;
+    const contents = await readFile(file, 'utf8');
+    if (/from ['"]pg['"]|require\(['"]pg['"]\)/.test(contents)) {
+      throw new Error(
+        `Direct PostgreSQL import outside database package: ${relative(root, file)}`,
+      );
+    }
   }
 }
 

@@ -53,6 +53,16 @@ record is generated and safe to delete.
    corepack pnpm build
    ```
 
+6. Verify the production PostgreSQL/RLS boundary separately:
+
+   ```sh
+   corepack pnpm test:database
+   ```
+
+   This creates a temporary socket-only PostgreSQL cluster, runs generated
+   Alpha/Beta isolation tests, and removes the cluster. It does not use your
+   Homebrew service database.
+
 ## Start and check the local foundation
 
 1. Start the generated local database and all loopback services:
@@ -62,7 +72,9 @@ record is generated and safe to delete.
    ```
 
    The final line prints the local web address. The port is chosen automatically
-   so it does not collide with another project.
+   so it does not collide with another project. Startup applies the same
+   checksum-pinned A04 migration used by the database tests and creates two
+   generated organizations.
 
 2. In the same or another Terminal window, check web, API, worker, object,
    email, and PostgreSQL together:
@@ -87,10 +99,12 @@ record is generated and safe to delete.
 - `worker`: the future background-work boundary;
 - `objects`: a loopback placeholder for future versioned file storage;
 - `email`: a loopback placeholder that never sends a message;
-- `PostgreSQL`: a disposable native database with one generated seed record.
+- `PostgreSQL`: a disposable native database with the reviewed A04 schema,
+  migration ledger, and generated Alpha/Beta organization records.
 
-The production schema, row-level organization isolation, authentication, and
-AWS resources deliberately begin in later tasks. No AWS help is needed for this
-foundation. When A14 reaches the cloud setup, the account-owner steps will be
-provided one at a time with their purpose, expected cost/security effect, a
-verification check, and a safe stop or rollback step.
+The production database schema and row-level organization isolation are now
+present locally. Authentication and AWS resources deliberately begin in later
+tasks. No AWS help is needed for this foundation. When A14 reaches the cloud
+setup, the account-owner steps will be provided one at a time with their
+purpose, expected cost/security effect, a verification check, and a safe stop
+or rollback step.

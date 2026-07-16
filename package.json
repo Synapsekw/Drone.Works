@@ -22,6 +22,7 @@
     "smoke:local": "node scripts/dev/smoke.mjs",
     "test": "corepack pnpm --recursive --sort --if-present run test",
     "test:contract": "corepack pnpm --filter @drone-works/api run test:contract && corepack pnpm contract:check && corepack pnpm boundaries",
+    "test:database": "corepack pnpm --filter @drone-works/database run test:database",
     "typecheck": "corepack pnpm --recursive --sort --if-present run typecheck",
     "verify": "corepack pnpm format:check && corepack pnpm lint && corepack pnpm typecheck && corepack pnpm test && corepack pnpm boundaries && corepack pnpm privacy:check"
   },

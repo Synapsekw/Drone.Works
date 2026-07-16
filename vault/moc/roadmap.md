@@ -23,13 +23,16 @@ Phase 0 complete
   -> A02 no-cloud local runtime (complete)
   -> A03 versioned API contract (complete)
   -> A04 PostgreSQL migration and forced-RLS boundary (complete)
-  -> A05 local identity seam and app-owned authorization
-  -> A06–A13a functional local application
+  -> A05 local identity seam and app-owned authorization (complete)
+  -> A06 immutable raw upload (complete)
+  -> A07–A13a functional local application
   -> A13b verified auth and repeated end-to-end path
   -> A14 AWS staging
   -> continue the ordered Phase 1A vertical path
 ```
 
-Resume at revised A05 using native PostgreSQL and generated personas; Better Auth
-waits for A13b and RDS waits for A14. Keep A09 DJI enablement plus A14–A15 AWS
-hosted-data work fail-closed until their external authority and evidence pass.
+Resume at A07 using native PostgreSQL, generated personas, and the A06 loopback
+object boundary. Add payload-free durable dispatch without starting parsing;
+Better Auth waits for A13b and RDS waits for A14. Keep A09 DJI enablement plus
+A14–A15 AWS hosted-data work fail-closed until their external authority and
+evidence pass.

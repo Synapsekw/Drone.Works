@@ -32,7 +32,7 @@ Provisional supporting choices:
 | Tenant enforcement | PostgreSQL RLS plus organization-required repositories | Recommended; requires executable proof |
 | Database access | Drizzle plus reviewed SQL for RLS/migrations | Provisional |
 | Background queue | pg-boss using PostgreSQL | Provisional; benchmark and fault-test |
-| Authentication | Better Auth organization plugin | Shortlist leader; security/migration spike required |
+| Authentication | Better Auth core with PostgreSQL; app-owned organizations | Selected under D-013; real-package integration gates remain in Phase 1A |
 | Raw object storage | S3-compatible API | Recommended; provider undecided |
 | Maps | MapLibre GL JS | Recommended; tile provider undecided |
 | Charts | ECharts | Provisional UI choice, not architecture-blocking |
@@ -229,21 +229,18 @@ Proof obligations:
 
 If job volume or isolation requirements outgrow PostgreSQL, the queue boundary should allow replacement without changing domain behavior.
 
-### Better Auth
+### Authentication
 
-Better Auth provides an organization plugin with members, roles, invitations, lifecycle hooks, and server APIs. See the [organization plugin documentation](https://better-auth.com/docs/plugins/organization).
+Better Auth provides self-hosted identity and sessions with a PostgreSQL adapter. Its organization plugin was evaluated alongside Clerk Organizations, but Drone.Works keeps invitations, memberships, and roles in the canonical domain so there is only one authorization source. See the [authentication evaluation](../research/AUTHENTICATION-EVALUATION.md) and D-013.
 
-It is the self-hosted shortlist leader, not an accepted security decision.
+The provider-neutral adapter passes the native organization-isolation suite: it emits only session and user identifiers, ignores provider organization/role claims, and honors immediate revocation. The selected package is integrated only during Phase 1A bootstrap so its migration and complete lockfile can be reviewed in the actual monorepo.
 
 Proof obligations:
 
-- Owner/admin/pilot/viewer roles and ownership transfer match the behavioral contract.
-- Pilot profiles remain separate from authentication users.
-- Session organization selection cannot substitute for database tenant context.
-- Invitation, member removal, account deletion, session revocation, email verification, and audit hooks pass integration tests.
-- Migrations, security advisories, upgrade cadence, email delivery, and operational ownership are acceptable.
-
-Compare against at least one managed provider before acceptance. The scorecard must include total cost, export/deletion behavior, organization mapping, incident response, and exit effort.
+- Pin `better-auth@1.6.23` and review the complete dependency lock and generated migration during bootstrap.
+- Pass real-package registration, verification, recovery, linking, invitation, revocation, and deletion tests.
+- Verify hosted cookie, CSRF/origin, redirect, rate-limit, and email delivery controls.
+- Keep pilot profiles separate and retain database membership/RLS as the authorization source.
 
 ### MapLibre GL JS
 

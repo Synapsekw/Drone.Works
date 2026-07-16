@@ -303,6 +303,57 @@ Phase 0 permits one narrow research exception to the disabled application provid
 - Current DJI terms, product notices/consent, and authority to use the API are approved.
 - Cache schema, RLS, KMS rotation, backup, and deletion behavior pass their Phase 0 proofs.
 
+## D-013 — Self-hosted authentication with an app-owned authorization boundary
+
+Status: accepted
+Date: 2026-07-16
+
+### Context
+
+Phase 1 needs verified users, linked accounts, revocable web sessions, recovery,
+and invitations without creating a second source of truth for organizations and
+roles. A managed organization product lowers identity operations but couples
+core tenancy to provider limits and increases exit effort. First-party password
+and session implementation would make a small team own an avoidable security
+surface.
+
+### Decision
+
+Use self-hosted Better Auth with PostgreSQL for identity, credentials, account
+linking, email verification, and web sessions. Pin and review the exact package,
+lockfile, and generated migrations during Phase 1A bootstrap.
+
+Drone.Works owns organizations, invitations, memberships, ownership transfer,
+and owner/admin/pilot/viewer roles. The API identity adapter accepts only a
+session identifier and user identifier. It ignores provider-selected
+organizations and provider roles; the route organization plus current canonical
+membership, repository authorization, and forced PostgreSQL RLS remain
+authoritative.
+
+Clerk Organizations is the managed fallback if self-hosted auth operations prove
+disproportionate. First-party credential/session implementation is rejected for
+Phase 1.
+
+### Consequences
+
+- Better Auth tables are separate from the customer RLS schema and cannot be
+  joined as an authorization shortcut.
+- Invitations are app-owned, random, single-use, expiring domain records whose
+  accepting verified email must match.
+- Session removal and membership removal are independent controls; either can
+  prevent access.
+- Auth callbacks remain a narrow exception to `/api/v1/` and cannot become a
+  private customer-domain API.
+- The application owns email delivery, abuse protection, upgrades, backup,
+  restore, deletion, and incident response for the self-hosted component.
+
+### Evidence and implementation gates
+
+The provider-neutral adapter and native PostgreSQL suite prove that forged
+provider organization/role claims do not grant access and that revocation fails
+immediately. The comparison and remaining real-package integration gates are in
+[`../research/AUTHENTICATION-EVALUATION.md`](../research/AUTHENTICATION-EVALUATION.md).
+
 ## Open decisions
 
 The following require evidence before implementation commitment:
@@ -311,7 +362,7 @@ The following require evidence before implementation commitment:
 2. Primary database and organization-isolation mechanism.
 3. Telemetry storage, indexing, downsampling, and deletion strategy.
 4. Background job and parser-isolation technology.
-5. Authentication provider versus first-party authentication.
+5. Transactional email provider for verification, recovery, and invitations.
 6. Map, geocoding, and terrain providers.
 7. DJI key acquisition, terms, cache scope, and failure handling.
 8. Backup retention and deletion-verification mechanism.

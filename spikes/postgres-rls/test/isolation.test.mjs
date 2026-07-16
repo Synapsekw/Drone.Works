@@ -4,6 +4,7 @@ import { after, before, test } from "node:test";
 import pg from "pg";
 import { PgBoss } from "pg-boss";
 import { API_PREFIX, createApiServer } from "../src/api.mjs";
+import { createSessionIdentityAdapter } from "../src/auth.mjs";
 import {
   DownloadAuthorizationError,
   MAX_DOWNLOAD_TTL_MS,
@@ -156,7 +157,7 @@ function isHiddenDownloadDenial(error) {
 }
 
 const apiSigner = recordingSigner();
-const sessions = new Map([
+const sessionUsers = new Map([
   ["session-alpha-owner", "user-alpha-owner"],
   ["session-alpha-admin", "user-alpha"],
   ["session-alpha-pilot", "user-alpha-pilot"],
@@ -168,6 +169,24 @@ const sessions = new Map([
   ["session-beta-pilot", "user-beta-pilot"],
   ["session-beta-viewer", "user-beta-viewer"],
 ]);
+const providerSessions = new Map([...sessionUsers].map(([token, userId]) => [
+  token,
+  {
+    sessionId: token,
+    userId,
+    emailVerified: true,
+    expiresAt: new Date("2026-07-16T12:00:00Z"),
+    revokedAt: null,
+    activeOrganizationId: userId.startsWith("user-beta") ? "org-beta" : "org-alpha",
+    organizationRole: "owner",
+  },
+]));
+const authenticateSession = createSessionIdentityAdapter({
+  getSession(token) {
+    return providerSessions.get(token) ?? null;
+  },
+  now: () => new Date(fixedNow),
+});
 const hiddenResourceProblem = Object.freeze({
   type: "about:blank",
   title: "Not Found",
@@ -184,14 +203,7 @@ const apiServer = createApiServer({
     createdResourceSequences.set(kind, sequence);
     return `${kind}-${sequence}`;
   },
-  authenticate(request) {
-    const authorization = request.headers.authorization;
-    const session = typeof authorization === "string"
-      ? authorization.match(/^Bearer (.+)$/)?.[1]
-      : undefined;
-    const userId = sessions.get(session);
-    return userId === undefined ? null : { userId };
-  },
+  authenticate: authenticateSession,
 });
 let apiOrigin;
 
@@ -1045,6 +1057,76 @@ test("object keys cannot be client supplied and every segment is escaped", async
     object_component: "revision?1",
   }), "organizations/org%2Falpha/raw-sources/raw%2F..%2Fbeta/revisions/revision%3F1");
   assert.deepEqual(signer.calls, []);
+});
+
+test("session adapter discards provider organization and role claims and honors revocation", async () => {
+  providerSessions.set("session-provider-org-mismatch", {
+    sessionId: "provider-session-mismatch",
+    userId: "user-alpha",
+    emailVerified: true,
+    expiresAt: new Date("2026-07-16T12:00:00Z"),
+    revokedAt: null,
+    activeOrganizationId: "org-beta",
+    organizationRole: "owner",
+  });
+  providerSessions.set("session-provider-role-mismatch", {
+    sessionId: "provider-session-role-mismatch",
+    userId: "user-alpha-viewer",
+    emailVerified: true,
+    expiresAt: new Date("2026-07-16T12:00:00Z"),
+    revokedAt: null,
+    activeOrganizationId: "org-alpha",
+    organizationRole: "owner",
+  });
+  try {
+    const identity = await authenticateSession({
+      headers: { authorization: "Bearer session-provider-org-mismatch" },
+    });
+    assert.deepEqual(identity, {
+      sessionId: "provider-session-mismatch",
+      userId: "user-alpha",
+    });
+    assert.equal(Object.hasOwn(identity, "activeOrganizationId"), false);
+    assert.equal(Object.hasOwn(identity, "organizationRole"), false);
+
+    const ownOrganization = await apiRequest(
+      `${API_PREFIX}/organizations/org-alpha/flights/flight-alpha`,
+      "session-provider-org-mismatch",
+    );
+    assert.equal(ownOrganization.status, 200);
+
+    const providerSelectedOrganization = await apiRequest(
+      `${API_PREFIX}/organizations/org-beta/flights/flight-beta`,
+      "session-provider-org-mismatch",
+    );
+    assert.equal(providerSelectedOrganization.status, 404);
+    assert.deepEqual(providerSelectedOrganization.body, hiddenResourceProblem);
+
+    const claimedOwner = await apiRequest(
+      `${API_PREFIX}/organizations/org-alpha/flights/flight-alpha-other/notes`,
+      "session-provider-role-mismatch",
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ notes: "provider-role-must-not-elevate" }),
+      },
+    );
+    assert.equal(claimedOwner.status, 404);
+    assert.deepEqual(claimedOwner.body, hiddenResourceProblem);
+
+    providerSessions.set("session-provider-org-mismatch", {
+      ...providerSessions.get("session-provider-org-mismatch"),
+      revokedAt: new Date("2026-07-15T11:59:59Z"),
+    });
+    const revoked = await apiRequest(
+      `${API_PREFIX}/organizations/org-alpha/flights/flight-alpha`,
+      "session-provider-org-mismatch",
+    );
+    assert.equal(revoked.status, 401);
+  } finally {
+    providerSessions.delete("session-provider-org-mismatch");
+    providerSessions.delete("session-provider-role-mismatch");
+  }
 });
 
 test("versioned flight API permits every member role and hides cross-organization IDs", async () => {

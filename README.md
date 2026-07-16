@@ -6,7 +6,10 @@ Drone.Works turns raw drone flight logs into an explainable history of flights, 
 
 ## Project status
 
-Drone.Works is in the product-definition and technical-discovery stage. The repository currently contains the founding product contract; implementation has not started.
+Phase 0 discovery is complete and Phase 1A implementation is underway. The
+repository now has a buildable web/API/worker workspace, a Docker-free local
+runtime, and a generated versioned API contract. Customer features, production
+authentication, and the production database schema have not started yet.
 
 The first release is intentionally focused on small professional operators managing approximately 2–20 aircraft:
 
@@ -30,7 +33,7 @@ AI-assisted contributors should also follow the repository instructions in [AGEN
 
 The repository is also an Obsidian project-memory vault. Open [the north star](vault/00-north-star.md) for the current state, completed evidence, blockers, and next entry point. The `vault/` layer records development continuity; documents under `docs/` remain canonical.
 
-The current delivery sequence and immediate technical-discovery work are defined in the [delivery plan](docs/roadmap/DELIVERY-PLAN.md) and [Phase 0 plan](docs/roadmap/PHASE-0-DISCOVERY.md).
+The current delivery sequence is defined in the [delivery plan](docs/roadmap/DELIVERY-PLAN.md) and [Phase 1A backlog](docs/roadmap/PHASE-1A-BACKLOG.md). See the [local-development guide](docs/operations/LOCAL-DEVELOPMENT.md) to run the generated-data foundation without Docker or AWS.
 
 ## Product principles
 

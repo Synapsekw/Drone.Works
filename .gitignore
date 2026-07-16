@@ -12,6 +12,7 @@ build/
 coverage/
 .next/
 .turbo/
+*.tsbuildinfo
 
 # Python tooling
 __pycache__/
@@ -56,3 +57,7 @@ Welcome.md
 # Test artifacts
 playwright-report/
 test-results/
+
+# Generated no-cloud development runtime
+.drone-works/
+.pnpm-store/

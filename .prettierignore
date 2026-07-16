@@ -1,0 +1,10 @@
+.drone-works/
+.next/
+apps/web/next-env.d.ts
+coverage/
+dist/
+node_modules/
+pnpm-lock.yaml
+packages/contracts/openapi/openapi.json
+packages/contracts/src/generated/openapi.ts
+spikes/**/internal-build/work/

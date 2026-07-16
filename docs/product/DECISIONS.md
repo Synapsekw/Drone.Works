@@ -377,13 +377,21 @@ versioning is enabled.
 
 ### Decision
 
-Use AWS Middle East (UAE), `me-central-1`, as the initial region, with separate
-production and non-production accounts. Run digest-pinned OCI web, API, worker,
-dispatcher, and rootless parser containers on one replaceable Graviton EC2 host;
-use private Single-AZ RDS PostgreSQL, private versioned S3, ECR, KMS, Secrets
-Manager, Systems Manager, and CloudWatch. The region remains an IaC input and is
-reconsidered if customer residency or service availability requires another
-region.
+Use separate production and non-production AWS accounts. Keep AWS Middle East
+(UAE), `me-central-1`, as the preferred customer-data target, but require an
+operational-readiness check before provisioning any region. While UAE is not
+operationally suitable, AWS Europe (Frankfurt), `eu-central-1`, may host
+ephemeral synthetic-only staging. This fallback does not authorize customer or
+production data outside an approved residency, and Bahrain is not an automatic
+substitute; every candidate region is evaluated independently.
+
+Run digest-pinned OCI web, API, worker, dispatcher, and rootless parser
+containers on one replaceable Graviton EC2 host; use private Single-AZ RDS
+PostgreSQL, private versioned S3, ECR, KMS, Secrets Manager, Systems Manager,
+and CloudWatch. The region remains a required IaC input so moving the same
+portable application and reviewed PostgreSQL migrations does not require an
+application/schema rewrite. A customer-data move still requires explicit
+residency approval, backup/restore planning, and a tested migration.
 
 Use application-derived organization prefixes, conditional checksum-confirmed
 object creation, stored version IDs, exact-version signed GET, and permanent
@@ -428,7 +436,7 @@ and environments, restore/rollback, retention, and monthly alert thresholds in
 The following require evidence before implementation commitment:
 
 1. Transactional email and production map-tile providers.
-2. Whether an early customer contract requires a region other than `me-central-1`.
+2. Which production customer-data region early contracts and residency review authorize.
 3. DJI terms, notice/consent, and production key-service authorization under D-012.
 4. Supported DJI application/format matrix after representative fixture expansion.
 5. Billing provider and UAE/global tax strategy, after early product validation.

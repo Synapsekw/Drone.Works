@@ -1,0 +1,26 @@
+{
+  "name": "@drone-works/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "test": "vitest run",
+    "test:contract": "vitest run test/contract.test.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@drone-works/config": "workspace:*",
+    "@drone-works/contracts": "workspace:*",
+    "@fastify/swagger": "9.8.1",
+    "@fastify/type-provider-typebox": "5.2.0",
+    "@sinclair/typebox": "catalog:",
+    "fastify": "5.10.0"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

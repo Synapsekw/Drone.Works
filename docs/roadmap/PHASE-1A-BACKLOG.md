@@ -52,6 +52,10 @@ must be obtained. No implementation may silently substitute an unsupported log.
 
 ### A01 — Bootstrap the production repository
 
+**Status:** Complete (2026-07-16). Evidence: the pinned root workspace and CI
+workflow, with commands documented in
+[`LOCAL-DEVELOPMENT.md`](../operations/LOCAL-DEVELOPMENT.md).
+
 **Outcome:** A clean checkout has a pinned pnpm/TypeScript workspace with
 independently runnable web, API, worker, and shared packages.
 
@@ -80,6 +84,10 @@ artifacts, and version pinning. No hosted resource.
 
 ### A02 — Provide the no-cloud local runtime
 
+**Status:** Complete (2026-07-16). Evidence: native PostgreSQL and loopback
+orchestration under `scripts/dev/`, verified by the documented start, smoke, and
+cleanup commands.
+
 **Outcome:** One command starts the local web/API/worker dependencies with
 generated data and no production credential.
 
@@ -100,10 +108,14 @@ from a clean generated state; secret/privacy scan passes.
 
 **Contract impact:** None.
 
-**Operational impact:** Documents native PostgreSQL and optional container-runtime
-prerequisites; no Docker requirement.
+**Operational impact:** Documents native PostgreSQL prerequisites; no Docker or
+container-runtime requirement.
 
 ### A03 — Establish the versioned API contract
+
+**Status:** Complete (2026-07-16). Evidence: the generated OpenAPI 3.1 snapshot,
+compiled client, route inventory, and contract tests in `packages/contracts/`
+and `apps/api/`.
 
 **Outcome:** Fastify serves one generated OpenAPI 3.1 contract with RFC 9457
 problems and a typed web client.
@@ -436,14 +448,16 @@ environment and promotes the exact signed images that passed CI.
 **Scope:** Separate account/VPC/subnets, EC2 host, private RDS, private versioned
 S3, ECR, KMS, Secrets Manager, SSM, CloudWatch, DNS/TLS, workload/migration/
 dispatcher/deletion roles, budgets, image signature verification, deploy/health/
-shutdown/rollback automation, and generated seed.
+shutdown/rollback automation, generated seed, explicit region input, and a
+pre-provision regional health/service-availability gate.
 
 **Non-goals:** Production account, customer data, Multi-AZ, autoscaling,
 Kubernetes, real DJI key, production email/map provider, or uptime SLA.
 
 **Acceptance:** IaC policy finds no public bucket/database, SSH, static cloud key,
 or parser credential; exact digest promotion and previous-digest rollback pass;
-environment can be destroyed and recreated.
+environment can be destroyed and recreated. Frankfurt fallback remains
+synthetic-only and cannot enable customer uploads.
 
 **Dependencies:** A01, A04, A08, A13, D-014; external AWS account/spend approval.
 
@@ -514,4 +528,3 @@ DECISIONS; changes require acceptance before release.
 **Operational impact:** Hands off deployment, rollback, retry, log inspection,
 restore, deletion, incident, and budget ownership. Does not authorize production
 customer data by itself.
-

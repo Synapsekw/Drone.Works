@@ -9,13 +9,29 @@ Last updated: 2026-07-16
 |---|---|---|---|---|
 | Local | generated data and authorized ignored fixtures only | native Node/pnpm, native PostgreSQL, loopback/filesystem S3 adapter, local email capture | local random values; no production credential | developer controlled |
 | CI | generated repository-safe fixtures | native PostgreSQL service, loopback object/email services, OCI builder for Linux parser proof | short-lived CI identity; no customer account | per workflow |
-| Staging | generated synthetic organizations only by default | complete AWS shape in the non-production account | environment-scoped IAM roles and secrets | ephemeral or scheduled off |
+| Staging | generated synthetic organizations only by default | complete AWS shape in an approved, operational region in the non-production account | environment-scoped IAM roles and secrets | ephemeral or scheduled off |
 | Production | authorized customer data | production account, EC2, RDS, S3, ECR, KMS, Secrets Manager, CloudWatch | workload roles and federated operators | continuous |
 
 Local development does not require Docker, a cloud account, production
 credentials, real email delivery, real map tiles, or real customer data. OCI
 images and the Linux parser containment proof are built in CI; developers may
 use a local compatible container runtime only by choice.
+
+## Region readiness and temporary staging
+
+AWS region catalog availability is not enough to authorize a deployment. Before
+creating a hosted environment, the account owner and implementer must check the
+AWS public and account health views and confirm that EC2, RDS PostgreSQL, S3,
+ECR, KMS, Secrets Manager, Systems Manager, and CloudWatch are operational in
+the target region.
+
+`me-central-1` remains the preferred customer-data target. While it is not
+operationally suitable, `eu-central-1` (Frankfurt) may host ephemeral staging
+with generated synthetic data only. This temporary staging choice does not
+authorize customer uploads or production data outside an approved residency.
+`me-south-1` (Bahrain) is not an automatic fallback; every candidate is checked
+independently. The selected region is an explicit IaC input so a later move does
+not require an application or schema rewrite.
 
 ## Configuration and secrets
 
@@ -77,4 +93,3 @@ tool is chosen in the bootstrap task; OpenTofu/Terraform is preferred because it
 keeps the deployment portable. State is encrypted, versioned, locked, and held
 outside the application account. Console-only resources are defects except
 temporary incident containment recorded afterward.
-

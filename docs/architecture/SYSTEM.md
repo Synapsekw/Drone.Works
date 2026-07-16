@@ -43,10 +43,13 @@ memory.
 | Telemetry | D-008 versioned per-flight columnar objects plus PostgreSQL metadata | The complete 100,000-flight benchmark passed. |
 | Parser | D-009 native Rust CLI in a fresh Linux OCI container | Approximately 70 MB observed peak RSS with a hard no-network boundary and independent failure. |
 | Maps | MapLibre GL JS; provider selected later | The renderer is decoupled from private track data and the tile provider. |
-| Hosting | AWS Middle East (UAE), `me-central-1`, as the initial region | Near the likely first operators and supports the selected compute, RDS, S3, and ECR services. Region remains an infrastructure input. |
+| Hosting | AWS region selected through the D-014 readiness gate | UAE `me-central-1` is the preferred customer-data target; Frankfurt `eu-central-1` is permitted for synthetic-only staging while UAE is not operationally suitable. Region remains an infrastructure input. |
 
 ## Initial AWS topology
 
+- The target region is an explicit IaC input. Required regional services and
+  current AWS health are checked before provisioning; temporary Frankfurt
+  staging never implies approval to place customer data there.
 - A production AWS account is separate from a non-production account. Each has
   distinct VPCs, buckets, databases, KMS keys, secrets, DNS names, and IAM roles.
 - One replaceable Graviton EC2 application host runs pinned OCI images for the
@@ -116,4 +119,3 @@ cross-region failover, a data warehouse, and a time-series database are not
 required. The single application host and Single-AZ database are private-beta
 tradeoffs with tested rebuild/restore paths, not the long-term availability
 architecture.
-

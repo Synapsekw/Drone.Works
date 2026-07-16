@@ -15,11 +15,11 @@ related: ["[[00-north-star]]", "[[project-history]]"]
 
 ```text
 P0-04 canonical model complete
-  -> P0-05 tenancy proof (local relational core complete)
+  -> P0-05 tenancy proof complete for Phase 0
   -> P0-06 telemetry proof complete; D-008 accepted
-  -> P0-07 stack/provider/recovery closure (active)
-  -> P0-08 threat-model closure
-  -> P0-09 Phase 1A backlog
+  -> P0-07 stack/provider/recovery complete
+  -> P0-08 threat/privacy model complete
+  -> P0-09 Phase 1A backlog (active)
 ```
 
-P0-03's core technical proof is complete and D-009 selects the native Rust CLI inside the Linux boundary. P0-04's generic model and P0-05's local relational tenancy/deletion evidence pass. P0-06 physically represented 600 million frames, accepted D-008's per-flight columnar-object layout, and documented provider-inclusive thresholds. P0-07 now owns the remaining stack, auth, job-fault, object-provider, deployment, recovery, observability, and cost choices. Broader fixture validation and production D-012 review remain permission/terms-gated.
+P0-03's core technical proof is complete and D-009 selects the native Rust CLI inside the Linux boundary. P0-04 through P0-08 now provide the accepted model, tenancy, telemetry, stack, provider, deployment, recovery, cost, threat, and privacy inputs for the final implementation issue set. Broader fixture validation and production D-012 review remain permission/terms-gated and keep only the affected boundary disabled.

@@ -17,9 +17,10 @@ related: ["[[00-north-star]]"]
 - [Authentication evaluation and D-013 evidence](../../docs/research/AUTHENTICATION-EVALUATION.md)
 - [Accepted Phase 1A system architecture](../../docs/architecture/SYSTEM.md)
 - [Security boundaries and hosted-data gates](../../docs/architecture/SECURITY-BOUNDARIES.md)
+- [Threat model and privacy flow](../../docs/security/THREAT-MODEL.md)
+- [Phase 1A security checklist](../../docs/security/PHASE-1A-SECURITY-CHECKLIST.md)
 - [Canonical decision log](../../docs/product/DECISIONS.md)
 
 ## Open Phase 0 architecture outputs
 
-- P0-08 threat/privacy model and security checklist.
 - P0-09 walking-skeleton backlog and final gate reconciliation.

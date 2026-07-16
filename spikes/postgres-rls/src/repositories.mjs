@@ -47,98 +47,243 @@ async function recordAuditEvent(client, input) {
   );
 }
 
+const ORGANIZATION_EXPORT_COLLECTIONS = Object.freeze([
+  Object.freeze({
+    name: "aircraft",
+    sql: `SELECT organization_id, id, display_name
+            FROM droneworks.aircraft
+           ORDER BY id`,
+  }),
+  Object.freeze({
+    name: "audit_events",
+    sql: `SELECT organization_id,
+                 id,
+                 actor_user_id,
+                 action,
+                 resource_type,
+                 resource_id,
+                 changed_fields,
+                 metadata,
+                 occurred_at
+            FROM droneworks.audit_events
+           ORDER BY occurred_at, id`,
+  }),
+  Object.freeze({
+    name: "batteries",
+    sql: `SELECT organization_id,
+                 id,
+                 display_name,
+                 serial_number,
+                 lifecycle
+            FROM droneworks.batteries
+           ORDER BY id`,
+  }),
+  Object.freeze({
+    name: "canonical_flights",
+    sql: `SELECT organization_id,
+                 id,
+                 pilot_profile_id,
+                 aircraft_id,
+                 imported_pilot_profile_id,
+                 imported_aircraft_id,
+                 source_kind,
+                 state,
+                 takeoff_at,
+                 takeoff_timezone,
+                 duration_ms::text AS duration_ms,
+                 location_text,
+                 notes,
+                 deleted_at,
+                 deleted_from_state
+            FROM droneworks.canonical_flights
+           ORDER BY id`,
+  }),
+  Object.freeze({
+    name: "flight_assignment_overrides",
+    sql: `SELECT organization_id,
+                 canonical_flight_id,
+                 pilot_profile_id,
+                 aircraft_id,
+                 actor_user_id,
+                 applied_at
+            FROM droneworks.flight_assignment_overrides
+           ORDER BY canonical_flight_id`,
+  }),
+  Object.freeze({
+    name: "flight_batteries",
+    sql: `SELECT organization_id, canonical_flight_id, battery_id, origin
+            FROM droneworks.flight_batteries
+           ORDER BY canonical_flight_id, battery_id`,
+  }),
+  Object.freeze({
+    name: "flight_revisions",
+    sql: `SELECT organization_id,
+                 id,
+                 canonical_flight_id,
+                 processing_revision_id,
+                 facts,
+                 capabilities
+            FROM droneworks.flight_revisions
+           ORDER BY canonical_flight_id, processing_revision_id, id`,
+  }),
+  Object.freeze({
+    name: "flight_tags",
+    sql: `SELECT organization_id, canonical_flight_id, tag_id, origin
+            FROM droneworks.flight_tags
+           ORDER BY canonical_flight_id, tag_id`,
+  }),
+  Object.freeze({
+    name: "import_batches",
+    sql: `SELECT organization_id, id, uploaded_by_user_id, state, created_at
+            FROM droneworks.import_batches
+           ORDER BY id`,
+  }),
+  Object.freeze({
+    name: "import_items",
+    sql: `SELECT organization_id,
+                 id,
+                 import_batch_id,
+                 client_file_id,
+                 original_filename,
+                 raw_source_id,
+                 state,
+                 created_at
+            FROM droneworks.import_items
+           ORDER BY import_batch_id, id`,
+  }),
+  Object.freeze({
+    name: "maintenance_completions",
+    sql: `SELECT organization_id,
+                 id,
+                 maintenance_schedule_id,
+                 completed_by_user_id,
+                 completed_at,
+                 details,
+                 recorded_at
+            FROM droneworks.maintenance_completions
+           ORDER BY maintenance_schedule_id, completed_at, id`,
+  }),
+  Object.freeze({
+    name: "maintenance_schedules",
+    sql: `SELECT organization_id,
+                 id,
+                 aircraft_id,
+                 title,
+                 schedule_type,
+                 interval_value::text AS interval_value,
+                 due_at,
+                 baseline_at,
+                 due_soon_threshold_percent,
+                 due_soon_days,
+                 created_by_user_id,
+                 created_at
+            FROM droneworks.maintenance_schedules
+           ORDER BY id`,
+  }),
+  Object.freeze({
+    name: "memberships",
+    sql: `SELECT organization_id, user_id, role
+            FROM droneworks.memberships
+           ORDER BY user_id`,
+  }),
+  Object.freeze({
+    name: "organizations",
+    sql: `SELECT id,
+                 name,
+                 default_timezone,
+                 unit_preference,
+                 pilot_raw_download_enabled,
+                 pilot_export_enabled,
+                 state,
+                 deletion_requested_at
+            FROM droneworks.organizations
+           ORDER BY id`,
+  }),
+  Object.freeze({
+    name: "pilot_profiles",
+    sql: `SELECT organization_id,
+                 id,
+                 display_name,
+                 membership_user_id
+            FROM droneworks.pilot_profiles
+           ORDER BY id`,
+  }),
+  Object.freeze({
+    name: "raw_source_flights",
+    sql: `SELECT organization_id, raw_source_id, canonical_flight_id
+            FROM droneworks.raw_source_flights
+           ORDER BY raw_source_id, canonical_flight_id`,
+  }),
+  Object.freeze({
+    name: "raw_sources",
+    sql: `SELECT organization_id, id, state
+            FROM droneworks.raw_sources
+           ORDER BY id`,
+  }),
+  Object.freeze({
+    name: "tags",
+    sql: `SELECT organization_id, id, name
+            FROM droneworks.tags
+           ORDER BY id`,
+  }),
+  Object.freeze({
+    name: "telemetry_samples",
+    sql: `SELECT organization_id,
+                 flight_revision_id,
+                 elapsed_ms::text AS elapsed_ms,
+                 height_agl_m
+            FROM droneworks.telemetry_samples
+           ORDER BY flight_revision_id, elapsed_ms`,
+  }),
+]);
+
+const ORGANIZATION_EXPORT_SNAPSHOT_SQL = `
+  SELECT jsonb_object_agg(collection.name, collection.rows ORDER BY collection.name)
+    AS snapshot
+    FROM (
+      ${ORGANIZATION_EXPORT_COLLECTIONS.map((collection) => `
+        SELECT '${collection.name}'::text AS name,
+               coalesce(
+                 jsonb_agg(
+                   to_jsonb(export_row)
+                   ORDER BY to_jsonb(export_row)::text
+                 ),
+                 '[]'::jsonb
+               ) AS rows
+          FROM (${collection.sql}) AS export_row
+      `).join(" UNION ALL ")}
+    ) AS collection`;
+
 async function buildOrganizationExportManifest(client, generatedAt) {
-  const result = await client.query(
-    `WITH collection_counts AS (
-       SELECT 'aircraft'::text AS name, count(*)::integer AS row_count
-         FROM droneworks.aircraft
-       UNION ALL
-       SELECT 'audit_events', count(*)::integer FROM droneworks.audit_events
-       UNION ALL
-       SELECT 'batteries', count(*)::integer FROM droneworks.batteries
-       UNION ALL
-       SELECT 'canonical_flights', count(*)::integer FROM droneworks.canonical_flights
-       UNION ALL
-       SELECT 'flight_assignment_overrides', count(*)::integer
-         FROM droneworks.flight_assignment_overrides
-       UNION ALL
-       SELECT 'flight_batteries', count(*)::integer FROM droneworks.flight_batteries
-       UNION ALL
-       SELECT 'flight_revisions', count(*)::integer FROM droneworks.flight_revisions
-       UNION ALL
-       SELECT 'flight_tags', count(*)::integer FROM droneworks.flight_tags
-       UNION ALL
-       SELECT 'import_batches', count(*)::integer FROM droneworks.import_batches
-       UNION ALL
-       SELECT 'import_items', count(*)::integer FROM droneworks.import_items
-       UNION ALL
-       SELECT 'memberships', count(*)::integer FROM droneworks.memberships
-       UNION ALL
-       SELECT 'maintenance_completions', count(*)::integer
-         FROM droneworks.maintenance_completions
-       UNION ALL
-       SELECT 'maintenance_schedules', count(*)::integer
-         FROM droneworks.maintenance_schedules
-       UNION ALL
-       SELECT 'organizations', count(*)::integer FROM droneworks.organizations
-       UNION ALL
-       SELECT 'pilot_profiles', count(*)::integer FROM droneworks.pilot_profiles
-       UNION ALL
-       SELECT 'raw_source_flights', count(*)::integer FROM droneworks.raw_source_flights
-       UNION ALL
-       SELECT 'raw_sources', count(*)::integer FROM droneworks.raw_sources
-       UNION ALL
-       SELECT 'tags', count(*)::integer FROM droneworks.tags
-       UNION ALL
-       SELECT 'telemetry_samples', count(*)::integer FROM droneworks.telemetry_samples
-     )
-     SELECT jsonb_build_object(
-              'schema_version', 1,
-              'generated_at', to_char(
-                $1::timestamptz AT TIME ZONE 'UTC',
-                'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
-              ),
-              'canonical_time_basis', 'UTC',
-              'organization', (
-                SELECT jsonb_build_object(
-                         'id', organization.id,
-                         'name', organization.name,
-                         'default_timezone', organization.default_timezone,
-                         'unit_preference', organization.unit_preference
-                       )
-                  FROM droneworks.organizations AS organization
-              ),
-              'collections', (
-                SELECT jsonb_agg(
-                         jsonb_build_object(
-                           'name', counts.name,
-                           'row_count', counts.row_count
-                         )
-                         ORDER BY counts.name
-                       )
-                  FROM collection_counts AS counts
-              ),
-              'raw_sources', (
-                SELECT coalesce(
-                         jsonb_agg(
-                           jsonb_build_object(
-                             'id', source.id,
-                             'state', source.state
-                           )
-                           ORDER BY source.id
-                         ),
-                         '[]'::jsonb
-                       )
-                  FROM droneworks.raw_sources AS source
-              )
-            ) AS manifest`,
-    [requireDate(generatedAt, "generatedAt").toISOString()],
-  );
-  const manifest = result.rows[0]?.manifest;
-  if (manifest?.organization === null || manifest?.organization === undefined) {
+  const result = await client.query(ORGANIZATION_EXPORT_SNAPSHOT_SQL);
+  const snapshot = result.rows[0]?.snapshot;
+  if (snapshot === null || typeof snapshot !== "object") {
+    throw new Error("organization export snapshot could not be assembled");
+  }
+  const organization = snapshot.organizations[0];
+  if (organization === undefined || snapshot.organizations.length !== 1) {
     throw new Error("organization export manifest has no organization root");
   }
-  return manifest;
+  return {
+    schema_version: 1,
+    generated_at: requireDate(generatedAt, "generatedAt").toISOString(),
+    canonical_time_basis: "UTC",
+    organization: {
+      id: organization.id,
+      name: organization.name,
+      default_timezone: organization.default_timezone,
+      unit_preference: organization.unit_preference,
+    },
+    collections: ORGANIZATION_EXPORT_COLLECTIONS.map((collection) => ({
+      name: collection.name,
+      row_count: snapshot[collection.name].length,
+    })),
+    raw_sources: snapshot.raw_sources.map((source) => ({
+      id: source.id,
+      state: source.state,
+    })),
+    snapshot,
+  };
 }
 
 function maintenanceScheduleFromRow(row) {
@@ -2173,6 +2318,136 @@ export function createRepositories(client) {
         [exportRequestId],
       );
       return result.rows[0] ?? null;
+    },
+
+    async lockOrganizationExportForGeneration(exportRequestId) {
+      requireId(exportRequestId, "exportRequestId");
+      const result = await client.query(
+        `SELECT request.id,
+                request.organization_id,
+                request.requested_by_user_id,
+                request.state,
+                request.manifest_version,
+                request.manifest,
+                request.requested_at,
+                request.export_artifact_id,
+                request.completed_at,
+                artifact.object_artifact_id,
+                artifact.state AS artifact_state,
+                artifact.available_until
+           FROM droneworks.organization_export_requests AS request
+           LEFT JOIN droneworks.export_artifacts AS artifact
+             ON artifact.organization_id = request.organization_id
+            AND artifact.id = request.export_artifact_id
+          WHERE request.id = $1
+          FOR UPDATE OF request`,
+        [exportRequestId],
+      );
+      return result.rows[0] ?? null;
+    },
+
+    async finalizeOrganizationExport(input) {
+      const exportRequestId = requireId(
+        input.exportRequestId,
+        "exportRequestId",
+      );
+      const artifactId = requireId(input.artifactId, "artifactId");
+      const objectArtifactId = requireId(
+        input.objectArtifactId,
+        "objectArtifactId",
+      );
+      const requestedByUserId = requireId(
+        input.requestedByUserId,
+        "requestedByUserId",
+      );
+      const bundleSha256 = requireId(input.bundleSha256, "bundleSha256");
+      const now = requireDate(input.now, "now");
+      const availableUntil = requireDate(
+        input.availableUntil,
+        "availableUntil",
+      );
+      if (!Number.isSafeInteger(input.fileCount) || input.fileCount <= 0) {
+        throw new TypeError("fileCount must be a positive integer");
+      }
+      await client.query(
+        `UPDATE droneworks.organization_export_requests
+            SET state = 'processing'
+          WHERE id = $1
+            AND state = 'queued'`,
+        [exportRequestId],
+      );
+      await client.query(
+        `INSERT INTO droneworks.export_artifacts (
+           organization_id,
+           id,
+           object_artifact_id,
+           state,
+           available_until
+         ) VALUES (
+           droneworks.current_organization_id(),
+           $1,
+           $2,
+           'ready',
+           $3
+         )
+         ON CONFLICT (organization_id, id) DO NOTHING`,
+        [artifactId, objectArtifactId, availableUntil.toISOString()],
+      );
+      const artifact = await client.query(
+        `SELECT id,
+                organization_id,
+                object_artifact_id,
+                state,
+                available_until
+           FROM droneworks.export_artifacts
+          WHERE id = $1`,
+        [artifactId],
+      );
+      const artifactRow = artifact.rows[0];
+      if (artifactRow === undefined
+          || artifactRow.object_artifact_id !== objectArtifactId
+          || artifactRow.state !== "ready") {
+        throw new Error("organization export artifact identity conflicts");
+      }
+      const updated = await client.query(
+        `UPDATE droneworks.organization_export_requests
+            SET state = 'ready',
+                export_artifact_id = $2,
+                completed_at = $3
+          WHERE id = $1
+            AND state = 'processing'
+          RETURNING id,
+                    organization_id,
+                    requested_by_user_id,
+                    state,
+                    manifest_version,
+                    manifest,
+                    requested_at,
+                    export_artifact_id,
+                    completed_at`,
+        [exportRequestId, artifactId, now.toISOString()],
+      );
+      const exportRequest = updated.rows[0];
+      if (exportRequest === undefined) {
+        throw new Error("organization export request did not transition to ready");
+      }
+      await recordAuditEvent(client, {
+        userId: requestedByUserId,
+        action: "organization_export.completed",
+        resourceType: "organization_export",
+        resourceId: exportRequestId,
+        changedFields: ["state", "export_artifact_id", "completed_at"],
+        metadata: {
+          manifest_version: exportRequest.manifest_version,
+          bundle_sha256: bundleSha256,
+          file_count: input.fileCount,
+        },
+        now,
+      });
+      return {
+        exportRequest,
+        artifact: artifactRow,
+      };
     },
 
     async findDownloadableObject({ userId, resourceType, resourceId, now }) {

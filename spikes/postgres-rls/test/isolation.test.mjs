@@ -11,6 +11,13 @@ import {
   issueAuthorizedDownload,
 } from "../src/downloads.mjs";
 import {
+  buildOrganizationExportBundle,
+  generateOrganizationExportArtifact,
+  ORGANIZATION_EXPORT_ARTIFACT_LIFETIME_MS,
+  ORGANIZATION_EXPORT_BUNDLE_CONTENT_TYPE,
+  ORGANIZATION_EXPORT_BUNDLE_FORMAT,
+} from "../src/exports.mjs";
+import {
   enqueueOrganizationExport,
   FLIGHT_REFRESH_QUEUE,
   enqueueFlightRefresh,
@@ -77,6 +84,39 @@ function recordingSigner() {
     verify(url, now) {
       const expiresAt = issued.get(url);
       return expiresAt instanceof Date && expiresAt > now;
+    },
+  };
+}
+
+function recordingArtifactStore({ failures = 0 } = {}) {
+  const calls = [];
+  const objects = new Map();
+  return {
+    calls,
+    objects,
+    async putIfAbsent(input) {
+      calls.push({
+        objectKey: input.objectKey,
+        bytes: Buffer.from(input.bytes),
+        contentType: input.contentType,
+        sha256: input.sha256,
+      });
+      if (failures > 0) {
+        failures -= 1;
+        throw new Error("synthetic artifact-store failure");
+      }
+      const existing = objects.get(input.objectKey);
+      if (existing !== undefined && existing.sha256 !== input.sha256) {
+        throw new Error("artifact key was reused with different bytes");
+      }
+      if (existing === undefined) {
+        objects.set(input.objectKey, {
+          bytes: Buffer.from(input.bytes),
+          contentType: input.contentType,
+          sha256: input.sha256,
+        });
+      }
+      return { sha256: input.sha256, stored: existing === undefined };
     },
   };
 }
@@ -169,7 +209,8 @@ before(async () => {
     deleteAfterSeconds: 3600,
   });
   await queueBoss.createQueue(ORGANIZATION_EXPORT_QUEUE, {
-    retryLimit: 0,
+    retryLimit: 1,
+    retryDelay: 0,
     deleteAfterSeconds: 3600,
   });
   await new Promise((resolve, reject) => {
@@ -2591,6 +2632,7 @@ test("organization export jobs persist strict references and reapply RLS at exec
   const malformedJobId = await queueBoss.send(
     ORGANIZATION_EXPORT_QUEUE,
     { exportRequestId: "organization-export-1" },
+    { retryLimit: 0 },
   );
   await assert.rejects(
     processNextOrganizationExport(queueBoss, applicationPool, async () => {}),
@@ -2601,6 +2643,210 @@ test("organization export jobs persist strict references and reapply RLS at exec
     malformedJobId,
   );
   assert.equal(malformed.state, "failed");
+});
+
+test("organization export generation is deterministic, retry-safe, and organization-scoped", async () => {
+  const request = await withOrganization(
+    applicationPool,
+    "org-alpha",
+    (repositories) => repositories.findOrganizationExportById(
+      "organization-export-1",
+    ),
+  );
+  const bundle = buildOrganizationExportBundle(request.manifest);
+  const rebuilt = buildOrganizationExportBundle(request.manifest);
+  assert.equal(bundle.contentType, ORGANIZATION_EXPORT_BUNDLE_CONTENT_TYPE);
+  assert.equal(bundle.sha256, rebuilt.sha256);
+  assert.deepEqual(bundle.bytes, rebuilt.bytes);
+  assert.deepEqual(bundle.files.map((file) => file.path), [
+    "manifest.json",
+    "data.json",
+    "flights.csv",
+    "telemetry.csv",
+  ]);
+
+  const archive = JSON.parse(bundle.bytes.toString("utf8"));
+  assert.equal(archive.archive_format, ORGANIZATION_EXPORT_BUNDLE_FORMAT);
+  const decodedFiles = new Map();
+  for (const file of archive.files) {
+    const bytes = Buffer.from(file.content_base64, "base64");
+    assert.equal(bytes.length, file.byte_length);
+    assert.equal(createHash("sha256").update(bytes).digest("hex"), file.sha256);
+    decodedFiles.set(file.path, bytes.toString("utf8"));
+  }
+  const publicManifest = JSON.parse(decodedFiles.get("manifest.json"));
+  assert.equal(Object.hasOwn(publicManifest, "snapshot"), false);
+  assert.deepEqual(publicManifest.data_files, [
+    "data.json",
+    "flights.csv",
+    "telemetry.csv",
+  ]);
+  const dataDocument = JSON.parse(decodedFiles.get("data.json"));
+  assert.equal(dataDocument.schema_version, 1);
+  assert.equal(dataDocument.collections.canonical_flights.length, 6);
+  assert.equal(dataDocument.collections.telemetry_samples.length, 2);
+  assert.equal(dataDocument.collections.maintenance_schedules.length, 0);
+  assert.equal(decodedFiles.get("data.json").includes("org-beta"), false);
+  assert.equal(decodedFiles.get("data.json").includes("object_revision_id"), false);
+  assert.equal(decodedFiles.get("data.json").includes("raw-revision-alpha"), false);
+  assert.match(
+    decodedFiles.get("flights.csv"),
+    /^organization_id,id,pilot_profile_id,aircraft_id,source_kind,state,takeoff_at,takeoff_timezone,duration_ms,location_text,notes\n/,
+  );
+  assert.equal(decodedFiles.get("flights.csv").includes("org-beta"), false);
+  assert.match(
+    decodedFiles.get("telemetry.csv"),
+    /^organization_id,flight_revision_id,elapsed_ms,height_agl_m\n/,
+  );
+
+  const artifactStore = recordingArtifactStore({ failures: 1 });
+  const jobId = await enqueueOrganizationExport(queueBoss, {
+    schemaVersion: 1,
+    organizationId: "org-alpha",
+    exportRequestId: "organization-export-1",
+  });
+  await assert.rejects(
+    processNextOrganizationExport(
+      queueBoss,
+      applicationPool,
+      (input) => generateOrganizationExportArtifact(
+        applicationPool,
+        {
+          organizationId: input.organizationId,
+          exportRequestId: input.exportRequestId,
+        },
+        artifactStore,
+        { now: fixedNow },
+      ),
+    ),
+    /synthetic artifact-store failure/,
+  );
+  const afterFailure = await withOrganization(
+    applicationPool,
+    "org-alpha",
+    (repositories) => repositories.findOrganizationExportById(
+      "organization-export-1",
+    ),
+  );
+  assert.equal(afterFailure.state, "queued");
+  assert.equal(afterFailure.export_artifact_id, null);
+
+  const retried = await processNextOrganizationExport(
+    queueBoss,
+    applicationPool,
+    (input) => generateOrganizationExportArtifact(
+      applicationPool,
+      {
+        organizationId: input.organizationId,
+        exportRequestId: input.exportRequestId,
+      },
+      artifactStore,
+      { now: fixedNow },
+    ),
+  );
+  assert.equal(retried.jobId, jobId);
+  assert.equal(retried.outcome.status, "processed");
+  const generated = retried.outcome.result;
+  assert.equal(generated.status, "ready");
+  assert.equal(generated.exportRequestId, "organization-export-1");
+  assert.equal(generated.sha256, bundle.sha256);
+  assert.equal(generated.byteLength, bundle.bytes.length);
+  assert.equal(
+    generated.availableUntil,
+    new Date(
+      fixedNow.valueOf() + ORGANIZATION_EXPORT_ARTIFACT_LIFETIME_MS,
+    ).toISOString(),
+  );
+  assert.match(
+    generated.objectKey,
+    /^organizations\/org-alpha\/exports\/organization-export-artifact-[0-9a-f]{32}\/bundle-v1-[0-9a-f]{64}\.json$/,
+  );
+  assert.equal(artifactStore.calls.length, 2);
+  assert.equal(artifactStore.objects.size, 1);
+  const stored = artifactStore.objects.get(generated.objectKey);
+  assert.equal(stored.contentType, ORGANIZATION_EXPORT_BUNDLE_CONTENT_TYPE);
+  assert.equal(stored.sha256, bundle.sha256);
+  assert.deepEqual(stored.bytes, bundle.bytes);
+
+  const repeat = await generateOrganizationExportArtifact(
+    applicationPool,
+    {
+      organizationId: "org-alpha",
+      exportRequestId: "organization-export-1",
+    },
+    artifactStore,
+    { now: fixedNow },
+  );
+  assert.deepEqual(repeat, {
+    status: "already_ready",
+    exportRequestId: "organization-export-1",
+    artifactId: generated.artifactId,
+    objectKey: generated.objectKey,
+  });
+  assert.equal(artifactStore.calls.length, 2);
+  assert.equal(
+    await generateOrganizationExportArtifact(
+      applicationPool,
+      {
+        organizationId: "org-beta",
+        exportRequestId: "organization-export-1",
+      },
+      artifactStore,
+      { now: fixedNow },
+    ),
+    null,
+  );
+  assert.equal(artifactStore.calls.length, 2);
+
+  const ready = await apiRequest(
+    `${API_PREFIX}/organizations/org-alpha/organization-exports/organization-export-1`,
+    "session-alpha-owner",
+  );
+  assert.equal(ready.status, 200);
+  assert.equal(ready.body.data.state, "ready");
+  assert.equal(ready.body.data.export_artifact_id, generated.artifactId);
+  assert.equal(ready.body.data.completed_at, fixedNow.toISOString());
+
+  const signerCallsBefore = apiSigner.calls.length;
+  const download = await apiRequest(
+    `${API_PREFIX}/organizations/org-alpha/exports/${generated.artifactId}/downloads`,
+    "session-alpha-admin",
+    { method: "POST" },
+  );
+  assert.equal(download.status, 200);
+  assert.equal(apiSigner.calls.length, signerCallsBefore + 1);
+  assert.equal(apiSigner.calls.at(-1).objectKey, generated.objectKey);
+  for (const denied of [{
+    path: `${API_PREFIX}/organizations/org-alpha/exports/${generated.artifactId}/downloads`,
+    session: "session-alpha-pilot",
+  }, {
+    path: `${API_PREFIX}/organizations/org-beta/exports/${generated.artifactId}/downloads`,
+    session: "session-beta-admin",
+  }]) {
+    const response = await apiRequest(denied.path, denied.session, {
+      method: "POST",
+    });
+    assert.equal(response.status, 404);
+    assert.deepEqual(response.body, hiddenResourceProblem);
+  }
+  assert.equal(apiSigner.calls.length, signerCallsBefore + 1);
+
+  const completionEvents = await withOrganization(
+    applicationPool,
+    "org-alpha",
+    async (repositories) => (await repositories.listAuditEvents()).filter(
+      (event) => event.action === "organization_export.completed",
+    ),
+  );
+  assert.equal(completionEvents.length, 1);
+  assert.deepEqual(completionEvents[0].metadata, {
+    bundle_sha256: bundle.sha256,
+    file_count: 4,
+    manifest_version: 1,
+  });
+  const serializedEvent = JSON.stringify(completionEvents[0]);
+  assert.equal(serializedEvent.includes("alpha-only"), false);
+  assert.equal(serializedEvent.includes("raw-alpha"), false);
 });
 
 test("maintenance schedules are manager-mutated, member-readable, and usage-derived", async () => {

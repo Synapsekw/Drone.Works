@@ -178,11 +178,13 @@ organizations/{organization_id}/exports/{export_id}/{artifact_id}
 
 The path is defense-in-depth metadata, not authority. The executable boundary selects the raw-source or export row inside current organization context, joins current membership and organization policy, applies owner/admin or pilot-own-flight scope, derives and escapes every object-key segment from the authorized row, and calls an injected signer with a maximum 15-minute lifetime. Client-supplied object keys are rejected. Missing, cross-organization, viewer, other-pilot, mixed-pilot, disabled-policy, deleted, expired, revoked, and unknown resources return one indistinguishable denial and never invoke the signer.
 
-The authorization query holds a row lock on the membership and artifact until signing completes. The revocation test proves a previously authorized one-second link expires and that the removed admin cannot mint a replacement. The signer is deliberately a deterministic test adapter: real object-storage URL expiry, provider-side object access, deletion, and revocation still require production-shaped evidence.
+The authorization query holds a row lock on the membership and artifact until signing completes. The revocation test proves a previously authorized one-second link expires and that the removed admin cannot mint a replacement. The separate Docker-free object lifecycle proof exercises the downstream versioned service contract, including signed exact-version access, expiry/tamper denial, permanent version deletion, cross-organization preservation, and absence verification.
 
-## Remaining P0-05 proof obligations
+## Phase 1A hosted-data gates
 
-- Exercise object-key derivation, URL expiry, membership revocation, and deletion against real object-storage artifacts rather than the signer adapter alone.
-- Extend isolation and deletion tests across cached organization-linked secrets, external logs, backups, and provider deletion as those boundaries become executable.
+- Repeat the object lifecycle suite against a temporary private AWS bucket and destroy it before authorizing customer data.
+- Run the isolated generated-data RDS restore and deletion-receipt replay drill.
+- Keep cached organization-linked secrets disabled until the D-012 cache, secret, terms, and deletion gates pass.
+- Prove deployed log allowlists, retention, and emergency-access alerts in staging.
 
-D-002 remains proposed until the remaining non-relational and deletion-verification obligations above are closed. Production credentials, external audit retention, and emergency operations remain P0-07 deployment proof obligations.
+D-002 is accepted as the Phase 1A architecture with the safe gates above. Failure keeps hosted customer uploads or the DJI provider disabled; it does not permit weakening isolation or deletion.

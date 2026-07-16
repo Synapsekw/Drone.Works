@@ -18,6 +18,7 @@ Read these documents in order:
 - [`roadmap/DELIVERY-PLAN.md`](roadmap/DELIVERY-PLAN.md) defines the evidence-gated path from discovery through the private pilot beta.
 - [`roadmap/PHASE-0-DISCOVERY.md`](roadmap/PHASE-0-DISCOVERY.md) defines the immediate technical discovery work, decision gates, deliverables, and stop conditions.
 - [`architecture/README.md`](architecture/README.md) indexes architecture evidence and designs as they are produced.
+- [`operations/README.md`](operations/README.md) indexes environments, deployment, recovery, and cost policy.
 
 ## Testing and fixture governance
 

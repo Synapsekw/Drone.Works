@@ -1,6 +1,6 @@
-# Provisional stack scorecard
+# Phase 1A stack scorecard
 
-Status: proposed stack with accepted telemetry layout
+Status: accepted Phase 0 baseline under D-011
 Last updated: 2026-07-16
 
 ## Recommendation
@@ -28,20 +28,20 @@ Provisional supporting choices:
 | Web | Next.js App Router | Recommended |
 | Public API | Fastify with JSON Schema/TypeBox contracts | Recommended; prove OpenAPI 3.1 fidelity |
 | Worker | Separate Node.js process | Recommended |
-| Primary database | PostgreSQL with PostGIS available | Recommended |
-| Tenant enforcement | PostgreSQL RLS plus organization-required repositories | Recommended; requires executable proof |
-| Database access | Drizzle plus reviewed SQL for RLS/migrations | Provisional |
-| Background queue | pg-boss using PostgreSQL | Provisional; benchmark and fault-test |
+| Primary database | PostgreSQL with PostGIS available | Accepted under D-002/D-011 |
+| Tenant enforcement | PostgreSQL forced RLS plus organization-required repositories | Accepted; 34-test native proof |
+| Database access | `pg` plus reviewed SQL; reconsider a query builder later | Accepted for Phase 1A |
+| Background queue | Transactional outbox plus pg-boss | Accepted; recovery/cancellation/metrics proof passes |
 | Authentication | Better Auth core with PostgreSQL; app-owned organizations | Selected under D-013; real-package integration gates remain in Phase 1A |
-| Raw object storage | S3-compatible API | Recommended; provider undecided |
+| Raw object storage | Amazon S3 behind a versioned adapter | Accepted under D-014; live-bucket conformance is a hosted-data gate |
 | Maps | MapLibre GL JS | Recommended; tile provider undecided |
 | Charts | ECharts | Provisional UI choice, not architecture-blocking |
 | Observability | OpenTelemetry-compatible tracing/metrics and structured logs | Recommended; vendor undecided |
 | Tests | Vitest, API integration tests, Playwright, and containerized dependency tests | Recommended |
-| Local environment | Native Node tooling plus Docker Compose dependencies | Recommended |
-| Deployment | OCI containers with managed PostgreSQL and object storage | Recommended; provider undecided |
+| Local environment | Native Node/PostgreSQL plus loopback object/email adapters | Accepted; Docker is not required |
+| Deployment | OCI containers on AWS EC2, RDS PostgreSQL, S3, ECR, Secrets Manager, CloudWatch | Accepted under D-014 |
 | Telemetry layout | Versioned per-flight columnar objects with PostgreSQL metadata | Accepted under D-008; production codec still must pass reference tests |
-| DJI parser/runtime | Evaluate in P0-03 | Deliberately undecided under D-009 |
+| DJI parser/runtime | Native Rust CLI in a fresh no-network Linux container | Accepted under D-009; production legal/provider gates remain |
 
 ## Why this direction
 
@@ -173,7 +173,7 @@ Managed PostgreSQL, auth, or object storage can still be selected individually. 
 
 Next.js supports self-hosting as a Node.js server or Docker container. Its documentation also identifies reverse-proxy and multi-instance cache responsibilities. Drone.Works should use it as the UI layer, keep customer domain writes in the public API, and initially avoid relying on distributed framework caching. See the [official self-hosting guide](https://nextjs.org/docs/app/guides/self-hosting).
 
-Proof obligations:
+Phase 1A proof obligations:
 
 - Authenticated cookie/session forwarding to the API.
 - No domain server action bypasses `/api/v1/`.
@@ -203,7 +203,7 @@ Proof obligations:
 - Organization context is transaction-safe with pooled connections.
 - Jobs and exports fail closed without organization context.
 
-### Drizzle
+### Drizzle (deferred)
 
 Drizzle documents PostgreSQL RLS schema support, which may help keep policies near migrations while retaining direct SQL escape hatches. See [Drizzle RLS documentation](https://orm.drizzle.team/docs/rls).
 
@@ -214,13 +214,13 @@ Proof obligations:
 - Complex telemetry/export queries remain maintainable.
 - Schema diff tooling does not remove hand-reviewed security objects unexpectedly.
 
-If the proof fails, use a more SQL-first migration/query layer; PostgreSQL is the decision, not Drizzle.
+Phase 1A starts with `pg` and reviewed SQL because the security objects are already executable and checksum-pinned. Drizzle may be introduced only after this proof; PostgreSQL and the reviewed isolation contract are the decision, not an ORM.
 
-### pg-boss
+### pg-boss and transactional outbox
 
 pg-boss uses PostgreSQL for background jobs and documents retries, scheduling, dead-letter behavior, transactional job creation, and Drizzle transaction adapters. See the [pg-boss repository](https://github.com/timgit/pg-boss).
 
-Proof obligations:
+Phase 0 evidence:
 
 - Domain handlers remain idempotent even if infrastructure claims exactly-once delivery.
 - Worker termination, retry, cancellation, and queue-age monitoring behave as required.
@@ -252,23 +252,19 @@ Proof obligations:
 - Verify CSP/worker configuration and attribution requirements.
 - Avoid sending private tracks to a tile provider; basemap requests must not contain the customer route.
 
-## Decisions intentionally not made
+## Decisions intentionally deferred
 
-- Cloud or regional deployment provider.
-- Managed PostgreSQL vendor.
-- Object-storage vendor.
 - Transactional email provider.
 - Map tile and geocoding provider.
 - Exact production telemetry container codec behind D-008's accepted object layout.
-- DJI parser library and encrypted-key strategy.
-- Final authentication provider.
+- DJI production terms, consent, and managed key-service enablement under D-012.
 - Billing provider.
 
-These are evidence-bearing decisions in later Phase 0 workstreams. Selecting them now would make the scorecard look complete without retiring the actual risk.
+These are Phase 1A procurement or implementation gates, except billing which is deliberately outside Phase 1. Their adapters and disabled-by-default boundaries prevent them from reopening the accepted system shape.
 
-## Recommended bootstrap only after validation gates
+## Phase 1A bootstrap
 
-Once the owner assumptions are confirmed and P0-02/P0-03 begin, the Phase 1A repository may be scaffolded with:
+The implementation backlog may scaffold:
 
 ```text
 apps/

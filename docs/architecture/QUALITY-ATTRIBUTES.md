@@ -1,15 +1,15 @@
 # Architecture quality attributes
 
-Status: proposed baseline for Phase 0
-Last updated: 2026-07-12
+Status: accepted planning baseline for Phase 1A
+Last updated: 2026-07-16
 
 ## Purpose
 
 These attributes convert the Drone.Works product contract into measurable architecture constraints. They are used to compare stack candidates and to reject options that are convenient but unsafe for the product.
 
-## Working assumptions to confirm
+## Accepted planning assumptions and reconsideration triggers
 
-These are planning assumptions, not permanent decisions:
+These are accepted for implementation planning, not permanent product promises:
 
 - One primary builder initially, with AI-assisted development and review.
 - TypeScript is acceptable as the main product language.
@@ -241,9 +241,9 @@ Next.js documents Node.js and Docker self-hosting, including operational conside
 - The baseline requires always-on enterprise infrastructure before beta evidence.
 - A free tier is treated as a durable cost model.
 
-## Inputs still required from the repository owner
+## Reconfirm before external spend or customer commitments
 
-The provisional scorecard can proceed with the assumptions above. Before accepting deployment and authentication decisions, confirm:
+The Phase 0 scorecard and D-014 use the assumptions above. Before provisioning paid production resources or making customer commitments, reconfirm:
 
 1. Preferred or prohibited cloud providers.
 2. Whether UAE data residency is a near-term sales requirement.

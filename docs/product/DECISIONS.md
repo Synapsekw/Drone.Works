@@ -28,16 +28,16 @@ API authorization, performance, and error behavior are product-critical from the
 
 ## D-002 — Organization isolation in storage and application layers
 
-Status: proposed
+Status: accepted
 Date: 2026-07-12
 
 ### Context
 
 Organization leakage would be a catastrophic failure. Defense in depth is appropriate, but the exact persistence stack has not been selected.
 
-### Proposed decision
+### Decision
 
-Use organization identifiers on every customer-owned record, require organization context in the data-access layer, and add a database-enforced isolation mechanism where the selected database supports it. Postgres row-level security is the current leading option, not yet an accepted commitment.
+Use organization identifiers on every customer-owned record, require organization context in the data-access layer, and enforce storage isolation with non-owner PostgreSQL roles, transaction-local organization context, composite organization ownership, and forced row-level security.
 
 ### Acceptance evidence
 
@@ -76,7 +76,9 @@ The permanent-flight-deletion follow-up removes ordinary-app `DELETE` from canon
 
 The transactional-outbox follow-up closes the direct API-to-queue gap without granting the application role pg-boss table access. Organization-export creation and its payload-free outbox reference commit or roll back together. A separate non-superuser dispatcher has only lease/complete/release/metrics functions, derives one stable queue UUID from the organization/outbox identity, and cannot select customer or outbox tables. A simulated post-send crash reclaims the expired lease and retains exactly one pg-boss job; stale completion fails. An abandoned active job retries through supervision, a cancelled queued job remains unclaimable, and aggregate queue age/count metrics expose no organization or resource values.
 
-This evidence does not yet accept D-002. Provider-side signed-URL expiry and object deletion plus cached-secret/log/backup deletion and verification remain open. Production credential delivery, externally retained audit logs, and emergency operations remain P0-07 concerns. See `../architecture/TENANCY.md`.
+The final Phase 0 slice adds a Docker-free versioned-object service boundary. It proves checksum-bound conditional creation, immutable-key collision denial, exact-version signed retrieval, expiry/signature tamper denial, cross-organization prefix preservation, permanent version enumeration/deletion, absence verification, and idempotent purge. D-014 selects private versioned S3 and requires the same conformance suite against a temporary AWS bucket before hosted customer data.
+
+D-002 is accepted as the Phase 1A architecture. Cached keychains remain disabled until D-012 passes. Customer-payload fields are forbidden from external logs, active S3 versions are permanently deleted, RDS backup retention is capped at 35 days, and every isolated restore must replay independently retained payload-free deletion receipts before exposure. Live AWS IAM/S3 conformance and the generated-data restore drill remain Phase 1A hosted-data gates; failure keeps customer uploads disabled rather than weakening isolation or deletion. See `../architecture/TENANCY.md`, `../architecture/SECURITY-BOUNDARIES.md`, and `../operations/RECOVERY.md`.
 
 ## D-003 — Canonical normalized flight model
 
@@ -110,7 +112,7 @@ Retained raw objects are immutable. They remain available while legitimately ref
 
 ### Consequences
 
-Object references need lifecycle tracking. A raw object shared by processing revisions is not deleted prematurely. Technical caches must be de-identified if retained beyond customer deletion. The Phase 0 relational proof now removes an expired deleted flight and its exclusive raw-source row while retaining a source linked to another flight; object-provider, cache, export, log, and backup enforcement remain later proof obligations.
+Object references need lifecycle tracking. A raw object shared by processing revisions is not deleted prematurely. Technical caches must be de-identified if retained beyond customer deletion. The Phase 0 relational proof removes an expired deleted flight and its exclusive raw-source row while retaining a shared source; the versioned-object proof deletes every version and verifies absence. D-014 caps backup retention and makes deletion-receipt replay a restore gate. Live AWS conformance and the generated-data restore drill remain hosted-data gates.
 
 ## D-005 — Flight facts and user overrides
 
@@ -236,38 +238,38 @@ Phase 1 is limited to the outcome and included behavior in `PRODUCT.md`. Deferre
 
 Public API-key self-service, public webhooks, migration importers, configurable reporting, documents, weather enrichment, and missions are not Phase 1 release blockers.
 
-## D-011 — Provisional Phase 1A application stack
+## D-011 — Phase 1A application stack
 
-Status: proposed
+Status: accepted
 Date: 2026-07-12
 
 ### Context
 
 Phase 0 needs a coherent stack candidate for tenancy, parser, telemetry, and delivery proofs. A full-stack framework alone risks weakening the public API boundary, while introducing multiple language ecosystems before parser evidence would slow a small team.
 
-### Proposed decision
+### Decision
 
 Use a modular TypeScript monorepo with separate Next.js web, Fastify API, and Node.js worker processes. Use PostgreSQL as the primary relational system with database-enforced row security plus organization-required repositories. Package and deploy the processes as OCI containers.
 
-Shortlist Drizzle for database access/migrations, pg-boss for background jobs, Better Auth for web authentication and organization membership, S3-compatible object storage for immutable sources, and MapLibre GL JS for map rendering. These shortlist components are not accepted until their proof obligations in `../architecture/STACK-SCORECARD.md` pass.
+Use `pg` plus checksum-pinned reviewed SQL for database access and migrations, a transactional outbox plus pg-boss for jobs, Better Auth for identity/session only, Amazon S3 behind an application-owned versioned-object adapter, and MapLibre GL JS for map rendering. Drone.Works owns organizations, invitations, memberships, and roles.
 
-Telemetry layout, DJI parser/runtime, authentication provider, and deployment vendors remain deliberately unresolved under their Phase 0 workstreams.
+Use D-008 versioned per-flight columnar telemetry and the D-009 native Rust parser CLI in a fresh no-network Linux container. D-014 defines the initial AWS deployment and operations baseline.
 
 ### Consequences
 
 - The web application cannot use Next.js server actions as a private domain write path.
 - Web, API, and worker share versioned packages but remain independently runnable and deployable.
 - Parser execution runs below the worker in a separately constrained boundary.
-- PostgreSQL is the provisional database commitment; Drizzle and pg-boss remain replaceable implementation choices.
+- PostgreSQL and pg-boss are accepted behind application-owned repository and job boundaries. Drizzle is deferred until it proves generated migrations cannot weaken security objects.
 - Python remains available as an isolated parser sidecar if P0-03 demonstrates a concrete requirement, rather than becoming the default API ecosystem.
 
-### Acceptance evidence required
+### Acceptance evidence
 
-- P0-01 owner assumptions and quality-attribute weights are confirmed.
-- P0-03 demonstrates a viable parser/runtime boundary.
-- P0-05 proves organization isolation with pooled connections and non-owner application roles.
-- P0-06 validates a telemetry layout at the benchmark profile.
-- P0-07 completes authentication, deployment, recovery, and cost comparisons.
+- P0-03 demonstrates the native parser/runtime boundary with contained corrupt-input failure.
+- P0-05 proves pooled isolation, non-owner forced RLS, authorization, jobs, exports, and deletion across 23 customer tables.
+- P0-06 validates the selected telemetry layout at 100,000 flights and 600 million frames.
+- P0-07 proves auth claim rejection/revocation, atomic outbox dispatch, worker lease recovery/cancellation, and the versioned-object lifecycle contract.
+- `SYSTEM.md`, `SECURITY-BOUNDARIES.md`, and the operations package assign environment, recovery, rollback, observability, deletion, and cost responsibilities.
 
 ## D-012 — DJI keychain trust boundary
 
@@ -354,17 +356,73 @@ provider organization/role claims do not grant access and that revocation fails
 immediately. The comparison and remaining real-package integration gates are in
 [`../research/AUTHENTICATION-EVALUATION.md`](../research/AUTHENTICATION-EVALUATION.md).
 
+## D-014 — AWS private-beta deployment and versioned object lifecycle
+
+Status: accepted
+Date: 2026-07-16
+
+### Context
+
+The walking skeleton needs one deployable, recoverable environment without
+making a small beta pay for Kubernetes, a separate queue datastore, or
+cross-region high availability. Raw sources and telemetry need immutable
+retention, exact signed access, and permanent deletion even when object
+versioning is enabled.
+
+### Decision
+
+Use AWS Middle East (UAE), `me-central-1`, as the initial region, with separate
+production and non-production accounts. Run digest-pinned OCI web, API, worker,
+dispatcher, and rootless parser containers on one replaceable Graviton EC2 host;
+use private Single-AZ RDS PostgreSQL, private versioned S3, ECR, KMS, Secrets
+Manager, Systems Manager, and CloudWatch. The region remains an IaC input and is
+reconsidered if customer residency or service availability requires another
+region.
+
+Use application-derived organization prefixes, conditional checksum-confirmed
+object creation, stored version IDs, exact-version signed GET, and permanent
+enumerate/delete/relist for customer deletion. A simple delete marker never
+counts as deletion completion. Local and CI use generated data with native
+PostgreSQL and loopback object/email services; Docker and production credentials
+are not required.
+
+Production RDS automated backups retain at most 35 days. An isolated restore is
+not exposed until forced-RLS checks and independently retained payload-free
+deletion receipts have been replayed. Application logs retain 30 days and
+security/control logs 90 days, with customer payload forbidden from both.
+
+### Consequences
+
+- The single host and Single-AZ database are explicit private-beta availability
+  tradeoffs under a four-hour RTO and 24-hour RPO, not an external SLA.
+- Multi-AZ or multiple application hosts become mandatory before an uptime
+  commitment or if recovery drills miss the objectives.
+- S3 and AWS-specific operations stay behind adapters and IaC; PostgreSQL,
+  object formats, OCI images, and OpenTelemetry-compatible signals preserve an
+  exit path.
+- Live AWS IAM/S3 conformance and a generated-data restore/deletion-replay drill
+  block hosted customer data. They require a temporary account/bucket and incur
+  external state/cost, so Phase 0 accepts the design with that safe gate rather
+  than using production credentials during discovery.
+- Cached DJI keychains and external DJI network access remain disabled until
+  D-012 is accepted.
+
+### Evidence and operating envelope
+
+The Docker-free loopback service passes immutable retry/collision, signed exact
+version, expiry/tamper, cross-organization preservation, version purge,
+verification, and idempotency tests. Component ownership and failure/exit paths
+are in [`../architecture/SYSTEM.md`](../architecture/SYSTEM.md), controls in
+[`../architecture/SECURITY-BOUNDARIES.md`](../architecture/SECURITY-BOUNDARIES.md),
+and environments, restore/rollback, retention, and monthly alert thresholds in
+[`../operations/`](../operations/).
+
 ## Open decisions
 
 The following require evidence before implementation commitment:
 
-1. Application/runtime stack and deployment platform.
-2. Primary database and organization-isolation mechanism.
-3. Telemetry storage, indexing, downsampling, and deletion strategy.
-4. Background job and parser-isolation technology.
-5. Transactional email provider for verification, recovery, and invitations.
-6. Map, geocoding, and terrain providers.
-7. DJI key acquisition, terms, cache scope, and failure handling.
-8. Backup retention and deletion-verification mechanism.
-9. Supported DJI application/format version matrix based on legally obtained fixtures.
-10. Billing provider and UAE/global tax strategy, after early product validation.
+1. Transactional email and production map-tile providers.
+2. Whether an early customer contract requires a region other than `me-central-1`.
+3. DJI terms, notice/consent, and production key-service authorization under D-012.
+4. Supported DJI application/format matrix after representative fixture expansion.
+5. Billing provider and UAE/global tax strategy, after early product validation.

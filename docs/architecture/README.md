@@ -9,7 +9,7 @@ Planned documents include:
 - [`KEYCHAIN-BOUNDARY.md`](KEYCHAIN-BOUNDARY.md) — trusted DJI provider, consent, encrypted cache, parser IPC, and deletion boundary.
 - [`DOMAIN-MODEL.md`](DOMAIN-MODEL.md) — canonical schema, provenance, exact-normalized fingerprint, ownership, and executable lifecycle proof.
 - [`TENANCY.md`](TENANCY.md) — PostgreSQL/RLS roles, pooled organization context, ownership constraints, and remaining isolation gates.
-- `SYSTEM.md`
-- `SECURITY-BOUNDARIES.md`
+- [`SYSTEM.md`](SYSTEM.md) — selected Phase 1A components, AWS topology, ownership, failure, and exit boundaries.
+- [`SECURITY-BOUNDARIES.md`](SECURITY-BOUNDARIES.md) — trust boundaries, credentials, object lifecycle, observability redaction, and hosted-data gates.
 
 Architecture documents explain how accepted product behavior will be implemented. Decisions with meaningful alternatives and consequences must also be recorded in [`../product/DECISIONS.md`](../product/DECISIONS.md).

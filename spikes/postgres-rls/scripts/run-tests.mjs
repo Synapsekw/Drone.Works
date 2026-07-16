@@ -217,6 +217,7 @@ try {
     PGUSER: "droneworks_app",
     DRONEWORKS_PG_BOOTSTRAP_USER: bootstrapUser,
     DRONEWORKS_PG_QUEUE_USER: "droneworks_queue",
+    DRONEWORKS_PG_DISPATCHER_USER: "droneworks_dispatcher",
     DRONEWORKS_PG_DELETION_USER: "droneworks_deletion_worker",
     DRONEWORKS_PG_QUEUE_SCHEMA: "droneworks_jobs",
     DRONEWORKS_PG_MIGRATION_USER: "droneworks_migration_runner",

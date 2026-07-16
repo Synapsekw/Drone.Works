@@ -1,6 +1,6 @@
 # PostgreSQL organization-isolation spike
 
-This disposable Phase 0 spike proves the first relational slice of P0-05 against the generic canonical ownership model. It uses a real native PostgreSQL 18 server, forced row-level security, a non-owner application role, an actual `pg` connection pool, and a pinned pg-boss queue. It does not use Docker or the Homebrew service cluster.
+This disposable Phase 0 spike proves the relational isolation and job-delivery boundary against the generic canonical ownership model. It uses a real native PostgreSQL 18 server, forced row-level security, a non-owner application role, an actual `pg` connection pool, a least-privilege transactional outbox, and a pinned pg-boss queue. It does not use Docker or the Homebrew service cluster.
 
 The schema deliberately stays small: organizations, memberships, pilot profiles, aircraft, batteries, tags, canonical flights, flight tag/battery links, immutable flight revisions, telemetry samples, raw sources, upload/import batches and items, organization-export requests, maintenance schedules and completions, export artifacts, their flight-scope links, flight-assignment overrides, API idempotency state, and audit events. Every customer-owned child carries `organization_id`; composite foreign keys prevent a resource in one organization from referencing a parent in another.
 
@@ -45,6 +45,9 @@ The tests prove:
 - download lifetime is bounded and a removed admin cannot refresh an expired link;
 - a background lookup rejects jobs without both organization and flight IDs; and
 - a dedicated non-superuser queue role durably stores only versioned organization/domain references;
+- organization-export creation and its outbox reference commit or roll back in the same transaction;
+- a separate no-direct-table dispatcher claims leased references, derives stable queue IDs, recovers a post-send crash without duplicating the job, and reports pending age/counts;
+- pg-boss retries an abandoned active lease, while a cancelled queued job remains unclaimable;
 - enqueue and execution both reject ID-only or unexpected job payload fields;
 - an Alpha job remains Alpha-scoped through a real failed attempt and retry on a one-connection application pool;
 - a Beta-scoped job carrying an Alpha flight ID completes as `not_found` without invoking the domain handler; and
@@ -69,10 +72,10 @@ The tests prove:
 
 The repository wrapper opens a transaction and sets `app.organization_id` with transaction-local `set_config(..., true)` before exposing repositories. Repository queries intentionally omit redundant organization predicates so the executable evidence demonstrates database enforcement. Application membership and role authorization must independently validate the selected organization before calling this trusted boundary; RLS does not replace authorization.
 
-The queue proof uses pg-boss's real PostgreSQL persistence and retry state, while ordinary domain loading remains on the RLS application pool and permanent deletion uses its separately restricted pool. Queue ownership does not grant access to customer tables. Flight refresh payloads are restricted to `schemaVersion`, `organizationId`, and `flightId`; complete-export payloads substitute `exportRequestId`; deletion payloads substitute the canonical deletion-request timestamp. They never contain snapshots, object keys, or customer payload. Export generation and permanent deletion both prove effect-idempotent retry.
+The queue proof uses pg-boss's real PostgreSQL persistence and retry state, while ordinary domain loading remains on the RLS application pool and permanent deletion uses its separately restricted pool. Queue ownership does not grant access to customer tables. The app may execute only enqueue/cancel functions in the queue schema; the dispatcher may execute only lease/complete/release/metrics functions. Neither can select the outbox. Flight refresh payloads are restricted to `schemaVersion`, `organizationId`, and `flightId`; complete-export payloads substitute `exportRequestId`; deletion payloads substitute the canonical deletion-request timestamp. They never contain snapshots, object keys, or customer payload. Export generation and permanent deletion both prove effect-idempotent retry.
 
 The export generator emits a deterministic logical JSON archive envelope containing `manifest.json`, `data.json`, `flights.csv`, and `telemetry.csv`. It is executable content-format evidence, not a production ZIP/TAR selection. The injected artifact adapter proves digest confirmation, retry, RLS finalization, and derived-key download authorization without claiming provider-side persistence.
 
 The API proof uses Node's loopback HTTP server and an injected synthetic session-identity adapter so authorization remains independent of the unresolved web-session provider and Fastify shortlist. It emits snake-case JSON success documents and RFC 9457 problem details. The download proof still uses an injected deterministic signer rather than a storage vendor.
 
-The spike does not yet prove atomic API-to-queue dispatch, a production archive container, real provider-side URL expiry and object deletion, cached-secret/log/backup deletion and verification, Drizzle generation, production credential delivery and external audit retention, or queue behavior under worker termination. Those remain P0-05/P0-07 follow-ups documented in [`../../docs/architecture/TENANCY.md`](../../docs/architecture/TENANCY.md).
+The spike does not yet prove a production archive container, real provider-side URL expiry and object deletion, cached-secret/log/backup deletion and verification, Drizzle generation, production credential delivery, or external audit retention. Those remain P0-05/P0-07 follow-ups documented in [`../../docs/architecture/TENANCY.md`](../../docs/architecture/TENANCY.md).

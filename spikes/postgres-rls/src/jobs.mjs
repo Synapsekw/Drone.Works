@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
   loadFlightForJob,
   loadOrganizationExportForJob,
@@ -44,11 +45,172 @@ const FLIGHT_DELETION_PAYLOAD_KEYS = Object.freeze([
   "schemaVersion",
 ]);
 
+const OUTBOX_JOB_TYPES = new Set([
+  FLIGHT_REFRESH_QUEUE,
+  ORGANIZATION_EXPORT_QUEUE,
+  ORGANIZATION_DELETION_QUEUE,
+  FLIGHT_DELETION_QUEUE,
+]);
+
 function requireId(value, field) {
   if (typeof value !== "string" || value.length === 0 || value.length > 256) {
     throw new TypeError(`${field} must be a non-empty identifier`);
   }
   return value;
+}
+
+function requireDate(value, field) {
+  if (!(value instanceof Date) || Number.isNaN(value.valueOf())) {
+    throw new TypeError(`${field} must be a valid Date`);
+  }
+  return value;
+}
+
+function stableQueueJobId(organizationId, outboxId) {
+  const bytes = createHash("sha256")
+    .update(`droneworks-outbox-v1\0${organizationId}\0${outboxId}`)
+    .digest()
+    .subarray(0, 16);
+  bytes[6] = (bytes[6] & 0x0f) | 0x50;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = bytes.toString("hex");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+function requireClaim(value) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new TypeError("claimed outbox row is required");
+  }
+  if (!OUTBOX_JOB_TYPES.has(value.job_type) || Number(value.payload_version) !== 1) {
+    throw new TypeError("claimed outbox job type or payload version is invalid");
+  }
+  requireId(value.organization_id, "organizationId");
+  requireId(value.id, "outboxId");
+  requireId(value.resource_id, "resourceId");
+  return value;
+}
+
+export function outboxJob(claim) {
+  const row = requireClaim(claim);
+  let data;
+  if (row.job_type === FLIGHT_REFRESH_QUEUE) {
+    data = flightRefreshPayload({
+      schemaVersion: 1,
+      organizationId: row.organization_id,
+      flightId: row.resource_id,
+    });
+  } else if (row.job_type === ORGANIZATION_EXPORT_QUEUE) {
+    data = organizationExportPayload({
+      schemaVersion: 1,
+      organizationId: row.organization_id,
+      exportRequestId: row.resource_id,
+    });
+  } else if (row.job_type === ORGANIZATION_DELETION_QUEUE) {
+    const expectedAt = requireDate(row.expected_at, "expectedAt").toISOString();
+    data = organizationDeletionPayload({
+      schemaVersion: 1,
+      organizationId: row.organization_id,
+      deletionRequestedAt: expectedAt,
+    });
+  } else {
+    const expectedAt = requireDate(row.expected_at, "expectedAt").toISOString();
+    data = flightDeletionPayload({
+      schemaVersion: 1,
+      organizationId: row.organization_id,
+      flightId: row.resource_id,
+      deletedAt: expectedAt,
+    });
+  }
+  return Object.freeze({
+    queue: row.job_type,
+    jobId: stableQueueJobId(row.organization_id, row.id),
+    data,
+  });
+}
+
+export async function claimJobOutbox(pool, input) {
+  if (pool === null || typeof pool?.query !== "function") {
+    throw new TypeError("dispatcher pool.query must be a function");
+  }
+  const claimToken = requireId(input?.claimToken, "claimToken");
+  const now = requireDate(input?.now, "now");
+  const leaseSeconds = input?.leaseSeconds ?? 30;
+  const limit = input?.limit ?? 10;
+  if (!Number.isInteger(leaseSeconds) || leaseSeconds < 10 || leaseSeconds > 600) {
+    throw new TypeError("leaseSeconds must be an integer between 10 and 600");
+  }
+  if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
+    throw new TypeError("limit must be an integer between 1 and 100");
+  }
+  const result = await pool.query(
+    "SELECT * FROM droneworks_jobs.claim_outbox($1, $2, $3, $4)",
+    [claimToken, now.toISOString(), leaseSeconds, limit],
+  );
+  return result.rows.map((row) => Object.freeze(row));
+}
+
+export async function sendClaimedOutbox(boss, claim) {
+  if (boss === null || typeof boss?.send !== "function") {
+    throw new TypeError("boss.send must be a function");
+  }
+  const job = outboxJob(claim);
+  const sentId = await boss.send(job.queue, job.data, { id: job.jobId });
+  if (sentId !== null && sentId !== job.jobId) {
+    throw new Error("queue returned an unexpected outbox job ID");
+  }
+  if (sentId === null) {
+    const existing = await boss.getJobById(job.queue, job.jobId);
+    if (existing === null
+        || JSON.stringify(existing.data) !== JSON.stringify(job.data)) {
+      throw new Error("queue deduplication did not retain the expected outbox job");
+    }
+  }
+  return job.jobId;
+}
+
+export async function completeClaimedOutbox(pool, claim, input) {
+  if (pool === null || typeof pool?.query !== "function") {
+    throw new TypeError("dispatcher pool.query must be a function");
+  }
+  const row = requireClaim(claim);
+  const claimToken = requireId(input?.claimToken, "claimToken");
+  const queueJobId = requireId(input?.queueJobId, "queueJobId");
+  const dispatchedAt = requireDate(input?.dispatchedAt, "dispatchedAt");
+  const result = await pool.query(
+    "SELECT droneworks_jobs.complete_outbox($1, $2, $3, $4, $5) AS completed",
+    [row.organization_id, row.id, claimToken, queueJobId, dispatchedAt.toISOString()],
+  );
+  return result.rows[0].completed;
+}
+
+export async function releaseClaimedOutbox(pool, claim, input) {
+  if (pool === null || typeof pool?.query !== "function") {
+    throw new TypeError("dispatcher pool.query must be a function");
+  }
+  const row = requireClaim(claim);
+  const claimToken = requireId(input?.claimToken, "claimToken");
+  const availableAt = requireDate(input?.availableAt, "availableAt");
+  const result = await pool.query(
+    "SELECT droneworks_jobs.release_outbox($1, $2, $3, $4) AS released",
+    [row.organization_id, row.id, claimToken, availableAt.toISOString()],
+  );
+  return result.rows[0].released;
+}
+
+export async function readJobOutboxMetrics(pool, now) {
+  if (pool === null || typeof pool?.query !== "function") {
+    throw new TypeError("dispatcher pool.query must be a function");
+  }
+  const result = await pool.query(
+    "SELECT * FROM droneworks_jobs.outbox_metrics($1)",
+    [requireDate(now, "now").toISOString()],
+  );
+  const row = result.rows[0];
+  return Object.freeze({
+    pendingCount: Number(row.pending_count),
+    claimedCount: Number(row.claimed_count),
+    oldestPendingSeconds: Number(row.oldest_pending_seconds),
+  });
 }
 
 export function flightRefreshPayload(input) {

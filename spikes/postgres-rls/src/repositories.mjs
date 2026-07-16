@@ -2247,6 +2247,21 @@ export function createRepositories(client) {
         [exportRequestId, userId, JSON.stringify(manifest), now.toISOString()],
       );
       const exportRequest = inserted.rows[0];
+      await client.query(
+        `SELECT droneworks_jobs.enqueue_outbox(
+           $1,
+           'organization-export-v1',
+           $2,
+           NULL,
+           $3,
+           $3
+         )`,
+        [
+          `outbox:organization-export:${exportRequestId}`,
+          exportRequestId,
+          now.toISOString(),
+        ],
+      );
       await recordAuditEvent(client, {
         userId,
         action: "organization_export.requested",
@@ -2273,6 +2288,15 @@ export function createRepositories(client) {
         ],
       );
       return { kind: "created", exportRequest };
+    },
+
+    async cancelPendingOutbox(outboxId) {
+      requireId(outboxId, "outboxId");
+      const result = await client.query(
+        "SELECT droneworks_jobs.cancel_pending_outbox($1) AS cancelled",
+        [outboxId],
+      );
+      return result.rows[0].cancelled;
     },
 
     async findOrganizationExportForManager({ userId, exportRequestId }) {

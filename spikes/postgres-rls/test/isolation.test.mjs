@@ -23,6 +23,8 @@ import {
   permanentlyDeleteOrganization,
 } from "../src/deletions.mjs";
 import {
+  claimJobOutbox,
+  completeClaimedOutbox,
   enqueueFlightDeletion,
   enqueueOrganizationDeletion,
   enqueueOrganizationExport,
@@ -38,6 +40,8 @@ import {
   processNextFlightDeletion,
   processNextFlightRefresh,
   processNextOrganizationExport,
+  readJobOutboxMetrics,
+  sendClaimedOutbox,
 } from "../src/jobs.mjs";
 import {
   applyReviewedMigration,
@@ -68,6 +72,11 @@ const migrationPool = new Pool({
 const queueAccessPool = new Pool({
   max: 1,
   user: process.env.DRONEWORKS_PG_QUEUE_USER,
+});
+const dispatcherPool = new Pool({
+  max: 1,
+  user: process.env.DRONEWORKS_PG_DISPATCHER_USER,
+  application_name: "droneworks-outbox-dispatcher-proof",
 });
 const deletionPool = new Pool({
   max: 1,
@@ -532,6 +541,7 @@ before(async () => {
   queueBoss.on("error", () => {});
   await queueBoss.start();
   await queueBoss.createQueue(FLIGHT_REFRESH_QUEUE, {
+    expireInSeconds: 1,
     retryLimit: 1,
     retryDelay: 0,
     deleteAfterSeconds: 3600,
@@ -568,6 +578,7 @@ after(async () => {
   await bootstrapPool.end();
   await migrationPool.end();
   await queueAccessPool.end();
+  await dispatcherPool.end();
   await deletionPool.end();
 });
 
@@ -837,7 +848,10 @@ test("queue ownership is limited to infrastructure and cannot read customer tabl
               'droneworks.maintenance_schedules',
               'SELECT'
             ) AS reads_maintenance_schedules,
-            has_schema_privilege('droneworks_app', 'droneworks_jobs', 'USAGE') AS app_reads_queue_schema
+            has_schema_privilege('droneworks_app', 'droneworks_jobs', 'USAGE') AS app_uses_queue_functions,
+            has_table_privilege('droneworks_app', 'droneworks_jobs.outbox', 'SELECT') AS app_reads_outbox,
+            has_schema_privilege('droneworks_dispatcher', 'droneworks_jobs', 'USAGE') AS dispatcher_uses_queue_functions,
+            has_table_privilege('droneworks_dispatcher', 'droneworks_jobs.outbox', 'SELECT') AS dispatcher_reads_outbox
        FROM pg_roles
       WHERE rolname = 'droneworks_queue'`,
   );
@@ -851,8 +865,32 @@ test("queue ownership is limited to infrastructure and cannot read customer tabl
     reads_customer_flights: false,
     reads_export_requests: false,
     reads_maintenance_schedules: false,
-    app_reads_queue_schema: false,
+    app_uses_queue_functions: true,
+    app_reads_outbox: false,
+    dispatcher_uses_queue_functions: true,
+    dispatcher_reads_outbox: false,
   });
+
+  const dispatcher = await bootstrapPool.query(
+    `SELECT rolsuper, rolcreaterole, rolcreatedb, rolcanlogin, rolbypassrls
+       FROM pg_roles
+      WHERE rolname = 'droneworks_dispatcher'`,
+  );
+  assert.deepEqual(dispatcher.rows[0], {
+    rolsuper: false,
+    rolcreaterole: false,
+    rolcreatedb: false,
+    rolcanlogin: true,
+    rolbypassrls: false,
+  });
+  await assert.rejects(
+    applicationPool.query("SELECT * FROM droneworks_jobs.outbox"),
+    (error) => error.code === "42501",
+  );
+  await assert.rejects(
+    dispatcherPool.query("SELECT * FROM droneworks_jobs.outbox"),
+    (error) => error.code === "42501",
+  );
 });
 
 test("missing organization context fails closed for reads and writes", async () => {
@@ -1424,6 +1462,42 @@ test("durable queue jobs reject ID-only payloads and preserve organization isola
     malformedJobId,
   );
   assert.equal(malformed.state, "failed");
+});
+
+test("pg-boss recovers an abandoned lease and keeps cancelled work unclaimable", async () => {
+  const abandonedId = await enqueueFlightRefresh(queueBoss, {
+    schemaVersion: 1,
+    organizationId: "org-alpha",
+    flightId: "flight-alpha",
+  });
+  const [abandoned] = await queueBoss.fetch(FLIGHT_REFRESH_QUEUE, {
+    includeMetadata: true,
+  });
+  assert.equal(abandoned.id, abandonedId);
+  assert.equal(abandoned.state, "active");
+
+  await new Promise((resolve) => setTimeout(resolve, 1_200));
+  await queueBoss.supervise(FLIGHT_REFRESH_QUEUE);
+  const expired = await queueBoss.getJobById(FLIGHT_REFRESH_QUEUE, abandonedId);
+  assert.equal(expired.state, "retry");
+  const [recovered] = await queueBoss.fetch(FLIGHT_REFRESH_QUEUE, {
+    includeMetadata: true,
+  });
+  assert.equal(recovered.id, abandonedId);
+  assert.equal(recovered.retryCount, 1);
+  await queueBoss.complete(FLIGHT_REFRESH_QUEUE, abandonedId, {
+    status: "synthetic-worker-recovered",
+  });
+
+  const cancelledId = await enqueueFlightRefresh(queueBoss, {
+    schemaVersion: 1,
+    organizationId: "org-alpha",
+    flightId: "flight-alpha",
+  });
+  await queueBoss.cancel(FLIGHT_REFRESH_QUEUE, cancelledId);
+  const cancelled = await queueBoss.getJobById(FLIGHT_REFRESH_QUEUE, cancelledId);
+  assert.equal(cancelled.state, "cancelled");
+  assert.deepEqual(await queueBoss.fetch(FLIGHT_REFRESH_QUEUE), []);
 });
 
 test("FORCE RLS applies to the migration owner while bootstrap bypass stays explicit", async () => {
@@ -2897,6 +2971,159 @@ test("complete organization export requests are manager-only, idempotent, and or
   );
 });
 
+test("transactional outbox commits atomically, recovers dispatch, cancels, and reports age", async () => {
+  const observationAt = new Date(fixedNow.valueOf() + 60_000);
+  const beforeRollback = await readJobOutboxMetrics(dispatcherPool, observationAt);
+  assert.deepEqual(beforeRollback, {
+    pendingCount: 2,
+    claimedCount: 0,
+    oldestPendingSeconds: 60,
+  });
+
+  await assert.rejects(
+    withOrganization(applicationPool, "org-alpha", async (repositories) => {
+      const created = await repositories.createOrganizationExportForManager({
+        userId: "user-alpha",
+        idempotencyKey: "organization-export-atomic-rollback",
+        requestHash: "d".repeat(64),
+        createId: () => "organization-export-atomic-rollback",
+        now: new Date(fixedNow.valueOf() + 1_000),
+      });
+      assert.equal(created.kind, "created");
+      throw new Error("synthetic transaction rollback after outbox insert");
+    }),
+    /synthetic transaction rollback after outbox insert/,
+  );
+  assert.deepEqual(
+    await readJobOutboxMetrics(dispatcherPool, observationAt),
+    beforeRollback,
+  );
+  assert.equal(
+    await withOrganization(
+      applicationPool,
+      "org-alpha",
+      (repositories) => repositories.findOrganizationExportById(
+        "organization-export-atomic-rollback",
+      ),
+    ),
+    null,
+  );
+
+  const cancellable = await withOrganization(
+    applicationPool,
+    "org-alpha",
+    (repositories) => repositories.createOrganizationExportForManager({
+      userId: "user-alpha",
+      idempotencyKey: "organization-export-outbox-cancel",
+      requestHash: "e".repeat(64),
+      createId: () => "organization-export-outbox-cancel",
+      now: new Date(fixedNow.valueOf() + 2_000),
+    }),
+  );
+  assert.equal(cancellable.kind, "created");
+  assert.equal(
+    await withOrganization(
+      applicationPool,
+      "org-beta",
+      (repositories) => repositories.cancelPendingOutbox(
+        "outbox:organization-export:organization-export-outbox-cancel",
+      ),
+    ),
+    false,
+  );
+  assert.equal(
+    await withOrganization(
+      applicationPool,
+      "org-alpha",
+      (repositories) => repositories.cancelPendingOutbox(
+        "outbox:organization-export:organization-export-outbox-cancel",
+      ),
+    ),
+    true,
+  );
+  assert.deepEqual(
+    await readJobOutboxMetrics(dispatcherPool, observationAt),
+    beforeRollback,
+  );
+
+  const [firstClaim] = await claimJobOutbox(dispatcherPool, {
+    claimToken: "dispatcher-claim-a",
+    now: observationAt,
+    leaseSeconds: 10,
+    limit: 1,
+  });
+  assert.deepEqual({
+    organizationId: firstClaim.organization_id,
+    outboxId: firstClaim.id,
+    jobType: firstClaim.job_type,
+    payloadVersion: Number(firstClaim.payload_version),
+    resourceId: firstClaim.resource_id,
+    expectedAt: firstClaim.expected_at,
+    attemptCount: Number(firstClaim.attempt_count),
+  }, {
+    organizationId: "org-alpha",
+    outboxId: "outbox:organization-export:organization-export-1",
+    jobType: ORGANIZATION_EXPORT_QUEUE,
+    payloadVersion: 1,
+    resourceId: "organization-export-1",
+    expectedAt: null,
+    attemptCount: 1,
+  });
+  assert.deepEqual(await readJobOutboxMetrics(dispatcherPool, observationAt), {
+    pendingCount: 1,
+    claimedCount: 1,
+    oldestPendingSeconds: 60,
+  });
+
+  const firstJobId = await sendClaimedOutbox(queueBoss, firstClaim);
+  const [reclaimed] = await claimJobOutbox(dispatcherPool, {
+    claimToken: "dispatcher-claim-b",
+    now: new Date(observationAt.valueOf() + 11_000),
+    leaseSeconds: 10,
+    limit: 1,
+  });
+  assert.equal(reclaimed.id, firstClaim.id);
+  assert.equal(Number(reclaimed.attempt_count), 2);
+  const recoveredJobId = await sendClaimedOutbox(queueBoss, reclaimed);
+  assert.equal(recoveredJobId, firstJobId);
+  assert.equal(
+    (await queueBoss.findJobs(ORGANIZATION_EXPORT_QUEUE, { id: firstJobId })).length,
+    1,
+  );
+  assert.equal(await completeClaimedOutbox(dispatcherPool, reclaimed, {
+    claimToken: "dispatcher-claim-a",
+    queueJobId: recoveredJobId,
+    dispatchedAt: new Date(observationAt.valueOf() + 12_000),
+  }), false);
+  assert.equal(await completeClaimedOutbox(dispatcherPool, reclaimed, {
+    claimToken: "dispatcher-claim-b",
+    queueJobId: recoveredJobId,
+    dispatchedAt: new Date(observationAt.valueOf() + 12_000),
+  }), true);
+  assert.deepEqual(
+    await readJobOutboxMetrics(
+      dispatcherPool,
+      new Date(observationAt.valueOf() + 12_000),
+    ),
+    {
+      pendingCount: 1,
+      claimedCount: 0,
+      oldestPendingSeconds: 72,
+    },
+  );
+
+  const dispatched = await processNextOrganizationExport(
+    queueBoss,
+    applicationPool,
+    async (input) => ({ exportRequestId: input.exportRequestId }),
+  );
+  assert.equal(dispatched.jobId, recoveredJobId);
+  assert.deepEqual(dispatched.outcome, {
+    status: "processed",
+    result: { exportRequestId: "organization-export-1" },
+  });
+});
+
 test("organization export jobs persist strict references and reapply RLS at execution", async () => {
   assert.throws(
     () => organizationExportPayload({
@@ -2914,7 +3141,9 @@ test("organization export jobs persist strict references and reapply RLS at exec
     }),
     /must contain only schemaVersion, organizationId, and exportRequestId/,
   );
-  assert.deepEqual(await queueBoss.findJobs(ORGANIZATION_EXPORT_QUEUE), []);
+  assert.deepEqual(await queueBoss.findJobs(ORGANIZATION_EXPORT_QUEUE, {
+    queued: true,
+  }), []);
 
   const jobId = await enqueueOrganizationExport(queueBoss, {
     schemaVersion: 1,

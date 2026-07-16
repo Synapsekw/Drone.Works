@@ -22,10 +22,11 @@ Phase 0 complete
   -> A01 production repository bootstrap (complete)
   -> A02 no-cloud local runtime (complete)
   -> A03 versioned API contract (complete)
-  -> A04 PostgreSQL migration and forced-RLS boundary
+  -> A04 PostgreSQL migration and forced-RLS boundary (complete)
+  -> A05 verified auth and app-owned organization membership
   -> continue the ordered Phase 1A vertical path
 ```
 
-Resume at A04 using native PostgreSQL and generated Alpha/Beta data; RDS is not
-needed. Keep A09 DJI enablement plus A14–A15 AWS hosted-data work fail-closed
-until their external authority and evidence pass.
+Resume at A05 using native PostgreSQL and local email capture; RDS is not needed.
+Keep A09 DJI enablement plus A14–A15 AWS hosted-data work fail-closed until their
+external authority and evidence pass.

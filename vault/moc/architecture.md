@@ -23,7 +23,8 @@ related: ["[[00-north-star]]"]
 
 ## Current implementation boundary
 
-- A01–A03 promote the accepted stack into a runnable, Docker-free foundation.
-- A04 is the next boundary: production-named PostgreSQL migrations and forced
-  organization RLS, still on native local PostgreSQL with generated data.
+- A01–A04 provide the runnable, Docker-free foundation plus production-named
+  PostgreSQL migrations, forced organization RLS, and pool-safe context.
+- A05 is the next boundary: verified Better Auth identity and sessions with
+  organization membership and authorization remaining app-owned.
 - Hosted RDS and AWS conformance remain A14–A15 gates.

@@ -1,12 +1,12 @@
 ---
 type: north-star
 status: active
-last-updated: 2026-07-16-2145
+last-updated: 2026-07-16-2224
 tags: [project/drone-works, north-star]
 related:
   - "[[project-history]]"
   - "[[memory]]"
-  - "[[2026-07-16-2145-local-first-auth-sequence]]"
+  - "[[2026-07-16-2224-a05-local-authorization]]"
 ---
 
 # Drone.Works — North Star
@@ -24,19 +24,19 @@ Drone.Works is an explainable operational record for small professional drone te
 | Increment | State | Current outcome |
 |---|---|---|
 | Phase 0 — Technical discovery | Complete | Accepted evidence/decisions, safe external gates, threat model, and implementation-ready backlog. |
-| Phase 1A — Walking skeleton | In progress | A01–A04 foundation and PostgreSQL/RLS boundary complete; revised A05 local identity seam and authorization is next. |
+| Phase 1A — Walking skeleton | In progress | A01–A05 foundation, forced-RLS boundary, local identity seam, and app-owned authorization complete; A06 immutable upload is next. |
 | Phase 1B — Trustworthy imports | Planned | Explain every batch outcome and reconcile uncertainty without silent loss. |
 | Phase 1C — Operational logbook | Planned | Daily flight, fleet, replay, correction, search, and export workflow. |
 | Phase 1D — Maintenance and hardening | Planned | Basic maintenance plus deletion, recovery, security, and operations gates. |
 
 ## Now
 
-- **Phase:** Phase 1A implementation is active. A01–A04 are complete. D-015 revises the remaining sequence so A05–A13a build a functional local app before A13b integrates verified authentication; AWS still begins only at A14.
-- **Branch:** plan commit `af0e302` is local on `main`, which is forty-six commits ahead of `origin/main` before this vault-only closeout commit; nothing was pushed. An unrelated `.obsidian/app.json` change remains unstaged and untouched.
-- **Completed evidence:** the A04 database boundary remains green, and the seventeen-task backlog now separates generated local identity, app-owned authorization, functional local acceptance, verified Better Auth, and hosted deployment with explicit fail-closed gates.
-- **Verification baseline:** `pnpm verify` passes with four API tests, package boundaries, and privacy checks; all seventeen backlog tasks contain every required planning field and canonical dependency references are reconciled. The prior six-test native PostgreSQL and integrated local-runtime A04 baseline remains current. No Docker, AWS credential/resource, real email, customer data, or private fixture was used.
-- **Blocking evidence:** A05 has no external blocker and requires neither Better Auth nor AWS. A09 production DJI gates remain external and disabled. A13b verified auth must pass before A14; A14–A15 still require AWS account/spend authority and live hosted-data evidence.
-- **Next technical action:** implement A05's provider-neutral identity interface, server-owned generated personas, organization/membership authorization, last-owner and Alpha/Beta tests, plus startup and route-inventory rejection in hosted mode. Do not install Better Auth or provision RDS.
+- **Phase:** Phase 1A implementation is active. A01–A05 are complete. A06–A13a continue the functional local application before A13b integrates verified authentication; AWS still begins only at A14.
+- **Branch:** implementation commit `99ed78a` is local on `main`, which is forty-eight commits ahead of `origin/main` before this vault-only closeout commit; nothing was pushed. An unrelated `.obsidian/app.json` change remains unstaged and untouched.
+- **Completed evidence:** A05 supplies only named server-owned personas through a local/test interlock, then uses current app-owned membership, role checks, the ordinary pooled application role, and forced RLS for organization creation, selection, membership changes, last-owner protection, and redacted audits. Hosted startup and route inventories reject the control.
+- **Verification baseline:** `pnpm verify`, contract drift, and build pass with four API tests; six A04 database tests and six A05 authorization tests pass against disposable native PostgreSQL. One integrated local runtime cycle passed generated identity through Alpha selection and cleaned up. No Docker, Better Auth, upload, AWS credential/resource, customer data, or private fixture was used.
+- **Blocking evidence:** A06 has no external blocker and needs neither Better Auth nor AWS. A09 production DJI gates remain external and disabled. A13b verified auth must pass before A14; A14–A15 still require AWS account/spend authority and live hosted-data evidence.
+- **Next technical action:** implement A06 checksum-bound immutable raw upload using the loopback object service while preserving A05 authorization and A04 RLS. Do not start dispatch/jobs, parsing, Better Auth, RDS, or AWS.
 - **Next external decision:** no AWS action is needed while building through A13b. Before A14, confirm an operational approved region and account/spend authority; Frankfurt is synthetic-only while UAE is not operationally suitable, and customer residency remains an explicit gate.
 - **Parallel follow-up:** when cloud help becomes necessary, provide the first-time account owner one step at a time with purpose, cost/security effect, verification, and safe stop/rollback; never request secret values.
 - **Privacy:** raw fixtures remain ignored and local. No raw values, coordinates, identifiers, keychain feature points, credentials, or generated parser artifacts belong in this vault.

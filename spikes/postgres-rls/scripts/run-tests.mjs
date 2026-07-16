@@ -158,6 +158,41 @@ try {
               );
             }
           }
+        } else if (reviewedMigration.isolationContract === "tighten") {
+          const previousByTable = new Map(
+            previousContract.map((table) => [table.relname, table]),
+          );
+          const currentByTable = new Map(
+            currentContract.map((table) => [table.relname, table]),
+          );
+          if (JSON.stringify([...previousByTable.keys()])
+              !== JSON.stringify([...currentByTable.keys()])) {
+            throw new Error(
+              `reviewed migration ${reviewedMigration.id} changed the customer table set`,
+            );
+          }
+          const changedTables = [];
+          for (const [tableName, previousTable] of previousByTable) {
+            const currentTable = currentByTable.get(tableName);
+            if (JSON.stringify(currentTable) !== JSON.stringify(previousTable)) {
+              changedTables.push(tableName);
+              const { grants: previousGrants, ...previousIsolation } = previousTable;
+              const { grants: currentGrants, ...currentIsolation } = currentTable;
+              if (previousGrants === currentGrants
+                  || JSON.stringify(previousIsolation)
+                    !== JSON.stringify(currentIsolation)) {
+                throw new Error(
+                  `reviewed migration ${reviewedMigration.id} changed more than grants for ${tableName}`,
+                );
+              }
+            }
+          }
+          if (JSON.stringify(changedTables.sort())
+              !== JSON.stringify([...reviewedMigration.changedTables].sort())) {
+            throw new Error(
+              `reviewed migration ${reviewedMigration.id} changed an unexpected customer table set`,
+            );
+          }
         } else {
           throw new Error(
             `reviewed migration ${reviewedMigration.id} has no isolation-contract declaration`,
@@ -182,6 +217,7 @@ try {
     PGUSER: "droneworks_app",
     DRONEWORKS_PG_BOOTSTRAP_USER: bootstrapUser,
     DRONEWORKS_PG_QUEUE_USER: "droneworks_queue",
+    DRONEWORKS_PG_DELETION_USER: "droneworks_deletion_worker",
     DRONEWORKS_PG_QUEUE_SCHEMA: "droneworks_jobs",
     DRONEWORKS_PG_MIGRATION_USER: "droneworks_migration_runner",
     DRONEWORKS_PG_REVIEWED_MIGRATION_ID: reviewedMigrations[0].id,

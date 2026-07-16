@@ -62,6 +62,16 @@ const REVIEWED_MIGRATIONS = Object.freeze([
       import.meta.url,
     ),
   }),
+  Object.freeze({
+    id: "007_permanent_organization_deletion",
+    sha256: "cb49c7badb851c6d082865689a1bd6d228e4365f16285571ee57c1b132775350",
+    isolationContract: "tighten",
+    changedTables: Object.freeze(["organizations"]),
+    url: new URL(
+      "../sql/migrations/007_permanent_organization_deletion.sql",
+      import.meta.url,
+    ),
+  }),
 ]);
 
 function sha256(value) {
@@ -117,6 +127,7 @@ export async function loadReviewedMigrations() {
       sql,
       isolationContract: migration.isolationContract,
       addedTables: migration.addedTables ?? Object.freeze([]),
+      changedTables: migration.changedTables ?? Object.freeze([]),
     }));
   }));
 }

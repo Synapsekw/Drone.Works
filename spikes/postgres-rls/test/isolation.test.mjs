@@ -18,11 +18,19 @@ import {
   ORGANIZATION_EXPORT_BUNDLE_FORMAT,
 } from "../src/exports.mjs";
 import {
+  ORGANIZATION_DELETION_GRACE_MS,
+  permanentlyDeleteOrganization,
+} from "../src/deletions.mjs";
+import {
+  enqueueOrganizationDeletion,
   enqueueOrganizationExport,
   FLIGHT_REFRESH_QUEUE,
   enqueueFlightRefresh,
+  ORGANIZATION_DELETION_QUEUE,
+  organizationDeletionPayload,
   ORGANIZATION_EXPORT_QUEUE,
   organizationExportPayload,
+  processNextOrganizationDeletion,
   processNextFlightRefresh,
   processNextOrganizationExport,
 } from "../src/jobs.mjs";
@@ -55,6 +63,11 @@ const migrationPool = new Pool({
 const queueAccessPool = new Pool({
   max: 1,
   user: process.env.DRONEWORKS_PG_QUEUE_USER,
+});
+const deletionPool = new Pool({
+  max: 1,
+  user: process.env.DRONEWORKS_PG_DELETION_USER,
+  application_name: "droneworks-deletion-proof",
 });
 const queueBoss = new PgBoss({
   host: process.env.PGHOST,
@@ -200,6 +213,316 @@ async function assertOrganizationSqlRejects(organizationId, sql, predicate) {
   }
 }
 
+const DELETION_CUSTOMER_TABLES = Object.freeze([
+  "aircraft",
+  "api_idempotency_requests",
+  "audit_events",
+  "batteries",
+  "canonical_flights",
+  "export_artifact_flights",
+  "export_artifacts",
+  "flight_assignment_overrides",
+  "flight_batteries",
+  "flight_revisions",
+  "flight_tags",
+  "import_batches",
+  "import_items",
+  "maintenance_completions",
+  "maintenance_schedules",
+  "memberships",
+  "organization_export_requests",
+  "organizations",
+  "pilot_profiles",
+  "raw_source_flights",
+  "raw_sources",
+  "tags",
+  "telemetry_samples",
+]);
+
+async function customerRowCounts(organizationId) {
+  const counts = {};
+  for (const table of DELETION_CUSTOMER_TABLES) {
+    const organizationColumn = table === "organizations" ? "id" : "organization_id";
+    const result = await bootstrapPool.query(
+      `SELECT count(*)::integer AS count
+         FROM droneworks.${table}
+        WHERE ${organizationColumn} = $1`,
+      [organizationId],
+    );
+    counts[table] = result.rows[0].count;
+  }
+  return counts;
+}
+
+async function seedOrganizationDeletionFixtures() {
+  await bootstrapPool.query(
+    `INSERT INTO droneworks.organizations (
+       id,
+       name,
+       default_timezone,
+       unit_preference,
+       pilot_raw_download_enabled,
+       pilot_export_enabled,
+       state,
+       deletion_requested_at
+     ) VALUES
+       ('org-delete-ready', 'Synthetic deletion fixture', 'UTC', 'metric', true, true, 'pending_deletion', '2026-06-01T12:00:00Z'),
+       ('org-delete-early', 'Synthetic early fixture', 'UTC', 'metric', true, true, 'pending_deletion', '2026-07-01T12:00:00Z'),
+       ('org-delete-cancelled', 'Synthetic cancelled fixture', 'UTC', 'metric', true, true, 'active', NULL);
+
+     INSERT INTO droneworks.memberships (organization_id, user_id, role)
+     VALUES ('org-delete-ready', 'user-delete-owner', 'owner');
+
+     INSERT INTO droneworks.pilot_profiles (
+       organization_id, id, display_name, membership_user_id
+     ) VALUES (
+       'org-delete-ready', 'pilot-delete', 'Synthetic deletion pilot', 'user-delete-owner'
+     );
+
+     INSERT INTO droneworks.aircraft (organization_id, id, display_name)
+     VALUES ('org-delete-ready', 'aircraft-delete', 'Synthetic deletion aircraft');
+
+     INSERT INTO droneworks.tags (organization_id, id, name)
+     VALUES ('org-delete-ready', 'tag-delete', 'Synthetic deletion tag');
+
+     INSERT INTO droneworks.batteries (
+       organization_id, id, display_name, serial_number, lifecycle
+     ) VALUES (
+       'org-delete-ready', 'battery-delete', 'Synthetic deletion battery', NULL, 'active'
+     );
+
+     INSERT INTO droneworks.canonical_flights (
+       organization_id,
+       id,
+       pilot_profile_id,
+       aircraft_id,
+       imported_pilot_profile_id,
+       imported_aircraft_id,
+       source_kind,
+       state,
+       takeoff_at,
+       takeoff_timezone,
+       duration_ms,
+       location_text,
+       notes
+     ) VALUES (
+       'org-delete-ready',
+       'flight-delete',
+       'pilot-delete',
+       'aircraft-delete',
+       'pilot-delete',
+       'aircraft-delete',
+       'imported',
+       'active',
+       '2026-05-01T12:00:00Z',
+       'UTC',
+       1000,
+       'Synthetic location',
+       'Synthetic deletion note'
+     );
+
+     INSERT INTO droneworks.flight_revisions (
+       organization_id,
+       id,
+       canonical_flight_id,
+       processing_revision_id,
+       facts,
+       capabilities
+     ) VALUES (
+       'org-delete-ready',
+       'revision-delete',
+       'flight-delete',
+       'processing-delete',
+       '{}',
+       ARRAY['telemetry.altitude']
+     );
+
+     INSERT INTO droneworks.telemetry_samples (
+       organization_id, flight_revision_id, elapsed_ms, height_agl_m
+     ) VALUES ('org-delete-ready', 'revision-delete', 0, 1);
+
+     INSERT INTO droneworks.raw_sources (
+       organization_id, id, object_revision_id, state
+     ) VALUES (
+       'org-delete-ready', 'raw-delete', 'raw-revision-delete', 'retained'
+     );
+
+     INSERT INTO droneworks.export_artifacts (
+       organization_id, id, object_artifact_id, state, available_until
+     ) VALUES (
+       'org-delete-ready', 'export-delete', 'artifact-delete', 'ready', '2100-01-01T00:00:00Z'
+     );
+
+     INSERT INTO droneworks.raw_source_flights (
+       organization_id, raw_source_id, canonical_flight_id
+     ) VALUES ('org-delete-ready', 'raw-delete', 'flight-delete');
+
+     INSERT INTO droneworks.export_artifact_flights (
+       organization_id, export_artifact_id, canonical_flight_id
+     ) VALUES ('org-delete-ready', 'export-delete', 'flight-delete');
+
+     INSERT INTO droneworks.flight_assignment_overrides (
+       organization_id,
+       canonical_flight_id,
+       pilot_profile_id,
+       aircraft_id,
+       actor_user_id,
+       applied_at
+     ) VALUES (
+       'org-delete-ready',
+       'flight-delete',
+       'pilot-delete',
+       'aircraft-delete',
+       'user-delete-owner',
+       '2026-05-02T12:00:00Z'
+     );
+
+     INSERT INTO droneworks.flight_tags (
+       organization_id, canonical_flight_id, tag_id, origin
+     ) VALUES ('org-delete-ready', 'flight-delete', 'tag-delete', 'user_override');
+
+     INSERT INTO droneworks.flight_batteries (
+       organization_id, canonical_flight_id, battery_id, origin
+     ) VALUES ('org-delete-ready', 'flight-delete', 'battery-delete', 'user_override');
+
+     INSERT INTO droneworks.import_batches (
+       organization_id, id, uploaded_by_user_id, state, created_at
+     ) VALUES (
+       'org-delete-ready', 'import-batch-delete', 'user-delete-owner', 'completed', '2026-05-01T11:00:00Z'
+     );
+
+     INSERT INTO droneworks.import_items (
+       organization_id,
+       id,
+       import_batch_id,
+       client_file_id,
+       original_filename,
+       raw_source_id,
+       state,
+       created_at
+     ) VALUES (
+       'org-delete-ready',
+       'import-item-delete',
+       'import-batch-delete',
+       'client-file-delete',
+       'synthetic-delete.txt',
+       'raw-delete',
+       'completed',
+       '2026-05-01T11:00:00Z'
+     );
+
+     INSERT INTO droneworks.organization_export_requests (
+       organization_id,
+       id,
+       requested_by_user_id,
+       state,
+       manifest_version,
+       manifest,
+       requested_at,
+       export_artifact_id,
+       completed_at
+     ) VALUES (
+       'org-delete-ready',
+       'organization-export-delete',
+       'user-delete-owner',
+       'ready',
+       1,
+       '{}',
+       '2026-05-15T12:00:00Z',
+       'export-delete',
+       '2026-05-15T12:01:00Z'
+     );
+
+     INSERT INTO droneworks.maintenance_schedules (
+       organization_id,
+       id,
+       aircraft_id,
+       title,
+       schedule_type,
+       interval_value,
+       due_at,
+       baseline_at,
+       due_soon_threshold_percent,
+       due_soon_days,
+       created_by_user_id,
+       created_at
+     ) VALUES (
+       'org-delete-ready',
+       'maintenance-schedule-delete',
+       'aircraft-delete',
+       'Synthetic deletion schedule',
+       'flight_count',
+       10,
+       NULL,
+       '2026-01-01T00:00:00Z',
+       80,
+       NULL,
+       'user-delete-owner',
+       '2026-05-01T00:00:00Z'
+     );
+
+     INSERT INTO droneworks.maintenance_completions (
+       organization_id,
+       id,
+       maintenance_schedule_id,
+       completed_by_user_id,
+       completed_at,
+       details,
+       recorded_at
+     ) VALUES (
+       'org-delete-ready',
+       'maintenance-completion-delete',
+       'maintenance-schedule-delete',
+       'user-delete-owner',
+       '2026-05-02T00:00:00Z',
+       'Synthetic deletion completion',
+       '2026-05-02T00:00:00Z'
+     );
+
+     INSERT INTO droneworks.api_idempotency_requests (
+       organization_id,
+       user_id,
+       operation,
+       idempotency_key,
+       request_hash,
+       response_status,
+       response_body,
+       created_at,
+       completed_at
+     ) VALUES (
+       'org-delete-ready',
+       'user-delete-owner',
+       'synthetic.delete',
+       'synthetic-delete-key',
+       repeat('a', 64),
+       200,
+       '{}',
+       '2026-05-01T00:00:00Z',
+       '2026-05-01T00:00:00Z'
+     );
+
+     INSERT INTO droneworks.audit_events (
+       organization_id,
+       actor_user_id,
+       action,
+       resource_type,
+       resource_id,
+       changed_fields,
+       metadata,
+       occurred_at
+     ) VALUES (
+       'org-delete-ready',
+       'user-delete-owner',
+       'synthetic.created',
+       'organization',
+       'org-delete-ready',
+       ARRAY['state'],
+       '{}',
+       '2026-05-01T00:00:00Z'
+     )`,
+  );
+}
+
 before(async () => {
   queueBoss.on("error", () => {});
   await queueBoss.start();
@@ -209,6 +532,11 @@ before(async () => {
     deleteAfterSeconds: 3600,
   });
   await queueBoss.createQueue(ORGANIZATION_EXPORT_QUEUE, {
+    retryLimit: 1,
+    retryDelay: 0,
+    deleteAfterSeconds: 3600,
+  });
+  await queueBoss.createQueue(ORGANIZATION_DELETION_QUEUE, {
     retryLimit: 1,
     retryDelay: 0,
     deleteAfterSeconds: 3600,
@@ -230,6 +558,7 @@ after(async () => {
   await bootstrapPool.end();
   await migrationPool.end();
   await queueAccessPool.end();
+  await deletionPool.end();
 });
 
 test("ordinary connections are non-owner, non-superuser, and unable to bypass RLS", async () => {
@@ -3207,4 +3536,250 @@ test("maintenance resources preserve pooled and cross-organization isolation", a
       WHERE id = 'maintenance-completion-1'`,
     (error) => error.code === "42501",
   );
+});
+
+test("permanent organization deletion is grace-bound, retry-safe, and isolated", async () => {
+  await seedOrganizationDeletionFixtures();
+
+  const deletionRole = await bootstrapPool.query(
+    `SELECT rolname,
+            rolsuper,
+            rolcreaterole,
+            rolcreatedb,
+            rolcanlogin,
+            rolinherit,
+            rolbypassrls,
+            has_table_privilege(
+              rolname,
+              'droneworks.organizations',
+              'SELECT'
+            ) AS reads_organizations,
+            has_table_privilege(
+              rolname,
+              'droneworks.organizations',
+              'DELETE'
+            ) AS deletes_organizations,
+            has_function_privilege(
+              rolname,
+              'droneworks.permanently_delete_organization(text,timestamptz,timestamptz,integer)',
+              'EXECUTE'
+            ) AS executes_deletion
+       FROM pg_roles
+      WHERE rolname = 'droneworks_deletion_worker'`,
+  );
+  assert.deepEqual(deletionRole.rows[0], {
+    rolname: "droneworks_deletion_worker",
+    rolsuper: false,
+    rolcreaterole: false,
+    rolcreatedb: false,
+    rolcanlogin: true,
+    rolinherit: false,
+    rolbypassrls: false,
+    reads_organizations: false,
+    deletes_organizations: false,
+    executes_deletion: true,
+  });
+  assert.equal(
+    (await bootstrapPool.query(
+      `SELECT has_table_privilege(
+                'droneworks_app',
+                'droneworks.organizations',
+                'DELETE'
+              ) AS app_deletes_organizations`,
+    )).rows[0].app_deletes_organizations,
+    false,
+  );
+  await assertOrganizationSqlRejects(
+    "org-delete-ready",
+    "DELETE FROM droneworks.organizations WHERE id = 'org-delete-ready'",
+    (error) => error.code === "42501",
+  );
+  await assert.rejects(
+    deletionPool.query("SELECT * FROM droneworks.organizations"),
+    (error) => error.code === "42501",
+  );
+  await assert.rejects(
+    deletionPool.query(
+      "SELECT * FROM droneworks_ops.organization_deletion_receipts",
+    ),
+    (error) => error.code === "42501",
+  );
+  await assert.rejects(
+    applicationPool.query(
+      `SELECT *
+         FROM droneworks.permanently_delete_organization(
+           'org-delete-ready',
+           '2026-06-01T12:00:00Z',
+           '2026-07-15T12:00:00Z',
+           45
+         )`,
+    ),
+    (error) => error.code === "42501",
+  );
+
+  const readyPayload = organizationDeletionPayload({
+    schemaVersion: 1,
+    organizationId: "org-delete-ready",
+    deletionRequestedAt: "2026-06-01T12:00:00.000Z",
+  });
+  assert.deepEqual(readyPayload, {
+    schemaVersion: 1,
+    organizationId: "org-delete-ready",
+    deletionRequestedAt: "2026-06-01T12:00:00.000Z",
+  });
+  assert.throws(
+    () => organizationDeletionPayload({
+      ...readyPayload,
+      objectKeys: ["must-not-be-durable"],
+    }),
+    /must contain only/,
+  );
+  assert.throws(
+    () => organizationDeletionPayload({
+      ...readyPayload,
+      deletionRequestedAt: "2026-06-01T12:00:00Z",
+    }),
+    /canonical ISO timestamp/,
+  );
+
+  const early = await permanentlyDeleteOrganization(deletionPool, {
+    organizationId: "org-delete-early",
+    deletionRequestedAt: new Date("2026-07-01T12:00:00Z"),
+  }, {
+    now: fixedNow,
+    maximumBackupRetentionDays: 45,
+  });
+  assert.equal(early.status, "not_eligible");
+  assert.equal(
+    fixedNow.valueOf() - new Date("2026-07-01T12:00:00Z").valueOf()
+      < ORGANIZATION_DELETION_GRACE_MS,
+    true,
+  );
+  const cancelled = await permanentlyDeleteOrganization(deletionPool, {
+    organizationId: "org-delete-cancelled",
+    deletionRequestedAt: new Date("2026-06-01T12:00:00Z"),
+  }, {
+    now: fixedNow,
+    maximumBackupRetentionDays: 45,
+  });
+  assert.equal(cancelled.status, "not_eligible");
+  const crossOrganizationReference = await permanentlyDeleteOrganization(
+    deletionPool,
+    {
+      organizationId: "org-delete-early",
+      deletionRequestedAt: new Date("2026-06-01T12:00:00Z"),
+    },
+    {
+      now: fixedNow,
+      maximumBackupRetentionDays: 45,
+    },
+  );
+  assert.equal(crossOrganizationReference.status, "not_eligible");
+
+  const beforeCounts = await customerRowCounts("org-delete-ready");
+  assert.deepEqual(
+    Object.values(beforeCounts),
+    Array(DELETION_CUSTOMER_TABLES.length).fill(1),
+  );
+
+  const jobId = await enqueueOrganizationDeletion(queueBoss, readyPayload);
+  let failAfterCommit = true;
+  await assert.rejects(
+    processNextOrganizationDeletion(queueBoss, deletionPool, {
+      now: fixedNow,
+      maximumBackupRetentionDays: 45,
+      afterDelete(outcome) {
+        if (failAfterCommit) {
+          failAfterCommit = false;
+          assert.equal(outcome.status, "deleted");
+          throw new Error("synthetic post-deletion worker failure");
+        }
+      },
+    }),
+    /synthetic post-deletion worker failure/,
+  );
+
+  const afterFirstAttempt = await customerRowCounts("org-delete-ready");
+  assert.deepEqual(
+    Object.values(afterFirstAttempt),
+    Array(DELETION_CUSTOMER_TABLES.length).fill(0),
+  );
+  const retainedReceipt = await deletionPool.query(
+    `SELECT organization_id,
+            deletion_requested_at,
+            completed_at,
+            maximum_backup_retention_days,
+            backup_retention_until,
+            raw_object_count,
+            export_object_count,
+            completed_by
+       FROM droneworks_ops.find_organization_deletion_receipt($1)`,
+    ["org-delete-ready"],
+  );
+  assert.deepEqual({
+    ...retainedReceipt.rows[0],
+    deletion_requested_at:
+      retainedReceipt.rows[0].deletion_requested_at.toISOString(),
+    completed_at: retainedReceipt.rows[0].completed_at.toISOString(),
+    backup_retention_until:
+      retainedReceipt.rows[0].backup_retention_until.toISOString(),
+  }, {
+    organization_id: "org-delete-ready",
+    deletion_requested_at: "2026-06-01T12:00:00.000Z",
+    completed_at: fixedNow.toISOString(),
+    maximum_backup_retention_days: 45,
+    backup_retention_until: "2026-08-29T12:00:00.000Z",
+    raw_object_count: 1,
+    export_object_count: 1,
+    completed_by: "droneworks_deletion_worker",
+  });
+  const serializedReceipt = JSON.stringify(retainedReceipt.rows[0]);
+  assert.equal(serializedReceipt.includes("Synthetic deletion fixture"), false);
+  assert.equal(serializedReceipt.includes("Synthetic deletion note"), false);
+  assert.equal(serializedReceipt.includes("raw-revision-delete"), false);
+  assert.equal(serializedReceipt.includes("artifact-delete"), false);
+
+  const retried = await processNextOrganizationDeletion(
+    queueBoss,
+    deletionPool,
+    {
+      now: new Date("2026-07-16T12:00:00Z"),
+      maximumBackupRetentionDays: 90,
+    },
+  );
+  assert.equal(retried.jobId, jobId);
+  assert.deepEqual(retried.outcome, {
+    status: "already_deleted",
+    organizationId: "org-delete-ready",
+    deletionRequestedAt: "2026-06-01T12:00:00.000Z",
+    completedAt: fixedNow.toISOString(),
+    backupRetentionUntil: "2026-08-29T12:00:00.000Z",
+    rawObjectCount: 1,
+    exportObjectCount: 1,
+  });
+
+  const contextless = await deletionPool.query(
+    `SELECT current_setting('app.organization_id', true) AS organization_id,
+            (SELECT count(*)::integer
+               FROM droneworks_ops.find_organization_deletion_receipt(
+                 'org-delete-ready'
+               )) AS receipt_count`,
+  );
+  assert.deepEqual(contextless.rows[0], {
+    organization_id: "",
+    receipt_count: 1,
+  });
+  const survivingOrganizations = await bootstrapPool.query(
+    `SELECT id, state
+       FROM droneworks.organizations
+      WHERE id IN ('org-delete-early', 'org-delete-cancelled')
+      ORDER BY id`,
+  );
+  assert.deepEqual(survivingOrganizations.rows, [{
+    id: "org-delete-cancelled",
+    state: "active",
+  }, {
+    id: "org-delete-early",
+    state: "pending_deletion",
+  }]);
 });

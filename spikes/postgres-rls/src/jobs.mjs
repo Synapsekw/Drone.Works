@@ -2,6 +2,7 @@ import {
   loadFlightForJob,
   loadOrganizationExportForJob,
 } from "./repositories.mjs";
+import { permanentlyDeleteOrganization } from "./deletions.mjs";
 
 export const FLIGHT_REFRESH_QUEUE = "canonical-flight-refresh-v1";
 export const FLIGHT_REFRESH_PAYLOAD_VERSION = 1;
@@ -17,6 +18,15 @@ export const ORGANIZATION_EXPORT_PAYLOAD_VERSION = 1;
 
 const ORGANIZATION_EXPORT_PAYLOAD_KEYS = Object.freeze([
   "exportRequestId",
+  "organizationId",
+  "schemaVersion",
+]);
+
+export const ORGANIZATION_DELETION_QUEUE = "organization-deletion-v1";
+export const ORGANIZATION_DELETION_PAYLOAD_VERSION = 1;
+
+const ORGANIZATION_DELETION_PAYLOAD_KEYS = Object.freeze([
+  "deletionRequestedAt",
   "organizationId",
   "schemaVersion",
 ]);
@@ -193,6 +203,92 @@ export async function processNextOrganizationExport(boss, pool, handler) {
     return Object.freeze({ jobId: job.id, outcome });
   } catch (error) {
     await boss.fail(ORGANIZATION_EXPORT_QUEUE, job.id, {
+      error: error instanceof Error ? error.message : "job failed",
+    });
+    throw error;
+  }
+}
+
+export function organizationDeletionPayload(input) {
+  if (input === null || typeof input !== "object" || Array.isArray(input)) {
+    throw new TypeError("job payload must be an object");
+  }
+  const keys = Object.keys(input).sort();
+  if (keys.length !== ORGANIZATION_DELETION_PAYLOAD_KEYS.length
+      || keys.some(
+        (key, index) => key !== ORGANIZATION_DELETION_PAYLOAD_KEYS[index],
+      )) {
+    throw new TypeError(
+      "job payload must contain only schemaVersion, organizationId, and deletionRequestedAt",
+    );
+  }
+  if (input.schemaVersion !== ORGANIZATION_DELETION_PAYLOAD_VERSION) {
+    throw new TypeError(
+      `schemaVersion must be ${ORGANIZATION_DELETION_PAYLOAD_VERSION}`,
+    );
+  }
+  const deletionRequestedAt = new Date(input.deletionRequestedAt);
+  if (typeof input.deletionRequestedAt !== "string"
+      || Number.isNaN(deletionRequestedAt.valueOf())
+      || deletionRequestedAt.toISOString() !== input.deletionRequestedAt) {
+    throw new TypeError("deletionRequestedAt must be a canonical ISO timestamp");
+  }
+  return Object.freeze({
+    schemaVersion: ORGANIZATION_DELETION_PAYLOAD_VERSION,
+    organizationId: requireId(input.organizationId, "organizationId"),
+    deletionRequestedAt: input.deletionRequestedAt,
+  });
+}
+
+export async function enqueueOrganizationDeletion(boss, input, options = {}) {
+  if (boss === null || typeof boss?.send !== "function") {
+    throw new TypeError("boss.send must be a function");
+  }
+  const id = await boss.send(
+    ORGANIZATION_DELETION_QUEUE,
+    organizationDeletionPayload(input),
+    options,
+  );
+  if (typeof id !== "string" || id.length === 0) {
+    throw new Error("queue did not accept the organization deletion job");
+  }
+  return id;
+}
+
+export async function executeOrganizationDeletion(pool, job, options = {}) {
+  if (job === null || typeof job !== "object") {
+    throw new TypeError("queued job is required");
+  }
+  const payload = organizationDeletionPayload(job.data);
+  const outcome = await permanentlyDeleteOrganization(pool, {
+    organizationId: payload.organizationId,
+    deletionRequestedAt: new Date(payload.deletionRequestedAt),
+  }, {
+    now: options.now,
+    maximumBackupRetentionDays: options.maximumBackupRetentionDays,
+  });
+  if (typeof options.afterDelete === "function") {
+    await options.afterDelete(outcome);
+  }
+  return outcome;
+}
+
+export async function processNextOrganizationDeletion(boss, pool, options = {}) {
+  if (boss === null || typeof boss?.fetch !== "function") {
+    throw new TypeError("boss.fetch must be a function");
+  }
+  const [job] = await boss.fetch(ORGANIZATION_DELETION_QUEUE, {
+    includeMetadata: true,
+  });
+  if (job === undefined) {
+    return null;
+  }
+  try {
+    const outcome = await executeOrganizationDeletion(pool, job, options);
+    await boss.complete(ORGANIZATION_DELETION_QUEUE, job.id, outcome);
+    return Object.freeze({ jobId: job.id, outcome });
+  } catch (error) {
+    await boss.fail(ORGANIZATION_DELETION_QUEUE, job.id, {
       error: error instanceof Error ? error.message : "job failed",
     });
     throw error;

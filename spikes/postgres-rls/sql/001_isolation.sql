@@ -45,6 +45,15 @@ CREATE ROLE droneworks_queue
   NOREPLICATION
   NOBYPASSRLS;
 
+CREATE ROLE droneworks_deletion_worker
+  LOGIN
+  NOINHERIT
+  NOSUPERUSER
+  NOCREATEDB
+  NOCREATEROLE
+  NOREPLICATION
+  NOBYPASSRLS;
+
 GRANT droneworks_migrator TO droneworks_migration_runner;
 
 CREATE SCHEMA droneworks AUTHORIZATION droneworks_migrator;
@@ -62,6 +71,23 @@ CREATE TABLE droneworks_ops.migration_runs (
   applied_at timestamptz NOT NULL,
   applied_by name NOT NULL CHECK (applied_by = session_user),
   application_name text NOT NULL CHECK (length(btrim(application_name)) > 0)
+);
+
+CREATE TABLE droneworks_ops.organization_deletion_receipts (
+  organization_id text PRIMARY KEY CHECK (length(btrim(organization_id)) > 0),
+  deletion_requested_at timestamptz NOT NULL,
+  completed_at timestamptz NOT NULL,
+  maximum_backup_retention_days integer NOT NULL
+    CHECK (maximum_backup_retention_days BETWEEN 0 AND 3650),
+  backup_retention_until timestamptz NOT NULL,
+  raw_object_count integer NOT NULL CHECK (raw_object_count >= 0),
+  export_object_count integer NOT NULL CHECK (export_object_count >= 0),
+  completed_by name NOT NULL CHECK (completed_by = session_user),
+  CHECK (completed_at >= deletion_requested_at + interval '30 days'),
+  CHECK (
+    backup_retention_until = completed_at
+      + make_interval(days => maximum_backup_retention_days)
+  )
 );
 
 CREATE FUNCTION droneworks_ops.find_migration(requested_id text)
@@ -118,15 +144,106 @@ BEGIN
 END
 $$;
 
+CREATE FUNCTION droneworks_ops.find_organization_deletion_receipt(
+  requested_organization_id text
+)
+RETURNS TABLE (
+  organization_id text,
+  deletion_requested_at timestamptz,
+  completed_at timestamptz,
+  maximum_backup_retention_days integer,
+  backup_retention_until timestamptz,
+  raw_object_count integer,
+  export_object_count integer,
+  completed_by name
+)
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog, droneworks_ops
+AS $$
+BEGIN
+  IF session_user <> 'droneworks_deletion_worker' THEN
+    RAISE EXCEPTION 'deletion receipts require the deletion worker'
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
+
+  RETURN QUERY
+  SELECT receipt.organization_id,
+         receipt.deletion_requested_at,
+         receipt.completed_at,
+         receipt.maximum_backup_retention_days,
+         receipt.backup_retention_until,
+         receipt.raw_object_count,
+         receipt.export_object_count,
+         receipt.completed_by
+    FROM droneworks_ops.organization_deletion_receipts AS receipt
+   WHERE receipt.organization_id = requested_organization_id;
+END
+$$;
+
+CREATE FUNCTION droneworks_ops.record_organization_deletion(
+  requested_organization_id text,
+  requested_deletion_at timestamptz,
+  requested_completed_at timestamptz,
+  requested_backup_retention_days integer,
+  requested_raw_object_count integer,
+  requested_export_object_count integer
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, droneworks_ops
+AS $$
+BEGIN
+  IF session_user <> 'droneworks_deletion_worker' THEN
+    RAISE EXCEPTION 'deletion receipt writes require the deletion worker'
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
+
+  INSERT INTO droneworks_ops.organization_deletion_receipts (
+    organization_id,
+    deletion_requested_at,
+    completed_at,
+    maximum_backup_retention_days,
+    backup_retention_until,
+    raw_object_count,
+    export_object_count,
+    completed_by
+  ) VALUES (
+    requested_organization_id,
+    requested_deletion_at,
+    requested_completed_at,
+    requested_backup_retention_days,
+    requested_completed_at + make_interval(days => requested_backup_retention_days),
+    requested_raw_object_count,
+    requested_export_object_count,
+    session_user
+  );
+END
+$$;
+
 RESET ROLE;
 
 REVOKE ALL ON ALL TABLES IN SCHEMA droneworks_ops FROM PUBLIC;
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA droneworks_ops FROM PUBLIC;
 GRANT USAGE ON SCHEMA droneworks_ops TO droneworks_migration_runner;
+GRANT USAGE ON SCHEMA droneworks_ops
+  TO droneworks_migrator, droneworks_deletion_worker;
 GRANT EXECUTE ON FUNCTION droneworks_ops.find_migration(text)
   TO droneworks_migration_runner;
 GRANT EXECUTE ON FUNCTION droneworks_ops.record_migration(text, text, timestamptz)
   TO droneworks_migration_runner;
+GRANT EXECUTE ON FUNCTION droneworks_ops.find_organization_deletion_receipt(text)
+  TO droneworks_migrator, droneworks_deletion_worker;
+GRANT EXECUTE ON FUNCTION droneworks_ops.record_organization_deletion(
+  text,
+  timestamptz,
+  timestamptz,
+  integer,
+  integer,
+  integer
+) TO droneworks_migrator;
 
 SET ROLE droneworks_migrator;
 

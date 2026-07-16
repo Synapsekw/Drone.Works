@@ -17,7 +17,7 @@ related: ["[[00-north-star]]"]
 
 ## Open Phase 0 architecture outputs
 
-- Remaining P0-05 real-object-provider, permanent-flight, cached-secret/log, and backup-deletion gates.
+- Remaining P0-05 real-object-provider, cached-secret/log, and backup-deletion gates.
 - Telemetry storage/downsampling benchmark.
 - System and security-boundary documents.
 - Environments, deployment, recovery, and cost evidence.

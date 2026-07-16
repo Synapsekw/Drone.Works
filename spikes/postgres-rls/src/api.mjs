@@ -380,6 +380,15 @@ function importBatchInput(body) {
   return Object.freeze(files.map((file) => Object.freeze(file)));
 }
 
+function emptyObjectInput(body) {
+  const input = requireObject(body);
+  const errors = validateKeys(input, [], []);
+  if (errors.length > 0) {
+    throw new ValidationError(errors);
+  }
+  return input;
+}
+
 function requestHash(input) {
   return createHash("sha256").update(JSON.stringify({
     pilot_profile_id: input.pilotProfileId,
@@ -397,6 +406,12 @@ function importBatchRequestHash(files) {
     client_file_id: file.clientFileId,
     original_filename: file.originalFilename,
   })))).digest("hex");
+}
+
+function organizationExportRequestHash() {
+  return createHash("sha256")
+    .update("complete-organization-export:v1")
+    .digest("hex");
 }
 
 function decodeIdentifier(value) {
@@ -844,6 +859,74 @@ export function createApiServer({
           return;
         }
         sendJson(response, 200, { data: batch });
+        return;
+      }
+
+      const createOrganizationExportRoute = request.method === "POST"
+        ? matchRoute(
+          url.pathname,
+          /^\/api\/v1\/organizations\/([^/]+)\/organization-exports$/,
+        )
+        : null;
+      if (createOrganizationExportRoute !== null) {
+        const [organizationId] = createOrganizationExportRoute;
+        const idempotencyKey = request.headers["idempotency-key"];
+        if (!validIdentifier(idempotencyKey)) {
+          throw new ValidationError([{
+            field: "Idempotency-Key",
+            detail: "must be a non-empty opaque identifier",
+          }]);
+        }
+        emptyObjectInput(await readJsonBody(request));
+        const result = await withOrganization(
+          pool,
+          organizationId,
+          (repositories) => repositories.createOrganizationExportForManager({
+            userId: identity.userId,
+            idempotencyKey,
+            requestHash: organizationExportRequestHash(),
+            createId,
+            now: now(),
+          }),
+        );
+        if (result === null) {
+          sendProblem(response, HIDDEN_RESOURCE_PROBLEM);
+          return;
+        }
+        if (result.kind === "conflict") {
+          sendProblem(response, {
+            type: "about:blank",
+            title: "Conflict",
+            status: 409,
+            detail: "The idempotency key was already used with different input",
+          });
+          return;
+        }
+        sendJson(response, 202, { data: result.exportRequest });
+        return;
+      }
+
+      const organizationExportRoute = request.method === "GET"
+        ? matchRoute(
+          url.pathname,
+          /^\/api\/v1\/organizations\/([^/]+)\/organization-exports\/([^/]+)$/,
+        )
+        : null;
+      if (organizationExportRoute !== null) {
+        const [organizationId, exportRequestId] = organizationExportRoute;
+        const exportRequest = await withOrganization(
+          pool,
+          organizationId,
+          (repositories) => repositories.findOrganizationExportForManager({
+            userId: identity.userId,
+            exportRequestId,
+          }),
+        );
+        if (exportRequest === null) {
+          sendProblem(response, HIDDEN_RESOURCE_PROBLEM);
+          return;
+        }
+        sendJson(response, 200, { data: exportRequest });
         return;
       }
 

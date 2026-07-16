@@ -11,9 +11,13 @@ import {
   issueAuthorizedDownload,
 } from "../src/downloads.mjs";
 import {
+  enqueueOrganizationExport,
   FLIGHT_REFRESH_QUEUE,
   enqueueFlightRefresh,
+  ORGANIZATION_EXPORT_QUEUE,
+  organizationExportPayload,
   processNextFlightRefresh,
+  processNextOrganizationExport,
 } from "../src/jobs.mjs";
 import {
   applyReviewedMigration,
@@ -25,6 +29,7 @@ import {
 } from "../src/migrations.mjs";
 import {
   loadFlightForJob,
+  loadOrganizationExportForJob,
   withOrganization,
 } from "../src/repositories.mjs";
 
@@ -163,6 +168,10 @@ before(async () => {
     retryDelay: 0,
     deleteAfterSeconds: 3600,
   });
+  await queueBoss.createQueue(ORGANIZATION_EXPORT_QUEUE, {
+    retryLimit: 0,
+    deleteAfterSeconds: 3600,
+  });
   await new Promise((resolve, reject) => {
     apiServer.once("error", reject);
     apiServer.listen(0, "127.0.0.1", resolve);
@@ -213,7 +222,7 @@ test("ordinary connections are non-owner, non-superuser, and unable to bypass RL
         AND c.relkind = 'r'
       ORDER BY c.relname`,
   );
-  assert.equal(tables.rowCount, 20);
+  assert.equal(tables.rowCount, 21);
   for (const table of tables.rows) {
     assert.equal(table.owner, "droneworks_migrator");
     assert.equal(table.relrowsecurity, true);
@@ -438,6 +447,11 @@ test("queue ownership is limited to infrastructure and cannot read customer tabl
             rolbypassrls,
             has_schema_privilege('droneworks_queue', 'droneworks_jobs', 'USAGE') AS owns_queue_schema,
             has_table_privilege('droneworks_queue', 'droneworks.canonical_flights', 'SELECT') AS reads_customer_flights,
+            has_table_privilege(
+              'droneworks_queue',
+              'droneworks.organization_export_requests',
+              'SELECT'
+            ) AS reads_export_requests,
             has_schema_privilege('droneworks_app', 'droneworks_jobs', 'USAGE') AS app_reads_queue_schema
        FROM pg_roles
       WHERE rolname = 'droneworks_queue'`,
@@ -450,6 +464,7 @@ test("queue ownership is limited to infrastructure and cannot read customer tabl
     rolbypassrls: false,
     owns_queue_schema: true,
     reads_customer_flights: false,
+    reads_export_requests: false,
     app_reads_queue_schema: false,
   });
 });
@@ -2264,4 +2279,316 @@ test("remaining-resource RLS survives pooled reuse and composite ownership rejec
     "INSERT INTO droneworks.tags (organization_id, id, name) VALUES ('org-alpha', 'tag-wrong-context', 'Denied')",
     (error) => error.code === "42501" && /row-level security policy/.test(error.message),
   );
+});
+
+test("complete organization export requests are manager-only, idempotent, and organization-scoped", async () => {
+  const exportPath = `${API_PREFIX}/organizations/org-alpha/organization-exports`;
+  const missingKey = await apiRequest(exportPath, "session-alpha-owner", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({}),
+  });
+  assert.equal(missingKey.status, 400);
+  assert.deepEqual(missingKey.body.errors, [{
+    field: "Idempotency-Key",
+    detail: "must be a non-empty opaque identifier",
+  }]);
+  const unexpectedInput = await apiRequest(exportPath, "session-alpha-owner", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "idempotency-key": "organization-export-invalid",
+    },
+    body: JSON.stringify({ object_key: "must-not-be-accepted" }),
+  });
+  assert.equal(unexpectedInput.status, 400);
+  assert.deepEqual(unexpectedInput.body.errors, [{
+    field: "object_key",
+    detail: "is not allowed",
+  }]);
+
+  for (const session of [
+    "session-alpha-pilot",
+    "session-alpha-viewer",
+    "session-beta-admin",
+  ]) {
+    const denied = await apiRequest(exportPath, session, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "idempotency-key": `organization-export-denied-${session}`,
+      },
+      body: JSON.stringify({}),
+    });
+    assert.equal(denied.status, 404);
+    assert.deepEqual(denied.body, hiddenResourceProblem);
+  }
+
+  const auditCountBefore = await withOrganization(
+    applicationPool,
+    "org-alpha",
+    async (repositories) => (await repositories.listAuditEvents()).length,
+  );
+  const created = await apiRequest(exportPath, "session-alpha-owner", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "idempotency-key": "organization-export-admin-1",
+    },
+    body: JSON.stringify({}),
+  });
+  assert.equal(created.status, 202);
+  assert.equal(created.body.data.id, "organization-export-1");
+  assert.equal(created.body.data.organization_id, "org-alpha");
+  assert.equal(created.body.data.requested_by_user_id, "user-alpha-owner");
+  assert.equal(created.body.data.state, "queued");
+  assert.equal(created.body.data.manifest_version, 1);
+  assert.equal(created.body.data.requested_at, fixedNow.toISOString());
+  assert.equal(created.body.data.export_artifact_id, null);
+  assert.equal(created.body.data.completed_at, null);
+
+  const manifest = created.body.data.manifest;
+  assert.equal(manifest.schema_version, 1);
+  assert.equal(manifest.generated_at, fixedNow.toISOString());
+  assert.equal(manifest.canonical_time_basis, "UTC");
+  assert.deepEqual(manifest.organization, {
+    id: "org-alpha",
+    name: "Alpha Operations",
+    default_timezone: "Europe/London",
+    unit_preference: "imperial",
+  });
+  assert.deepEqual(manifest.collections.map((entry) => entry.name), [
+    "aircraft",
+    "audit_events",
+    "batteries",
+    "canonical_flights",
+    "flight_assignment_overrides",
+    "flight_batteries",
+    "flight_revisions",
+    "flight_tags",
+    "import_batches",
+    "import_items",
+    "memberships",
+    "organizations",
+    "pilot_profiles",
+    "raw_source_flights",
+    "raw_sources",
+    "tags",
+    "telemetry_samples",
+  ]);
+  const collectionCounts = Object.fromEntries(
+    manifest.collections.map((entry) => [entry.name, entry.row_count]),
+  );
+  assert.deepEqual(collectionCounts, {
+    aircraft: 1,
+    audit_events: auditCountBefore,
+    batteries: 2,
+    canonical_flights: 6,
+    flight_assignment_overrides: 1,
+    flight_batteries: 1,
+    flight_revisions: 1,
+    flight_tags: 1,
+    import_batches: 3,
+    import_items: 4,
+    memberships: 4,
+    organizations: 1,
+    pilot_profiles: 2,
+    raw_source_flights: 5,
+    raw_sources: 4,
+    tags: 2,
+    telemetry_samples: 2,
+  });
+  assert.deepEqual(manifest.raw_sources, [{
+    id: "raw-alpha",
+    state: "retained",
+  }, {
+    id: "raw-alpha-deleted",
+    state: "deleted",
+  }, {
+    id: "raw-alpha-other",
+    state: "retained",
+  }, {
+    id: "raw-alpha-shared",
+    state: "retained",
+  }]);
+  assert.equal(JSON.stringify(manifest).includes("org-beta"), false);
+  assert.equal(JSON.stringify(manifest).includes("object_revision_id"), false);
+
+  const replayed = await apiRequest(exportPath, "session-alpha-owner", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "idempotency-key": "organization-export-admin-1",
+    },
+    body: JSON.stringify({}),
+  });
+  assert.deepEqual(replayed, created);
+
+  const ownerCreated = await apiRequest(exportPath, "session-alpha-admin", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "idempotency-key": "organization-export-owner-1",
+    },
+    body: JSON.stringify({}),
+  });
+  assert.equal(ownerCreated.status, 202);
+  assert.equal(ownerCreated.body.data.id, "organization-export-2");
+  assert.equal(ownerCreated.body.data.requested_by_user_id, "user-alpha");
+
+  for (const managerSession of ["session-alpha-owner", "session-alpha-admin"]) {
+    const read = await apiRequest(
+      `${exportPath}/organization-export-1`,
+      managerSession,
+    );
+    assert.equal(read.status, 200);
+    assert.deepEqual(read.body, created.body);
+  }
+  for (const denied of [{
+    path: `${exportPath}/organization-export-1`,
+    session: "session-alpha-pilot",
+  }, {
+    path: `${exportPath}/organization-export-1`,
+    session: "session-alpha-viewer",
+  }, {
+    path: `${API_PREFIX}/organizations/org-beta/organization-exports/organization-export-1`,
+    session: "session-beta-admin",
+  }, {
+    path: `${exportPath}/organization-export-unknown`,
+    session: "session-alpha-owner",
+  }]) {
+    const response = await apiRequest(denied.path, denied.session);
+    assert.equal(response.status, 404);
+    assert.deepEqual(response.body, hiddenResourceProblem);
+  }
+
+  const exportEvents = await withOrganization(
+    applicationPool,
+    "org-alpha",
+    async (repositories) => (await repositories.listAuditEvents()).filter(
+      (event) => event.action === "organization_export.requested",
+    ),
+  );
+  assert.deepEqual(exportEvents.map((event) => event.metadata), [{
+    manifest_version: 1,
+  }, {
+    manifest_version: 1,
+  }]);
+  const serializedEvents = JSON.stringify(exportEvents);
+  assert.equal(serializedEvents.includes("Alpha Operations"), false);
+  assert.equal(serializedEvents.includes("raw-alpha"), false);
+
+  const pid = await withOrganization(
+    applicationPool,
+    "org-alpha",
+    (repositories) => repositories.connectionId(),
+  );
+  const contextless = await applicationPool.query(
+    `SELECT pg_backend_pid() AS pid,
+            current_setting('app.organization_id', true) AS organization_id,
+            (SELECT count(*)::integer
+               FROM droneworks.organization_export_requests) AS export_request_count`,
+  );
+  assert.deepEqual({
+    ...contextless.rows[0],
+    pid: Number(contextless.rows[0].pid),
+  }, {
+    pid,
+    organization_id: "",
+    export_request_count: 0,
+  });
+  await assertOrganizationSqlRejects(
+    "org-alpha",
+    `UPDATE droneworks.organization_export_requests
+        SET manifest = '{}'::jsonb
+      WHERE id = 'organization-export-1'`,
+    (error) => error.code === "23514"
+      && /organization export snapshot is immutable/.test(error.message),
+  );
+});
+
+test("organization export jobs persist strict references and reapply RLS at execution", async () => {
+  assert.throws(
+    () => organizationExportPayload({
+      schemaVersion: 1,
+      exportRequestId: "organization-export-1",
+    }),
+    /must contain only schemaVersion, organizationId, and exportRequestId/,
+  );
+  assert.throws(
+    () => organizationExportPayload({
+      schemaVersion: 1,
+      organizationId: "org-alpha",
+      exportRequestId: "organization-export-1",
+      manifest: { forbidden: true },
+    }),
+    /must contain only schemaVersion, organizationId, and exportRequestId/,
+  );
+  assert.deepEqual(await queueBoss.findJobs(ORGANIZATION_EXPORT_QUEUE), []);
+
+  const jobId = await enqueueOrganizationExport(queueBoss, {
+    schemaVersion: 1,
+    organizationId: "org-alpha",
+    exportRequestId: "organization-export-1",
+  });
+  const durableJob = await queueBoss.getJobById(ORGANIZATION_EXPORT_QUEUE, jobId);
+  assert.deepEqual(durableJob.data, {
+    schemaVersion: 1,
+    organizationId: "org-alpha",
+    exportRequestId: "organization-export-1",
+  });
+  assert.equal(JSON.stringify(durableJob.data).includes("manifest"), false);
+  const processed = await processNextOrganizationExport(
+    queueBoss,
+    applicationPool,
+    async (input) => {
+      assert.equal(input.organizationId, "org-alpha");
+      assert.equal(input.exportRequestId, "organization-export-1");
+      assert.equal(input.exportRequest.organization_id, "org-alpha");
+      assert.equal(input.exportRequest.manifest.organization.id, "org-alpha");
+      assert.equal(JSON.stringify(input.exportRequest.manifest).includes("org-beta"), false);
+      return { archiveGenerated: false };
+    },
+  );
+  assert.deepEqual(processed.outcome, {
+    status: "processed",
+    result: { archiveGenerated: false },
+  });
+
+  const crossOrganizationJobId = await enqueueOrganizationExport(queueBoss, {
+    schemaVersion: 1,
+    organizationId: "org-beta",
+    exportRequestId: "organization-export-1",
+  });
+  let handlerCalled = false;
+  const hidden = await processNextOrganizationExport(
+    queueBoss,
+    applicationPool,
+    async () => {
+      handlerCalled = true;
+    },
+  );
+  assert.equal(hidden.jobId, crossOrganizationJobId);
+  assert.deepEqual(hidden.outcome, { status: "not_found" });
+  assert.equal(handlerCalled, false);
+
+  await assert.rejects(
+    loadOrganizationExportForJob(applicationPool, {
+      exportRequestId: "organization-export-1",
+    }),
+    /organizationId must be a non-empty identifier/,
+  );
+  const malformedJobId = await queueBoss.send(
+    ORGANIZATION_EXPORT_QUEUE,
+    { exportRequestId: "organization-export-1" },
+  );
+  await assert.rejects(
+    processNextOrganizationExport(queueBoss, applicationPool, async () => {}),
+    /must contain only schemaVersion, organizationId, and exportRequestId/,
+  );
+  const malformed = await queueBoss.getJobById(
+    ORGANIZATION_EXPORT_QUEUE,
+    malformedJobId,
+  );
+  assert.equal(malformed.state, "failed");
 });

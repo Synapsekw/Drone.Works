@@ -44,7 +44,7 @@ Use organization identifiers on every customer-owned record, require organizatio
 - Isolation tests cover reads, mutations, joins, aggregates, jobs, exports, and object-storage paths.
 - Background jobs cannot run without explicit organization context.
 
-### Phase 0 evidence — 2026-07-15
+### Phase 0 evidence — 2026-07-16
 
 The first native PostgreSQL 18 spike validates the leading relational mechanism against the generic canonical ownership model. A non-owner, non-superuser, non-`BYPASSRLS` application role is constrained by forced RLS on organizations, memberships, pilots, aircraft, canonical flights, revisions, and telemetry. Composite organization foreign keys prevent cross-organization relationships. Transaction-local context is proven to clear before the same pooled backend is reused; direct reads, joins, aggregates, exports, writes, owner behavior, and organization-required job lookup have Alpha-versus-Beta negative tests.
 
@@ -64,7 +64,9 @@ The organization-administration API follow-up proves owner/admin member listing,
 
 The remaining-resource follow-up expands the reviewed isolation contract by exactly six declared tables for tags, batteries, flight associations, import batches, and import items while rejecting any change to existing table isolation. All twenty customer tables are migrator-owned with enabled and forced RLS. All members may list tag and battery definitions; owner/admin battery mutations and pilot-own tag mutations retain imported-versus-user origins and produce payload-redacted audits. Owner/admin/pilot upload declarations create idempotent batches and per-file items, while reads are limited to managers or the uploading pilot. Composite foreign keys, exact-ID API denials, and contextless reuse of the same pooled backend retain the Alpha/Beta boundary.
 
-This evidence does not yet accept D-002. Complete organization export, provider-side signed-URL expiry and object deletion, additional Phase 1 resource types such as maintenance records, and permanent deletion paths remain open. Production credential delivery, externally retained audit logs, and emergency operations remain P0-07 concerns. See `../architecture/TENANCY.md`.
+The complete-export follow-up adds one declared forced-RLS request table, bringing the executable customer-table matrix to twenty-one. Owner/admin API creation snapshots organization settings, documented operational collection counts, and logical raw-source references into an immutable manifest; pilots and viewers are denied. Equivalent idempotent replay creates no duplicate request or audit. The durable pg-boss payload contains only its schema version, organization ID, and export-request ID, and execution reloads the manifest through the ordinary RLS pool. A Beta-scoped job carrying an Alpha request ID returns `not_found`. This is request/manifest/queue evidence only: archive bytes, atomic dispatch, artifact creation, and real object storage remain unproven.
+
+This evidence does not yet accept D-002. Provider-side signed-URL expiry and object deletion, complete-export archive/artifact generation, additional Phase 1 resource types such as maintenance records, and permanent deletion paths remain open. Production credential delivery, externally retained audit logs, and emergency operations remain P0-07 concerns. See `../architecture/TENANCY.md`.
 
 ## D-003 — Canonical normalized flight model
 

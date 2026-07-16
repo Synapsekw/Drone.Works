@@ -47,6 +47,94 @@ async function recordAuditEvent(client, input) {
   );
 }
 
+async function buildOrganizationExportManifest(client, generatedAt) {
+  const result = await client.query(
+    `WITH collection_counts AS (
+       SELECT 'aircraft'::text AS name, count(*)::integer AS row_count
+         FROM droneworks.aircraft
+       UNION ALL
+       SELECT 'audit_events', count(*)::integer FROM droneworks.audit_events
+       UNION ALL
+       SELECT 'batteries', count(*)::integer FROM droneworks.batteries
+       UNION ALL
+       SELECT 'canonical_flights', count(*)::integer FROM droneworks.canonical_flights
+       UNION ALL
+       SELECT 'flight_assignment_overrides', count(*)::integer
+         FROM droneworks.flight_assignment_overrides
+       UNION ALL
+       SELECT 'flight_batteries', count(*)::integer FROM droneworks.flight_batteries
+       UNION ALL
+       SELECT 'flight_revisions', count(*)::integer FROM droneworks.flight_revisions
+       UNION ALL
+       SELECT 'flight_tags', count(*)::integer FROM droneworks.flight_tags
+       UNION ALL
+       SELECT 'import_batches', count(*)::integer FROM droneworks.import_batches
+       UNION ALL
+       SELECT 'import_items', count(*)::integer FROM droneworks.import_items
+       UNION ALL
+       SELECT 'memberships', count(*)::integer FROM droneworks.memberships
+       UNION ALL
+       SELECT 'organizations', count(*)::integer FROM droneworks.organizations
+       UNION ALL
+       SELECT 'pilot_profiles', count(*)::integer FROM droneworks.pilot_profiles
+       UNION ALL
+       SELECT 'raw_source_flights', count(*)::integer FROM droneworks.raw_source_flights
+       UNION ALL
+       SELECT 'raw_sources', count(*)::integer FROM droneworks.raw_sources
+       UNION ALL
+       SELECT 'tags', count(*)::integer FROM droneworks.tags
+       UNION ALL
+       SELECT 'telemetry_samples', count(*)::integer FROM droneworks.telemetry_samples
+     )
+     SELECT jsonb_build_object(
+              'schema_version', 1,
+              'generated_at', to_char(
+                $1::timestamptz AT TIME ZONE 'UTC',
+                'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
+              ),
+              'canonical_time_basis', 'UTC',
+              'organization', (
+                SELECT jsonb_build_object(
+                         'id', organization.id,
+                         'name', organization.name,
+                         'default_timezone', organization.default_timezone,
+                         'unit_preference', organization.unit_preference
+                       )
+                  FROM droneworks.organizations AS organization
+              ),
+              'collections', (
+                SELECT jsonb_agg(
+                         jsonb_build_object(
+                           'name', counts.name,
+                           'row_count', counts.row_count
+                         )
+                         ORDER BY counts.name
+                       )
+                  FROM collection_counts AS counts
+              ),
+              'raw_sources', (
+                SELECT coalesce(
+                         jsonb_agg(
+                           jsonb_build_object(
+                             'id', source.id,
+                             'state', source.state
+                           )
+                           ORDER BY source.id
+                         ),
+                         '[]'::jsonb
+                       )
+                  FROM droneworks.raw_sources AS source
+              )
+            ) AS manifest`,
+    [requireDate(generatedAt, "generatedAt").toISOString()],
+  );
+  const manifest = result.rows[0]?.manifest;
+  if (manifest?.organization === null || manifest?.organization === undefined) {
+    throw new Error("organization export manifest has no organization root");
+  }
+  return manifest;
+}
+
 export function createRepositories(client) {
   return Object.freeze({
     async connectionId() {
@@ -1421,6 +1509,175 @@ export function createRepositories(client) {
       return { ...batch, items: items.rows };
     },
 
+    async createOrganizationExportForManager(input) {
+      const userId = requireId(input.userId, "userId");
+      const idempotencyKey = requireId(input.idempotencyKey, "idempotencyKey");
+      const requestHash = requireId(input.requestHash, "requestHash");
+      const now = requireDate(input.now, "now");
+      if (typeof input.createId !== "function") {
+        throw new TypeError("createId must be a function");
+      }
+      const membership = await client.query(
+        `SELECT role
+           FROM droneworks.memberships
+          WHERE user_id = $1
+            AND role IN ('owner', 'admin')
+          FOR KEY SHARE`,
+        [userId],
+      );
+      if (membership.rowCount === 0) {
+        return null;
+      }
+
+      const operation = "create_organization_export";
+      const claim = await client.query(
+        `INSERT INTO droneworks.api_idempotency_requests (
+           organization_id,
+           user_id,
+           operation,
+           idempotency_key,
+           request_hash,
+           created_at
+         ) VALUES (
+           droneworks.current_organization_id(),
+           $1,
+           $2,
+           $3,
+           $4,
+           $5
+         )
+         ON CONFLICT DO NOTHING
+         RETURNING request_hash`,
+        [userId, operation, idempotencyKey, requestHash, now.toISOString()],
+      );
+      if (claim.rowCount === 0) {
+        const previous = await client.query(
+          `SELECT request_hash, response_status, response_body
+             FROM droneworks.api_idempotency_requests
+            WHERE user_id = $1
+              AND operation = $2
+              AND idempotency_key = $3
+            FOR UPDATE`,
+          [userId, operation, idempotencyKey],
+        );
+        const saved = previous.rows[0];
+        if (saved.request_hash !== requestHash) {
+          return { kind: "conflict" };
+        }
+        if (saved.response_status !== 202 || saved.response_body === null) {
+          throw new Error("idempotent request is incomplete");
+        }
+        return { kind: "replayed", exportRequest: saved.response_body };
+      }
+
+      const exportRequestId = requireId(
+        input.createId("organization-export"),
+        "exportRequestId",
+      );
+      const manifest = await buildOrganizationExportManifest(client, now);
+      const inserted = await client.query(
+        `INSERT INTO droneworks.organization_export_requests (
+           organization_id,
+           id,
+           requested_by_user_id,
+           state,
+           manifest_version,
+           manifest,
+           requested_at
+         ) VALUES (
+           droneworks.current_organization_id(),
+           $1,
+           $2,
+           'queued',
+           1,
+           $3,
+           $4
+         )
+         RETURNING id,
+                   organization_id,
+                   requested_by_user_id,
+                   state,
+                   manifest_version,
+                   manifest,
+                   requested_at,
+                   export_artifact_id,
+                   completed_at`,
+        [exportRequestId, userId, JSON.stringify(manifest), now.toISOString()],
+      );
+      const exportRequest = inserted.rows[0];
+      await recordAuditEvent(client, {
+        userId,
+        action: "organization_export.requested",
+        resourceType: "organization_export",
+        resourceId: exportRequestId,
+        changedFields: ["state", "manifest"],
+        metadata: { manifest_version: 1 },
+        now,
+      });
+      await client.query(
+        `UPDATE droneworks.api_idempotency_requests
+            SET response_status = 202,
+                response_body = $4,
+                completed_at = $5
+          WHERE user_id = $1
+            AND operation = $2
+            AND idempotency_key = $3`,
+        [
+          userId,
+          operation,
+          idempotencyKey,
+          JSON.stringify(exportRequest),
+          now.toISOString(),
+        ],
+      );
+      return { kind: "created", exportRequest };
+    },
+
+    async findOrganizationExportForManager({ userId, exportRequestId }) {
+      requireId(userId, "userId");
+      requireId(exportRequestId, "exportRequestId");
+      const result = await client.query(
+        `SELECT request.id,
+                request.organization_id,
+                request.requested_by_user_id,
+                request.state,
+                request.manifest_version,
+                request.manifest,
+                request.requested_at,
+                request.export_artifact_id,
+                request.completed_at
+           FROM droneworks.memberships AS membership
+           JOIN droneworks.organization_export_requests AS request
+             ON request.organization_id = membership.organization_id
+          WHERE membership.user_id = $1
+            AND membership.role IN ('owner', 'admin')
+            AND request.id = $2
+          FOR KEY SHARE OF membership, request`,
+        [userId, exportRequestId],
+      );
+      return result.rows[0] ?? null;
+    },
+
+    async findOrganizationExportById(exportRequestId) {
+      requireId(exportRequestId, "exportRequestId");
+      const result = await client.query(
+        `SELECT id,
+                organization_id,
+                requested_by_user_id,
+                state,
+                manifest_version,
+                manifest,
+                requested_at,
+                export_artifact_id,
+                completed_at
+           FROM droneworks.organization_export_requests
+          WHERE id = $1
+          FOR KEY SHARE`,
+        [exportRequestId],
+      );
+      return result.rows[0] ?? null;
+    },
+
     async findDownloadableObject({ userId, resourceType, resourceId, now }) {
       requireId(userId, "userId");
       requireId(resourceId, "resourceId");
@@ -1575,5 +1832,18 @@ export async function loadFlightForJob(pool, input) {
   requireId(input.flightId, "flightId");
   return withOrganization(pool, input.organizationId, (repositories) => (
     repositories.findFlightById(input.flightId)
+  ));
+}
+
+export async function loadOrganizationExportForJob(pool, input) {
+  if (input === null || typeof input !== "object") {
+    throw new TypeError(
+      "job input must include organizationId and exportRequestId",
+    );
+  }
+  requireId(input.organizationId, "organizationId");
+  requireId(input.exportRequestId, "exportRequestId");
+  return withOrganization(pool, input.organizationId, (repositories) => (
+    repositories.findOrganizationExportById(input.exportRequestId)
   ));
 }

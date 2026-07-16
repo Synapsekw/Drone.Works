@@ -39,6 +39,16 @@ const REVIEWED_MIGRATIONS = Object.freeze([
       import.meta.url,
     ),
   }),
+  Object.freeze({
+    id: "005_organization_exports",
+    sha256: "b2eeee5a58e7e785f7fe42e3f18cf21e7acfa34f3f95018bea0e292543cd88ae",
+    isolationContract: "expand",
+    addedTables: Object.freeze(["organization_export_requests"]),
+    url: new URL(
+      "../sql/migrations/005_organization_exports.sql",
+      import.meta.url,
+    ),
+  }),
 ]);
 
 function sha256(value) {

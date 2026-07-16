@@ -1,12 +1,12 @@
 ---
 type: north-star
 status: active
-last-updated: 2026-07-16-1517
+last-updated: 2026-07-16-1540
 tags: [project/drone-works, north-star]
 related:
   - "[[project-history]]"
   - "[[memory]]"
-  - "[[2026-07-16-1517-permanent-flight-deletion]]"
+  - "[[2026-07-16-1540-telemetry-benchmark]]"
 ---
 
 # Drone.Works — North Star
@@ -31,14 +31,14 @@ Drone.Works is an explainable operational record for small professional drone te
 
 ## Now
 
-- **Phase:** Phase 0; P0-05 local relational isolation evidence is complete enough to unblock P0-06, with forced RLS, deterministic exports, active-database organization/flight deletion, derived downloads and maintenance, real-queue retry, reviewed migration isolation, and versioned core APIs proven.
-- **Branch:** source commit `3addfc4` is local on `main`, which is twenty-eight commits ahead of `origin/main` before this vault-only closeout commit; nothing was pushed. An unrelated `.obsidian/app.json` change remains unstaged and untouched.
-- **Completed evidence:** the dedicated deletion worker now also enforces the expired flight-restoration timestamp, removes canonical payload/revisions/telemetry, deletes only exclusively referenced raw sources, preserves shared sources and peer flights, retains one UTC payload-redacted action reference, clears pooled context, rejects early/cross-organization/stale jobs, and returns the same evidence after a post-commit pg-boss retry. Prior twenty-three-table organization deletion and all earlier P0-05 evidence remains passing.
-- **Verification baseline:** 31 native PostgreSQL integration tests and 78 existing host tests pass with zero skips/failures. JavaScript syntax, seven pinned migration checksums, declared contract preservation/expansion/privilege-tightening, Git whitespace, role and cross-organization denials, strict queue payloads, exclusive/shared source lifecycle, payload redaction, pooled clearing, loopback provider behavior, and real macOS parser network denial pass. No Docker, persistent PostgreSQL service, real object provider, or customer data was used.
-- **Blocking evidence:** D-002 remains proposed only for real provider-side URL/object deletion plus cached-secret/log/backup deletion and verification. D-011 remains proposed pending atomic dispatch, worker termination, cancellation, and queue-age evidence; export and both deletion paths are retry-idempotent. The production archive container and maximum backup-retention value remain undecided. Production operations and D-012 gates remain separate.
-- **Next technical action:** execute P0-06: build a reproducible synthetic telemetry benchmark representing at least 100,000 flights, measure ingest/replay/export/single-flight and organization deletion, prove extrema/gap-preserving downsampling and bounded full delivery, estimate cost, and record the D-008 selection/reconsideration thresholds.
+- **Phase:** Phase 0; P0-06 is complete and D-008 is accepted after the full 100,000-flight telemetry benchmark. P0-05's local relational proof remains complete; P0-07 stack, provider, recovery, and cost acceptance is now the critical path.
+- **Branch:** source commit `373d2df` is local on `main`, which is thirty commits ahead of `origin/main` before this vault-only closeout commit; nothing was pushed. An unrelated `.obsidian/app.json` change remains unstaged and untouched.
+- **Completed evidence:** the benchmark physically materializes 100,000 organization-owned objects representing 600 million 5 Hz frames, preserves extrema/warnings/gaps in 1,000-point replay, bounds full access, reads old telemetry after additive evolution, deletes one flight and 999 organization objects, and retains raw measurements. D-008 selects versioned per-flight columnar objects with PostgreSQL metadata and explicit reconsideration thresholds; the like-for-like row projection is about forty-nine times larger.
+- **Verification baseline:** five telemetry tests, 31 native PostgreSQL integration tests, and 78 parser/containment tests pass with zero skips/failures. The full profile used native PostgreSQL 18 with durable-write settings, no Docker, and no provider network; syntax, dependency audit, bounded delivery, compatibility, deletion, summary equality, Git whitespace, and privacy patterns pass.
+- **Blocking evidence:** D-002 still needs real provider-side URL/object deletion plus cached-secret/log/backup deletion and verification. D-011 still needs atomic dispatch, worker termination, cancellation, and queue-age evidence. Authentication/provider choices, production archive container, maximum backup retention, restore/rollback proof, and D-012 terms remain open under P0-07.
+- **Next technical action:** execute P0-07: accept the runtime/package/API structure, authentication boundary, job semantics, S3-compatible provider strategy, deployment environments, secrets, migrations, observability, backup/restore/rollback responsibilities, and current development/beta/benchmark cost envelope.
 - **Next external decision:** decide whether the remaining fixtures may use DJI processing; production terms, notice/consent, managed-secret, retention, and deletion gates remain separate under D-012.
-- **Parallel follow-up:** use the versioned telemetry shape and representative sample count to begin P0-06 benchmarks after the P0-05 harness boundary is clear.
+- **Parallel follow-up:** carry D-008's provider-inclusive latency/deletion thresholds into P0-07 object-storage evaluation and the P0-08 threat model.
 - **Privacy:** raw fixtures remain ignored and local. No raw values, coordinates, identifiers, keychain feature points, credentials, or generated parser artifacts belong in this vault.
 
 ## Workstream status
@@ -50,8 +50,8 @@ Drone.Works is an explainable operational record for small professional drone te
 | P0-03 parser/key feasibility | Core proof complete; external gates remain | Native containment, truncation, private intermediate, representative measurements, hosted reproducibility, strict audit, evidence upload, and attestations pass; broader fixtures and production D-012 gates remain open. |
 | P0-04 canonical model | Core proof complete | Generic schema/validator, ownership/lifecycle, canonical-v1 adapter, provenance, asset evidence, capabilities, override survival, exact-normalized fingerprint, totals, deletion/restoration, and zero-flight transitions pass. |
 | P0-05 organization isolation | Local relational proof complete; non-relational provider/operations evidence remains | Twenty-three-table forced RLS, composite ownership, pooled context, role-scoped `/api/v1/`, deterministic exports, derived maintenance, reversible requests, grace-bound organization and flight deletion, exclusive/shared raw-source handling, independently owned organization receipt, redacted flight action, retry idempotency, explicit migration elevation, independent migration audit, and declared contract preservation/expansion/tightening pass; real provider plus cache/log/backup deletion verification remain open. |
-| P0-06 telemetry benchmark | Active | Versioned telemetry shape and representative 27,228-sample evidence are ready; next build/run the reproducible 100,000-flight benchmark and close D-008. |
-| P0-07 runtime/deployment selection | Proposed | TypeScript/Next/Fastify/worker/Postgres shortlist needs remaining proofs. |
+| P0-06 telemetry benchmark | Complete | Full 100,000-flight/600-million-frame object profile, six-million-row comparison, downsampling, bounded delivery, deletion, additive evolution, retained results, and cost sensitivity pass; D-008 is accepted. |
+| P0-07 runtime/deployment selection | Active | TypeScript/Next/Fastify/worker/Postgres direction needs final auth, queue, provider, environments, recovery, observability, and cost acceptance. |
 | P0-08 threat model | Not started | Parser/key boundaries provide initial inputs. |
 | P0-09 Phase 1A backlog | Not started | Final Phase 0 synthesis. |
 

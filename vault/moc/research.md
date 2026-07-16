@@ -11,6 +11,7 @@ related: ["[[00-north-star]]"]
 - [DJI parser evaluation](../../docs/research/DJI-PARSER-EVALUATION.md)
 - [DJI parser supply-chain review](../../docs/research/DJI-PARSER-SUPPLY-CHAIN.md)
 - [DJI official-parser comparison](../../docs/research/DJI-OFFICIAL-PARSER-COMPARISON.md)
+- [Telemetry benchmark](../../docs/research/TELEMETRY-BENCHMARK.md)
 - [Fixture policy](../../docs/testing/FIXTURE-POLICY.md)
 - [Internal parser build](../../spikes/dji-parser/internal-build/README.md)
 - [Native Rust boundary proof](../../spikes/dji-parser/native-cli/README.md)
@@ -18,5 +19,5 @@ related: ["[[00-north-star]]"]
 ## Unresolved evidence
 
 - Representative decoded coverage beyond the first authorized v14 fixture.
-- Generic canonical schema, exact-normalized fingerprint, and lifecycle-transition evidence after the first representative normalization.
+- Provider-inclusive telemetry latency and deletion verification under D-008's reconsideration thresholds.
 - Production key-service/legal acceptance and final D-012 status.

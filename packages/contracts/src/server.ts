@@ -85,6 +85,68 @@ export const membershipListSchema = Type.Object(
   { $id: 'MembershipList', additionalProperties: false },
 );
 
+export const rawUploadPathSchema = Type.Object(
+  {
+    organization_id: uuidStringSchema,
+    upload_id: uuidStringSchema,
+  },
+  { $id: 'RawUploadPath', additionalProperties: false },
+);
+
+export const idempotencyHeadersSchema = Type.Object(
+  {
+    'idempotency-key': Type.String({ minLength: 1, maxLength: 200 }),
+  },
+  { $id: 'IdempotencyHeaders', additionalProperties: true },
+);
+
+export const declareRawUploadBodySchema = Type.Object(
+  {
+    client_file_id: Type.String({ minLength: 1, maxLength: 200 }),
+    original_filename: Type.String({ minLength: 1, maxLength: 500 }),
+    content_sha256: Type.String({ pattern: '^[0-9a-f]{64}$' }),
+    byte_size: Type.Integer({ minimum: 1, maximum: 33_554_432 }),
+    media_type: Type.Literal('application/octet-stream'),
+  },
+  { $id: 'DeclareRawUploadBody', additionalProperties: false },
+);
+
+export const rawUploadDeclarationSchema = Type.Object(
+  {
+    upload_id: uuidStringSchema,
+    state: Type.Literal('declared'),
+    content_sha256: Type.String({ pattern: '^[0-9a-f]{64}$' }),
+  },
+  { $id: 'RawUploadDeclaration', additionalProperties: false },
+);
+
+export const rawUploadContentSchema = Type.Object(
+  {
+    upload_id: uuidStringSchema,
+    object_version_id: uuidStringSchema,
+    content_sha256: Type.String({ pattern: '^[0-9a-f]{64}$' }),
+  },
+  { $id: 'RawUploadContent', additionalProperties: false },
+);
+
+export const completeRawUploadBodySchema = Type.Object(
+  {
+    object_version_id: uuidStringSchema,
+  },
+  { $id: 'CompleteRawUploadBody', additionalProperties: false },
+);
+
+export const rawUploadSchema = Type.Object(
+  {
+    upload_id: uuidStringSchema,
+    raw_source_id: Type.Union([uuidStringSchema, Type.Null()]),
+    object_version_id: Type.Union([uuidStringSchema, Type.Null()]),
+    state: Type.Union([Type.Literal('declared'), Type.Literal('completed')]),
+    content_sha256: Type.String({ pattern: '^[0-9a-f]{64}$' }),
+  },
+  { $id: 'RawUpload', additionalProperties: false },
+);
+
 export const problemErrorSchema = Type.Object(
   {
     pointer: Type.String(),
@@ -114,3 +176,6 @@ export type CreateOrganizationBody = Static<
 export type OrganizationPath = Static<typeof organizationPathSchema>;
 export type MembershipPath = Static<typeof membershipPathSchema>;
 export type PutMembershipBody = Static<typeof putMembershipBodySchema>;
+export type RawUploadPath = Static<typeof rawUploadPathSchema>;
+export type DeclareRawUploadBody = Static<typeof declareRawUploadBodySchema>;
+export type CompleteRawUploadBody = Static<typeof completeRawUploadBodySchema>;

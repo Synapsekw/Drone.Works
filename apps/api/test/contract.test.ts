@@ -82,6 +82,10 @@ describe('versioned API contract', () => {
       '/api/v1/organizations/{organization_id}/memberships',
       '/api/v1/organizations/{organization_id}/memberships/{user_id}',
       '/api/v1/organizations/{organization_id}/selection',
+      '/api/v1/organizations/{organization_id}/uploads',
+      '/api/v1/organizations/{organization_id}/uploads/{upload_id}',
+      '/api/v1/organizations/{organization_id}/uploads/{upload_id}/completion',
+      '/api/v1/organizations/{organization_id}/uploads/{upload_id}/content',
     ]);
     expect([...built.controlRouteInventory]).toEqual([]);
   });

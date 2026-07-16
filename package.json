@@ -24,6 +24,7 @@
     "test:authorization": "corepack pnpm --filter @drone-works/database run build && corepack pnpm --filter @drone-works/api run test:authorization",
     "test:contract": "corepack pnpm --filter @drone-works/api run test:contract && corepack pnpm contract:check && corepack pnpm boundaries",
     "test:database": "corepack pnpm --filter @drone-works/database run test:database",
+    "test:upload": "corepack pnpm --filter @drone-works/api run test:upload",
     "typecheck": "corepack pnpm --recursive --sort --if-present run typecheck",
     "verify": "corepack pnpm format:check && corepack pnpm lint && corepack pnpm typecheck && corepack pnpm test && corepack pnpm boundaries && corepack pnpm privacy:check"
   },

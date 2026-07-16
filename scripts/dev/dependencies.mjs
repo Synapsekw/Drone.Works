@@ -12,7 +12,7 @@ function json(response, status, body) {
   response.end(JSON.stringify(body));
 }
 
-async function readBody(request, maximumBytes = 1_048_576) {
+async function readBody(request, maximumBytes = 33_554_432) {
   const chunks = [];
   let size = 0;
   for await (const chunk of request) {
@@ -46,13 +46,61 @@ const objectServer = createServer(async (request, response) => {
         return;
       }
       const versionId = randomUUID();
-      objects.set(key, { body, digest, versionId });
-      json(response, 201, { status: 'created', version_id: versionId, digest });
+      const mediaType = request.headers['content-type'];
+      if (typeof mediaType !== 'string' || mediaType.length > 200) {
+        json(response, 400, { status: 'invalid_media_type' });
+        return;
+      }
+      const object = { body, digest, mediaType, versionId };
+      objects.set(key, object);
+      response.writeHead(201, {
+        'content-type': 'application/json',
+        'x-byte-size': String(body.byteLength),
+        'x-content-sha256': digest,
+        'x-stored-media-type': mediaType,
+        'x-version-id': versionId,
+      });
+      response.end(
+        JSON.stringify({ status: 'created', version_id: versionId, digest }),
+      );
     } catch (error) {
       json(response, error.message === 'body_too_large' ? 413 : 400, {
         status: 'invalid_request',
       });
     }
+    return;
+  }
+
+  if (request.method === 'HEAD' && url.pathname.startsWith('/objects/')) {
+    const key = decodeURIComponent(url.pathname.slice('/objects/'.length));
+    const object = objects.get(key);
+    if (
+      !object ||
+      (url.searchParams.get('version_id') &&
+        url.searchParams.get('version_id') !== object.versionId)
+    ) {
+      response.writeHead(404).end();
+      return;
+    }
+    response.writeHead(200, {
+      'x-byte-size': String(object.body.byteLength),
+      'x-content-sha256': object.digest,
+      'x-stored-media-type': object.mediaType,
+      'x-version-id': object.versionId,
+    });
+    response.end();
+    return;
+  }
+
+  if (request.method === 'DELETE' && url.pathname.startsWith('/objects/')) {
+    const key = decodeURIComponent(url.pathname.slice('/objects/'.length));
+    const object = objects.get(key);
+    if (!object || url.searchParams.get('version_id') !== object.versionId) {
+      response.writeHead(404).end();
+      return;
+    }
+    objects.delete(key);
+    response.writeHead(204).end();
     return;
   }
 

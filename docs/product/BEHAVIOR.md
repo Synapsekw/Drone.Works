@@ -32,19 +32,19 @@ This document defines observable product behavior. Technology choices and intern
 
 ### Phase 1 role behavior
 
-| Capability | Owner | Admin | Pilot | Viewer |
-|---|---:|---:|---:|---:|
-| View flights and fleet | Yes | Yes | Yes | Yes |
-| Create manual flights | Yes | Yes | Yes | No |
-| Upload logs | Yes | Yes | Yes | No |
-| Edit own assigned flight notes/tags | Yes | Yes | Yes | No |
-| Reassign pilot or fleet assets | Yes | Yes | No | No |
-| Manage pilot and fleet records | Yes | Yes | No | No |
-| Delete/restore flights | Yes | Yes | No | No |
-| Export operational data | Yes | Yes | Own flights only | No |
-| Download raw log files | Yes | Yes | Own flights only | No |
-| Manage members and organization settings | Yes | Yes | No | No |
-| Transfer ownership or delete organization | Yes | No | No | No |
+| Capability                                | Owner | Admin |            Pilot | Viewer |
+| ----------------------------------------- | ----: | ----: | ---------------: | -----: |
+| View flights and fleet                    |   Yes |   Yes |              Yes |    Yes |
+| Create manual flights                     |   Yes |   Yes |              Yes |     No |
+| Upload logs                               |   Yes |   Yes |              Yes |     No |
+| Edit own assigned flight notes/tags       |   Yes |   Yes |              Yes |     No |
+| Reassign pilot or fleet assets            |   Yes |   Yes |               No |     No |
+| Manage pilot and fleet records            |   Yes |   Yes |               No |     No |
+| Delete/restore flights                    |   Yes |   Yes |               No |     No |
+| Export operational data                   |   Yes |   Yes | Own flights only |     No |
+| Download raw log files                    |   Yes |   Yes | Own flights only |     No |
+| Manage members and organization settings  |   Yes |   Yes |               No |     No |
+| Transfer ownership or delete organization |   Yes |    No |               No |     No |
 
 - “Own flights” means flights assigned to the member's linked pilot profile.
 - An owner may restrict pilot raw-download and export permissions organization-wide.
@@ -140,6 +140,18 @@ An imported identifier results in one of four visible outcomes:
 - Raw uploaded files are retained even when parsing fails, subject to organization deletion and the retention rules in Section 9.
 
 ### Resource model and lifecycle
+
+- Before bytes are accepted, an authorized owner, admin, or pilot declares the
+  original display filename, exact byte size, media type, and SHA-256 digest.
+- Phase 1A currently accepts one file of `application/octet-stream` content up
+  to 32 MiB through the authenticated API. A client-supplied storage key is
+  rejected, and the display filename is reduced to a safe leaf name.
+- Raw bytes become a retained source only after the immutable stored object's
+  exact version, digest, size, and media type match the declaration. Identical
+  retries return the same upload/source; an occupied key with different bytes
+  is rejected.
+- Every declaration, byte write, completion, and status read rechecks current
+  organization membership. No public object URL is returned.
 
 - A batch upload creates one batch and one import item per file.
 - Each file shows independent progress and outcome.

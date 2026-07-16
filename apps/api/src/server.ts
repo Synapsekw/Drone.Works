@@ -5,10 +5,12 @@ import {
 import {
   createApplicationPool,
   OrganizationAuthorizationRepository,
+  RawUploadRepository,
 } from '@drone-works/database';
 
 import { buildApi } from './app.js';
 import { createIdentitySource } from './identity.js';
+import { LoopbackImmutableObjectStore } from './loopback-object-store.js';
 
 const environment = readServiceEnvironment(process.env);
 const databaseEnvironment = readApplicationDatabaseEnvironment(process.env);
@@ -19,10 +21,16 @@ const pool = createApplicationPool({
   port: databaseEnvironment.PGPORT,
   user: databaseEnvironment.PGUSER,
 });
+const objectInternalUrl = process.env.OBJECT_INTERNAL_URL;
+if (!objectInternalUrl) {
+  throw new Error('OBJECT_INTERNAL_URL is required for raw uploads.');
+}
 const { app } = await buildApi({
   environment,
   identitySource,
   organizations: new OrganizationAuthorizationRepository(pool),
+  objectStore: new LoopbackImmutableObjectStore(objectInternalUrl),
+  uploads: new RawUploadRepository(pool),
 });
 
 await app.listen({ host: environment.HOST, port: environment.PORT });

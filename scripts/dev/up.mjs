@@ -184,6 +184,7 @@ try {
       DRONE_WORKS_ENV: 'local',
       DRONE_WORKS_LOCAL_IDENTITY_ENABLED: 'true',
       HOST: '127.0.0.1',
+      OBJECT_INTERNAL_URL: `http://127.0.0.1:${ports.objects}`,
       PGUSER: 'droneworks_app',
       PORT: String(ports.api),
     },

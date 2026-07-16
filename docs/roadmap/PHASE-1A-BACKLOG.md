@@ -230,6 +230,15 @@ or hosted credential.
 
 ### A06 — Implement immutable raw upload
 
+**Status:** Complete (2026-07-16). Evidence: the versioned declaration, content,
+completion, and status API derives storage keys after current membership checks;
+the local adapter conditionally writes checksum-bound immutable bytes and records
+the exact version. `pnpm test:upload` proves the four-role matrix, immediate
+membership removal, idempotency, checksum and occupied-key collisions,
+Alpha/Beta exact-ID denial, database rollback cleanup, audit redaction, and
+one-backend context clearing against disposable native PostgreSQL plus the
+loopback object service.
+
 **Outcome:** An authorized owner/admin/pilot declares and completes one raw upload
 that is checksum-bound, immutable, organization-owned, and idempotent.
 

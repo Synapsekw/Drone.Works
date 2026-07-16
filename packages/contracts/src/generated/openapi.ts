@@ -90,6 +90,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/organizations/{organization_id}/uploads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Declare an immutable raw upload */
+        post: operations["declareRawUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organizations/{organization_id}/uploads/{upload_id}/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Store declared raw bytes */
+        put: operations["putRawUploadContent"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organizations/{organization_id}/uploads/{upload_id}/completion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Complete an immutable raw upload */
+        post: operations["completeRawUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organizations/{organization_id}/uploads/{upload_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a raw upload */
+        get: operations["getRawUpload"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -155,6 +223,51 @@ export interface components {
         /** MembershipList */
         "def-9": {
             memberships: components["schemas"]["def-8"][];
+        };
+        /** RawUploadPath */
+        "def-10": {
+            organization_id: string;
+            upload_id: string;
+        };
+        /** IdempotencyHeaders */
+        "def-11": {
+            "idempotency-key": string;
+        } & {
+            [key: string]: unknown;
+        };
+        /** DeclareRawUploadBody */
+        "def-12": {
+            client_file_id: string;
+            original_filename: string;
+            content_sha256: string;
+            byte_size: number;
+            /** @enum {string} */
+            media_type: "application/octet-stream";
+        };
+        /** RawUploadDeclaration */
+        "def-13": {
+            upload_id: string;
+            /** @enum {string} */
+            state: "declared";
+            content_sha256: string;
+        };
+        /** RawUploadContent */
+        "def-14": {
+            upload_id: string;
+            object_version_id: string;
+            content_sha256: string;
+        };
+        /** CompleteRawUploadBody */
+        "def-15": {
+            object_version_id: string;
+        };
+        /** RawUpload */
+        "def-16": {
+            upload_id: string;
+            raw_source_id: string | null;
+            object_version_id: string | null;
+            state: "declared" | "completed";
+            content_sha256: string;
         };
     };
     responses: never;
@@ -524,6 +637,279 @@ export interface operations {
                 };
             };
             /** @description The request could not be completed. */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        type: string;
+                        title: string;
+                        status: number;
+                        detail: string;
+                        instance: string;
+                        correlation_id: string;
+                        errors?: components["schemas"]["def-0"][];
+                    };
+                };
+            };
+        };
+    };
+    declareRawUpload: {
+        parameters: {
+            query?: never;
+            header: {
+                "idempotency-key": string;
+            };
+            path: {
+                organization_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    client_file_id: string;
+                    original_filename: string;
+                    content_sha256: string;
+                    byte_size: number;
+                    /** @enum {string} */
+                    media_type: "application/octet-stream";
+                };
+            };
+        };
+        responses: {
+            /** @description The raw upload was declared with server-owned IDs. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        upload_id: string;
+                        /** @enum {string} */
+                        state: "declared";
+                        content_sha256: string;
+                    };
+                };
+            };
+            /** @description The upload was denied or could not be accepted. */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        type: string;
+                        title: string;
+                        status: number;
+                        detail: string;
+                        instance: string;
+                        correlation_id: string;
+                        errors?: components["schemas"]["def-0"][];
+                    };
+                };
+            };
+            /** @description The upload could not be completed. */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        type: string;
+                        title: string;
+                        status: number;
+                        detail: string;
+                        instance: string;
+                        correlation_id: string;
+                        errors?: components["schemas"]["def-0"][];
+                    };
+                };
+            };
+        };
+    };
+    putRawUploadContent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                organization_id: string;
+                upload_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/octet-stream": unknown;
+            };
+        };
+        responses: {
+            /** @description The exact immutable object version was stored. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        upload_id: string;
+                        object_version_id: string;
+                        content_sha256: string;
+                    };
+                };
+            };
+            /** @description The upload was denied or could not be accepted. */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        type: string;
+                        title: string;
+                        status: number;
+                        detail: string;
+                        instance: string;
+                        correlation_id: string;
+                        errors?: components["schemas"]["def-0"][];
+                    };
+                };
+            };
+            /** @description The upload could not be completed. */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        type: string;
+                        title: string;
+                        status: number;
+                        detail: string;
+                        instance: string;
+                        correlation_id: string;
+                        errors?: components["schemas"]["def-0"][];
+                    };
+                };
+            };
+        };
+    };
+    completeRawUpload: {
+        parameters: {
+            query?: never;
+            header: {
+                "idempotency-key": string;
+            };
+            path: {
+                organization_id: string;
+                upload_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    object_version_id: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The exact object version was linked as a raw source. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        upload_id: string;
+                        raw_source_id: string | null;
+                        object_version_id: string | null;
+                        state: "declared" | "completed";
+                        content_sha256: string;
+                    };
+                };
+            };
+            /** @description The upload was denied or could not be accepted. */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        type: string;
+                        title: string;
+                        status: number;
+                        detail: string;
+                        instance: string;
+                        correlation_id: string;
+                        errors?: components["schemas"]["def-0"][];
+                    };
+                };
+            };
+            /** @description The upload could not be completed. */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        type: string;
+                        title: string;
+                        status: number;
+                        detail: string;
+                        instance: string;
+                        correlation_id: string;
+                        errors?: components["schemas"]["def-0"][];
+                    };
+                };
+            };
+        };
+    };
+    getRawUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                organization_id: string;
+                upload_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The current organization-owned upload state. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        upload_id: string;
+                        raw_source_id: string | null;
+                        object_version_id: string | null;
+                        state: "declared" | "completed";
+                        content_sha256: string;
+                    };
+                };
+            };
+            /** @description The upload was denied or could not be accepted. */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        type: string;
+                        title: string;
+                        status: number;
+                        detail: string;
+                        instance: string;
+                        correlation_id: string;
+                        errors?: components["schemas"]["def-0"][];
+                    };
+                };
+            };
+            /** @description The upload could not be completed. */
             "5XX": {
                 headers: {
                     [name: string]: unknown;

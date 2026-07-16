@@ -58,7 +58,7 @@ async function availablePort() {
   });
 }
 
-export async function startDisposablePostgres() {
+export async function startDisposablePostgres(options = {}) {
   const postgresBin = await findPostgresBin();
   const temporaryRoot = await mkdtemp(join(tmpdir(), 'droneworks-a05-'));
   const dataDirectory = join(temporaryRoot, 'data');
@@ -145,6 +145,21 @@ export async function startDisposablePostgres() {
       }
     } finally {
       await appPool.end();
+    }
+
+    if (options.setupSql) {
+      const setup = new Client({
+        host: socketDirectory,
+        port,
+        database: 'postgres',
+        user: bootstrapUser,
+      });
+      await setup.connect();
+      try {
+        await setup.query(options.setupSql);
+      } finally {
+        await setup.end();
+      }
     }
 
     return {

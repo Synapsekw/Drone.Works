@@ -35,3 +35,12 @@ export {
   type OrganizationPool,
   type OrganizationTransaction,
 } from './organization-transaction.js';
+export {
+  IdempotencyConflictError,
+  RawUploadConflictError,
+  RawUploadRepository,
+  type CompleteRawUploadInput,
+  type DeclareRawUploadInput,
+  type RawUploadDescriptor,
+  type RawUploadRecord,
+} from './raw-upload.js';

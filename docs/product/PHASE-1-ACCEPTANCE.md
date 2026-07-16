@@ -51,6 +51,17 @@ And the final owner cannot be removed or demoted
 
 ## 2. Successful DJI import
 
+### Scenario: Raw upload is immutable and organization-owned
+
+```gherkin
+Given an authorized Alpha member declares a file's exact digest, size, and type
+When the member uploads matching bytes and completes the upload
+Then the server links the exact immutable object version as Alpha's raw source
+And retrying the same declaration, bytes, and completion returns the same source
+And a client-supplied object key or different bytes at the derived key is rejected
+And a Beta member requesting Alpha's exact upload identifier receives no metadata or object URL
+```
+
 ### Scenario: A known aircraft is matched by serial
 
 ```gherkin

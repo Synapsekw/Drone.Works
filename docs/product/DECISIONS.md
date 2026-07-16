@@ -455,6 +455,27 @@ are in [`../architecture/SYSTEM.md`](../architecture/SYSTEM.md), controls in
 and environments, restore/rollback, retention, and monthly alert thresholds in
 [`../operations/`](../operations/).
 
+### Phase 1A A06 evidence — 2026-07-16
+
+The versioned API now declares one organization-owned import item before bytes
+are accepted, derives its object key from server-generated organization/upload
+IDs, and exposes content only through a currently authorized API operation. The
+local adapter performs a conditional write, confirms SHA-256, byte size, media
+type, and the exact generated object version, and returns the same version for an
+identical retry. Completion records that version in `raw_sources` and links it to
+the import item inside an organization-required transaction; an unreferenced
+exact version is deleted when that transaction rolls back.
+
+Declaration and completion reuse the existing organization/user/operation-scoped
+idempotency ledger, while audit metadata contains only an item count. The current
+32 MiB `application/octet-stream` boundary is an explicit walking-skeleton input
+limit, not the final supported DJI format matrix. Six API/database/object tests
+plus the integrated local smoke prove authorization, membership removal,
+checksum and occupied-key collisions, identical retry, Alpha/Beta exact-ID
+denial, exact-version rollback cleanup, and pooled-connection context clearing.
+No job, parser, Better Auth, AWS, RDS, signed public URL, or customer fixture was
+introduced.
+
 ## D-015 — Functional local development before authentication
 
 Status: accepted

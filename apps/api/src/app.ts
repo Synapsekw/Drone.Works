@@ -15,8 +15,11 @@ import { Type } from '@sinclair/typebox';
 
 import {
   createOrganizationBodySchema,
+  completeRawUploadBodySchema,
+  declareRawUploadBodySchema,
   healthQuerySchema,
   healthResponseSchema,
+  idempotencyHeadersSchema,
   membershipListSchema,
   membershipPathSchema,
   membershipSchema,
@@ -25,11 +28,16 @@ import {
   problemDetailSchema,
   problemErrorSchema,
   putMembershipBodySchema,
+  rawUploadContentSchema,
+  rawUploadDeclarationSchema,
+  rawUploadPathSchema,
+  rawUploadSchema,
 } from '@drone-works/contracts/server';
 import type { ServiceEnvironment } from '@drone-works/config';
 import {
   LastOwnerError,
   OrganizationAccessDeniedError,
+  type RawUploadRepository,
 } from '@drone-works/database';
 
 import {
@@ -44,6 +52,11 @@ import {
   registerOrganizationRoutes,
   type OrganizationRouteDependencies,
 } from './organization-routes.js';
+import type { ImmutableObjectStore } from './loopback-object-store.js';
+import {
+  registerRawUploadRoutes,
+  type RawUploadRouteDependencies,
+} from './raw-upload-routes.js';
 
 const correlationIdPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 
@@ -54,6 +67,10 @@ export const documentedApiRoutes = new Set([
   'POST /api/v1/organizations',
   'PUT /api/v1/organizations/:organization_id/memberships/:user_id',
   'PUT /api/v1/organizations/:organization_id/selection',
+  'GET /api/v1/organizations/:organization_id/uploads/:upload_id',
+  'POST /api/v1/organizations/:organization_id/uploads',
+  'POST /api/v1/organizations/:organization_id/uploads/:upload_id/completion',
+  'PUT /api/v1/organizations/:organization_id/uploads/:upload_id/content',
 ]);
 
 const defaultEnvironment: ServiceEnvironment = {
@@ -88,6 +105,45 @@ const unavailableOrganizations: OrganizationRouteDependencies['organizations'] =
       throw new OrganizationServiceUnavailableError();
     },
   };
+
+class RawUploadServiceUnavailableError extends Error {
+  readonly statusCode = 503;
+
+  constructor() {
+    super('Raw upload persistence is not configured.');
+    this.name = 'RawUploadServiceUnavailableError';
+  }
+}
+
+const unavailableUploads: RawUploadRouteDependencies['uploads'] = {
+  async authorize() {
+    throw new RawUploadServiceUnavailableError();
+  },
+  async complete() {
+    throw new RawUploadServiceUnavailableError();
+  },
+  async declare() {
+    throw new RawUploadServiceUnavailableError();
+  },
+  async get() {
+    throw new RawUploadServiceUnavailableError();
+  },
+  async isVersionReferenced() {
+    throw new RawUploadServiceUnavailableError();
+  },
+};
+
+const unavailableObjectStore: ImmutableObjectStore = {
+  async deleteExact() {
+    throw new RawUploadServiceUnavailableError();
+  },
+  async headExact() {
+    throw new RawUploadServiceUnavailableError();
+  },
+  async putIfAbsent() {
+    throw new RawUploadServiceUnavailableError();
+  },
+};
 
 function requestId(request: { headers: Record<string, unknown> }): string {
   const supplied = request.headers['x-correlation-id'];
@@ -129,6 +185,11 @@ export interface BuildApiOptions {
   readonly environment?: ServiceEnvironment;
   readonly identitySource?: IdentitySource;
   readonly organizations?: OrganizationRouteDependencies['organizations'];
+  readonly objectStore?: ImmutableObjectStore;
+  readonly uploads?: Pick<
+    RawUploadRepository,
+    'authorize' | 'complete' | 'declare' | 'get' | 'isVersionReferenced'
+  >;
 }
 
 export async function buildApi(options: BuildApiOptions = {}) {
@@ -139,7 +200,7 @@ export async function buildApi(options: BuildApiOptions = {}) {
   const routeInventory = new Set<string>();
   const controlRouteInventory = new Set<string>();
   const app = Fastify({
-    bodyLimit: 1_048_576,
+    bodyLimit: 33_554_432,
     exposeHeadRoutes: false,
     genReqId: requestId,
     logController: new LogController({ disableRequestLogging: true }),
@@ -147,6 +208,11 @@ export async function buildApi(options: BuildApiOptions = {}) {
   }).withTypeProvider<TypeBoxTypeProvider>();
 
   app.setValidatorCompiler(TypeBoxValidatorCompiler);
+  app.addContentTypeParser(
+    'application/octet-stream',
+    { parseAs: 'buffer' },
+    (_request, body, done) => done(null, body),
+  );
 
   app.addHook('onRoute', (route: RouteOptions) => {
     const methods = Array.isArray(route.method) ? route.method : [route.method];
@@ -180,6 +246,13 @@ export async function buildApi(options: BuildApiOptions = {}) {
   app.addSchema(putMembershipBodySchema);
   app.addSchema(membershipSchema);
   app.addSchema(membershipListSchema);
+  app.addSchema(rawUploadPathSchema);
+  app.addSchema(idempotencyHeadersSchema);
+  app.addSchema(declareRawUploadBodySchema);
+  app.addSchema(rawUploadDeclarationSchema);
+  app.addSchema(rawUploadContentSchema);
+  app.addSchema(completeRawUploadBodySchema);
+  app.addSchema(rawUploadSchema);
 
   app.addHook('onSend', async (request, reply, payload) => {
     reply.header('x-correlation-id', request.id);
@@ -228,6 +301,11 @@ export async function buildApi(options: BuildApiOptions = {}) {
   registerOrganizationRoutes(app, {
     identitySource,
     organizations: options.organizations ?? unavailableOrganizations,
+  });
+  registerRawUploadRoutes(app, {
+    identitySource,
+    objectStore: options.objectStore ?? unavailableObjectStore,
+    uploads: options.uploads ?? unavailableUploads,
   });
 
   if (identitySource instanceof GeneratedPersonaIdentitySource) {
@@ -308,17 +386,26 @@ export async function buildApi(options: BuildApiOptions = {}) {
             ? 'Not Found'
             : status === 409
               ? 'Conflict'
-              : 'Internal Server Error';
-    const detail =
-      status === 400
-        ? 'The request did not match the documented contract.'
-        : status === 401
-          ? 'A current identity is required.'
-          : status === 404
-            ? 'The requested organization resource was not found.'
-            : status === 409
-              ? 'The organization must retain at least one owner.'
-              : 'The request could not be completed.';
+              : status === 413
+                ? 'Payload Too Large'
+                : status === 415
+                  ? 'Unsupported Media Type'
+                  : status === 503
+                    ? 'Service Unavailable'
+                    : 'Internal Server Error';
+    const detail = fastifyError.validation
+      ? 'The request did not match the documented contract.'
+      : status === 401
+        ? 'A current identity is required.'
+        : status === 404
+          ? 'The requested organization resource was not found.'
+          : error instanceof LastOwnerError
+            ? 'The organization must retain at least one owner.'
+            : status >= 400 && status < 500
+              ? fastifyError.message
+              : status === 503
+                ? 'The upload service is not configured.'
+                : 'The request could not be completed.';
 
     return reply
       .code(status)

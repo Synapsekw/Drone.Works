@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 
@@ -40,6 +41,75 @@ if (
   throw new Error('The local identity-to-organization path did not pass.');
 }
 
+const rawContent = Buffer.from('generated-local-smoke-upload');
+const rawDigest = createHash('sha256').update(rawContent).digest('hex');
+const declarationResponse = await fetch(
+  new URL(
+    `/api/v1/organizations/${state.alpha_organization_id}/uploads`,
+    state.endpoints.api,
+  ),
+  {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'idempotency-key': 'local-smoke-declaration',
+      'x-drone-works-local-persona-token': persona.token,
+    },
+    body: JSON.stringify({
+      client_file_id: 'local-smoke-file',
+      original_filename: '../generated-local-smoke.bin',
+      content_sha256: rawDigest,
+      byte_size: rawContent.byteLength,
+      media_type: 'application/octet-stream',
+    }),
+  },
+);
+const declaration = await declarationResponse.json();
+if (!declarationResponse.ok || declaration.state !== 'declared') {
+  throw new Error('The local raw-upload declaration did not pass.');
+}
+const contentResponse = await fetch(
+  new URL(
+    `/api/v1/organizations/${state.alpha_organization_id}/uploads/${declaration.upload_id}/content`,
+    state.endpoints.api,
+  ),
+  {
+    method: 'PUT',
+    headers: {
+      'content-type': 'application/octet-stream',
+      'x-drone-works-local-persona-token': persona.token,
+    },
+    body: rawContent,
+  },
+);
+const stored = await contentResponse.json();
+if (!contentResponse.ok || stored.content_sha256 !== rawDigest) {
+  throw new Error('The local immutable object write did not pass.');
+}
+const completionResponse = await fetch(
+  new URL(
+    `/api/v1/organizations/${state.alpha_organization_id}/uploads/${declaration.upload_id}/completion`,
+    state.endpoints.api,
+  ),
+  {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'idempotency-key': 'local-smoke-completion',
+      'x-drone-works-local-persona-token': persona.token,
+    },
+    body: JSON.stringify({ object_version_id: stored.object_version_id }),
+  },
+);
+const completedUpload = await completionResponse.json();
+if (
+  !completionResponse.ok ||
+  completedUpload.state !== 'completed' ||
+  completedUpload.raw_source_id !== declaration.upload_id
+) {
+  throw new Error('The local raw-upload completion did not pass.');
+}
+
 const [api, worker, objects, email, , proxiedApi] = await Promise.all([
   waitForHttp(state.endpoints.api, 'api', 5_000),
   waitForHttp(state.endpoints.worker, 'worker', 5_000),
@@ -75,5 +145,5 @@ if (stdout.trim() !== `${state.generated_organizations}:1`) {
 }
 
 process.stdout.write(
-  `Local smoke passed: ${[api.service, worker.service, objects.service, email.service].join(', ')}, generated identity/authorization, and web/postgres.\n`,
+  `Local smoke passed: ${[api.service, worker.service, objects.service, email.service].join(', ')}, generated identity/authorization, immutable upload, and web/postgres.\n`,
 );

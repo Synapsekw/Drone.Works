@@ -42,7 +42,7 @@ function membershipResponse(membership: Membership) {
   };
 }
 
-async function requireIdentity(
+export async function requireIdentity(
   identitySource: IdentitySource,
   request: FastifyRequest,
 ): Promise<AppIdentity> {

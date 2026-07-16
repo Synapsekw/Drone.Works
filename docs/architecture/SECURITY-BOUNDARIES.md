@@ -3,6 +3,10 @@
 Status: accepted Phase 0 baseline
 Last updated: 2026-07-16
 
+The abuse-case analysis and release gates are in
+[`../security/THREAT-MODEL.md`](../security/THREAT-MODEL.md) and
+[`../security/PHASE-1A-SECURITY-CHECKLIST.md`](../security/PHASE-1A-SECURITY-CHECKLIST.md).
+
 ## Trust boundaries
 
 | Boundary | Trusted input crossing it | Forbidden input or capability | Enforcement |
@@ -91,4 +95,3 @@ incident record and follows the applicable notice process.
 - alarms, log-redaction tests, budgets, and break-glass alerting are active; and
 - D-012 terms, consent, managed-secret, egress, cache, and deletion gates pass
   before the DJI provider is enabled.
-

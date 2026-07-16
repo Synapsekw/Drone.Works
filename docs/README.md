@@ -19,6 +19,7 @@ Read these documents in order:
 - [`roadmap/PHASE-0-DISCOVERY.md`](roadmap/PHASE-0-DISCOVERY.md) defines the immediate technical discovery work, decision gates, deliverables, and stop conditions.
 - [`architecture/README.md`](architecture/README.md) indexes architecture evidence and designs as they are produced.
 - [`operations/README.md`](operations/README.md) indexes environments, deployment, recovery, and cost policy.
+- [`security/README.md`](security/README.md) indexes the threat model, privacy flow, and Phase 1A security gate.
 
 ## Testing and fixture governance
 

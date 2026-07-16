@@ -23,10 +23,12 @@ related: ["[[00-north-star]]"]
 
 ## Current implementation boundary
 
-- A01–A04 provide the runnable, Docker-free foundation plus production-named
-  PostgreSQL migrations, forced organization RLS, and pool-safe context.
-- A05 is the next boundary: a provider-neutral identity seam, server-owned
-  generated local personas, and real app-owned membership/role authorization.
+- A01–A07 provide the runnable, Docker-free foundation, provider-neutral local
+  identity, app-owned authorization, immutable upload, forced organization RLS,
+  and atomic payload-free outbox/pg-boss dispatch.
+- A08 is the next boundary: package the exact native parser supervisor behind
+  strict job validation and ordinary-pool RLS reload without enabling A09
+  provider access.
 - A13a proves the functional local app; A13b then integrates Better Auth and
   repeats the same path before any hosted deployment.
 - Hosted RDS and AWS conformance remain A14–A15 gates.

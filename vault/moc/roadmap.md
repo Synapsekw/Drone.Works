@@ -25,14 +25,15 @@ Phase 0 complete
   -> A04 PostgreSQL migration and forced-RLS boundary (complete)
   -> A05 local identity seam and app-owned authorization (complete)
   -> A06 immutable raw upload (complete)
-  -> A07–A13a functional local application
+  -> A07 atomic outbox dispatch (complete)
+  -> A08–A13a functional local application
   -> A13b verified auth and repeated end-to-end path
   -> A14 AWS staging
   -> continue the ordered Phase 1A vertical path
 ```
 
-Resume at A07 using native PostgreSQL, generated personas, and the A06 loopback
-object boundary. Add payload-free durable dispatch without starting parsing;
-Better Auth waits for A13b and RDS waits for A14. Keep A09 DJI enablement plus
-A14–A15 AWS hosted-data work fail-closed until their external authority and
-evidence pass.
+Resume at A08 behind the strict A07 job boundary, using the immutable A06 source
+and ordinary forced-RLS reload. Package the contained native parser supervisor
+without enabling A09 DJI access or A10 normalization; Better Auth waits for A13b
+and RDS waits for A14. Keep A09 and A14–A15 fail-closed until their external
+authority and evidence pass.

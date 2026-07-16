@@ -17,7 +17,7 @@ related: ["[[00-north-star]]"]
 
 ## Open Phase 0 architecture outputs
 
-- Remaining P0-05 API administration/settings, real-object-provider, remaining-resource, and permanent-deletion isolation gates.
+- Remaining P0-05 real-object-provider, remaining-resource, complete-export, and permanent-deletion isolation gates.
 - Telemetry storage/downsampling benchmark.
 - System and security-boundary documents.
 - Environments, deployment, recovery, and cost evidence.

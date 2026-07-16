@@ -1,7 +1,7 @@
 ---
 type: report
 status: active
-last-updated: 2026-07-14
+last-updated: 2026-07-16
 tags: [project/drone-works, history]
 related: ["[[00-north-star]]"]
 ---
@@ -23,9 +23,10 @@ This timeline summarizes durable milestones. Git and the linked canonical docume
 | 2026-07-12 | `1192714` | Hardened the disabled-by-default DJI provider adapter against redirects, timeouts, response growth, and credential leakage. |
 | 2026-07-12 | `e48f5ae` | Audited the published parser artifact, Rust dependency graph, licenses, advisories, and production gates. |
 | 2026-07-14 | `d641e5f` | Added a reproducible private parser build, replaced the unmaintained dependency, removed parser-side networking, and generated SBOM/license evidence. |
+| 2026-07-16 | `068aadb` | Completed Phase 0 with accepted model/isolation/parser/telemetry/stack/security decisions, safe external gates, and an ordered Phase 1A implementation backlog. |
 
 ## Current interpretation
 
-P0-03 has retired much of the parser isolation and supply-chain risk. The critical blocker is no longer whether the v14 files can be detected; it is whether key retrieval may be authorized and whether decoded frames are correct enough to support a declared Phase 1A variant.
+Phase 0 is complete and Phase 1A is ready at A01. Production DJI enablement remains fail-closed under A09, and hosted customer data remains fail-closed until A14–A15 pass live AWS object and recovery gates.
 
 Continue from [[00-north-star]] rather than extending this timeline with speculative plans.

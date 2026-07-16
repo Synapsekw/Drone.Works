@@ -19,5 +19,6 @@ related: ["[[00-north-star]]"]
 ## Open Phase 0 architecture outputs
 
 - Remaining P0-05 real-object-provider, cached-secret/log, and backup-deletion gates.
+- Authentication and production-shaped object/provider selection.
 - System and security-boundary documents.
 - Environments, deployment, recovery, and cost evidence.

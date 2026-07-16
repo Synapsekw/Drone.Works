@@ -1,12 +1,12 @@
 ---
 type: north-star
 status: active
-last-updated: 2026-07-15-1916
+last-updated: 2026-07-16-1250
 tags: [project/drone-works, north-star]
 related:
   - "[[project-history]]"
   - "[[memory]]"
-  - "[[2026-07-15-1916-flight-mutation-role-isolation]]"
+  - "[[2026-07-16-1250-reviewed-migration-isolation]]"
 ---
 
 # Drone.Works — North Star
@@ -31,12 +31,12 @@ Drone.Works is an explainable operational record for small professional drone te
 
 ## Now
 
-- **Phase:** Phase 0; P0-05 organization isolation is active, with relational RLS, derived downloads, real-queue retry, and versioned read/download/mutation role boundaries proven.
-- **Branch:** source commit `2c089b0` is local on `main`, which is twelve commits ahead of `origin/main` before this vault-only closeout commit; nothing was pushed in this working block.
-- **Completed evidence:** fourteen forced-RLS customer tables now cover flight-assignment overrides, API idempotency state, and payload-redacted audit events in addition to the prior ownership, download, and queue rows. Real `/api/v1/` requests prove complete manual creation, owner/admin reassignment and delete/restore, pilot-own note editing, viewer denial, cross-organization exact-ID hiding, a strict restore window, and imported-assignment versus user-override separation. The prior pooled RLS, signer, revocation, queue-retry, and read/download role evidence remains passing.
-- **Verification baseline:** 18 native PostgreSQL/API integration tests and 78 existing host tests pass with zero skips/failures. JavaScript syntax, Git whitespace, forced-RLS ownership across fourteen tables, pooled context including assignment overrides, RFC 9457 denial shape, audit redaction, loopback provider behavior, and real macOS parser network denial pass. Hosted run `29403024703` remains the latest Linux release-evidence baseline. No Docker, persistent PostgreSQL service, real object provider, or customer data was used.
-- **Blocking evidence:** D-002 remains proposed because API administration/settings and remaining resource types, real provider-side URL/object/deletion behavior, observable privileged access, and permanent deletion paths are not yet executable. D-011 remains proposed pending worker termination, cancellation, queue-age, and idempotent worker-mutation evidence. Broader fixture coverage remains permission-gated; production D-012 gates remain separate.
-- **Next technical action:** continue P0-05 with the smallest privileged migration/maintenance proof: define narrow observable access and prove reviewed migration tooling preserves ownership, grants, policies, and `FORCE ROW LEVEL SECURITY` while ordinary processes cannot assume that authority.
+- **Phase:** Phase 0; P0-05 organization isolation is active, with relational RLS, derived downloads, real-queue retry, versioned flight API boundaries, and reviewed migration isolation proven.
+- **Branch:** source commit `f3c7eba` is local on `main`, which is fourteen commits ahead of `origin/main` before this vault-only closeout commit; nothing was pushed in this working block.
+- **Completed evidence:** a non-inheriting migration login may explicitly assume only the no-login customer-schema owner for checksum-pinned reviewed SQL. A separate no-login audit owner protects the operational ledger; app and queue roles cannot assume migration authority or access that ledger. The reviewed index migration is serialized, replay-safe, conflict-detecting, session-attributed, and leaves the deterministic ownership/grants/policies/RLS contract unchanged. The prior fourteen-table RLS, pooled context, signer, queue, and API role evidence remains passing.
+- **Verification baseline:** 19 native PostgreSQL integration tests and 78 existing host tests pass with zero skips/failures. JavaScript syntax, pinned migration checksum, Git whitespace, explicit privilege denials, independent ledger ownership, unchanged isolation-contract digest, loopback provider behavior, and real macOS parser network denial pass. Hosted run `29403024703` remains the latest Linux release-evidence baseline. No Docker, persistent PostgreSQL service, real object provider, or customer data was used.
+- **Blocking evidence:** D-002 remains proposed because API administration/settings and remaining resource types, real provider-side URL/object/deletion behavior, and permanent deletion paths are not yet executable. Production credential delivery, externally retained database audit logs, and emergency operations remain P0-07 concerns. D-011 remains proposed pending worker termination, cancellation, queue-age, and idempotent worker-mutation evidence. Broader fixture coverage remains permission-gated; production D-012 gates remain separate.
+- **Next technical action:** continue P0-05 with the smallest organization-administration API role slice: owner/admin member and settings operations, owner-only ownership transfer/deletion request boundaries, viewer/pilot denial, and uniform cross-organization IDOR behavior.
 - **Next external decision:** decide whether the remaining fixtures may use DJI processing; production terms, notice/consent, managed-secret, retention, and deletion gates remain separate under D-012.
 - **Parallel follow-up:** use the versioned telemetry shape and representative sample count to begin P0-06 benchmarks after the P0-05 harness boundary is clear.
 - **Privacy:** raw fixtures remain ignored and local. No raw values, coordinates, identifiers, keychain feature points, credentials, or generated parser artifacts belong in this vault.
@@ -49,7 +49,7 @@ Drone.Works is an explainable operational record for small professional drone te
 | P0-02 fixture policy and inventory | Local research gate satisfied | Policy, manifest, three private v14 logs, and one controlled truncation exist. |
 | P0-03 parser/key feasibility | Core proof complete; external gates remain | Native containment, truncation, private intermediate, representative measurements, hosted reproducibility, strict audit, evidence upload, and attestations pass; broader fixtures and production D-012 gates remain open. |
 | P0-04 canonical model | Core proof complete | Generic schema/validator, ownership/lifecycle, canonical-v1 adapter, provenance, asset evidence, capabilities, override survival, exact-normalized fingerprint, totals, deletion/restoration, and zero-flight transitions pass. |
-| P0-05 organization isolation | Active; relational, signer, queue, and core flight API boundaries proven | Native Postgres forced RLS, composite ownership, pooled context, derived keys, bounded downloads, membership revocation, strict durable payloads, retry isolation, role-scoped `/api/v1/` reads/downloads/mutations, idempotency, audit redaction, reversible deletion, override separation, and uniform IDOR denial pass; administration/settings, real provider, privileged access, remaining resources, and permanent deletion remain open. |
+| P0-05 organization isolation | Active; relational, signer, queue, core flight API, and reviewed migration boundaries proven | Native Postgres forced RLS, composite ownership, pooled context, derived keys, bounded downloads, retry isolation, role-scoped `/api/v1/` flight behavior, idempotency, audit redaction, reversible deletion, override separation, explicit migration elevation, independently owned migration audit, and isolation-contract preservation pass; administration/settings, real provider, remaining resources, and permanent deletion remain open. |
 | P0-06 telemetry benchmark | Ready | Versioned telemetry shape and representative 27,228-sample evidence are ready for storage/downsampling benchmarks. |
 | P0-07 runtime/deployment selection | Proposed | TypeScript/Next/Fastify/worker/Postgres shortlist needs remaining proofs. |
 | P0-08 threat model | Not started | Parser/key boundaries provide initial inputs. |

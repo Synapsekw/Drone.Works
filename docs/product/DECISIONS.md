@@ -352,7 +352,8 @@ surface.
 
 Use self-hosted Better Auth with PostgreSQL for identity, credentials, account
 linking, email verification, and web sessions. Pin and review the exact package,
-lockfile, and generated migrations during Phase 1A bootstrap.
+lockfile, and generated migrations in A13b after the functional local gate and
+before any hosted deployment.
 
 Drone.Works owns organizations, invitations, memberships, ownership transfer,
 and owner/admin/pilot/viewer roles. The API identity adapter accepts only a
@@ -453,6 +454,68 @@ are in [`../architecture/SYSTEM.md`](../architecture/SYSTEM.md), controls in
 [`../architecture/SECURITY-BOUNDARIES.md`](../architecture/SECURITY-BOUNDARIES.md),
 and environments, restore/rollback, retention, and monthly alert thresholds in
 [`../operations/`](../operations/).
+
+## D-015 — Functional local development before authentication
+
+Status: accepted
+Date: 2026-07-16
+
+### Context
+
+The application can deliver faster product feedback if upload, processing,
+flight, and web behavior are assembled locally before integrating a credential
+and session provider. Deferring all identity and authorization would create an
+unsafe late rewrite, while requiring Better Auth now would put login operations
+ahead of the functional workflow the first implementation needs to learn from.
+AWS is not required for either path because A02/A04 provide disposable native
+PostgreSQL and loopback services.
+
+### Decision
+
+Split identity from authorization in the Phase 1A sequence. A05 introduces the
+provider-neutral identity interface, app-owned organization membership and role
+checks, plus a generated development-persona adapter. The adapter is permitted
+only when the validated environment is `local` or `test`, an explicit local
+identity flag is enabled, and the selected persona is resolved from a
+server-owned generated scenario manifest. It never accepts arbitrary user,
+organization, membership, or role identifiers from the browser.
+
+All operations still resolve the route organization through current canonical
+membership, application authorization, organization-required repositories, and
+forced PostgreSQL RLS. The local adapter is therefore a convenient source of a
+generated user ID, not an authorization bypass and not proof of authentication.
+Hosted-mode startup and route-inventory tests must fail if the adapter or its
+development control is enabled or exposed.
+
+A06–A13a build and prove the functional application locally with this adapter.
+A13b then pins and integrates Better Auth, adds verified identity/session and
+invitation lifecycles, confirms the development control remains excluded from
+hosted builds, and repeats the functional end-to-end and Alpha/Beta suites. A13b
+must pass before
+A14 may provision or deploy AWS staging. PostgreSQL remains part of local
+development; only managed RDS is deferred to A14.
+
+### Consequences
+
+- A functional local-app gate is available before login, email, cookies, or AWS.
+- Authorization behavior is built once behind a provider-neutral identity seam
+  and exercised with both generated and real session identities.
+- Passing A13a cannot be described as authenticated, staging-ready, releasable,
+  or safe for customer data.
+- Better Auth integration remains mandatory before any hosted environment, and
+  D-013 remains the final identity/session selection.
+- CI must prove the local adapter is unavailable under staging and production
+  configuration; failure keeps deployment disabled.
+- Delaying the provider creates integration risk, so A13b repeats the complete
+  functional path rather than relying only on isolated auth tests.
+
+### Reconsideration triggers
+
+- The local adapter cannot be excluded from hosted startup and route inventory
+  with objective tests.
+- Better Auth integration would require changing domain authorization rather
+  than replacing only the identity source.
+- The A13a functional path cannot be repeated unchanged under real sessions.
 
 ## Open decisions
 

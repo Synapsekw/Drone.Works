@@ -16,6 +16,9 @@ a 2D track.
   creates. Every job is organization-scoped and idempotent.
 - Hosted customer data, real DJI retrieval, email, and maps remain disabled until
   their task-specific security gates pass.
+- The development identity is a local/test harness, not authentication. It may
+  exercise app-owned authorization but can never satisfy a hosted or release
+  identity gate.
 - A task is done only when its acceptance and verification evidence are linked
   from the change. Product-visible contract changes require explicit product
   document review.
@@ -27,7 +30,7 @@ A01 repository
   -> A02 local runtime
   -> A03 API contracts
   -> A04 PostgreSQL/RLS
-  -> A05 auth + organization
+  -> A05 local identity seam + organization authorization
   -> A06 immutable upload
   -> A07 outbox + jobs
   -> A08 parser supervisor
@@ -35,18 +38,22 @@ A01 repository
   -> A10 normalize + persist
   -> A11 flight summary/replay API
   -> A12 web vertical path
-  -> A13 end-to-end failure/isolation
+  -> A13a functional local end-to-end
+  -> A13b verified auth + repeated end-to-end
   -> A14 staging deployment
   -> A15 hosted data/recovery gates
   -> A16 beta readiness
 ```
 
 After A01, parser packaging in A08 and IaC scaffolding in A14 may begin without
-credentials. After A03, the web shell portion of A12 may proceed against generated
-contracts. A05 and A08 may run in parallel after A04/A01 respectively. A09 is the
-only external decision on the walking-skeleton critical path: either D-012's
-encrypted-key enablement passes, or an authorized unencrypted supported variant
-must be obtained. No implementation may silently substitute an unsupported log.
+credentials. After A03, the web shell portion of A12 may proceed against
+generated contracts. A05 and A08 may run in parallel after A04/A01 respectively.
+A13a is the functional local-app gate. Better Auth is deliberately integrated in
+A13b after that gate and before any AWS deployment; the local identity can never
+pass A13b. A09 is the only external decision on the walking-skeleton functional
+path: either D-012's encrypted-key enablement passes, or an authorized
+unencrypted supported variant must be obtained. No implementation may silently
+substitute an unsupported log.
 
 ## Milestone 1 — Runnable local foundation
 
@@ -140,7 +147,7 @@ compile, and route-inventory check pass.
 **Operational impact:** Correlation IDs and safe error serialization become
 mandatory for later tasks.
 
-## Milestone 2 — Identity and organization isolation
+## Milestone 2 — Local identity seam and organization isolation
 
 ### A04 — Promote the PostgreSQL migration and RLS boundary
 
@@ -175,35 +182,42 @@ contract; no new user behavior.
 **Operational impact:** Defines migration/rollback ledger, database role delivery,
 and pool configuration. Production startup cannot migrate.
 
-### A05 — Integrate verified sessions and organization membership
+### A05 — Establish the local identity seam and organization authorization
 
-**Outcome:** A verified user can register/sign in, create an organization as its
-owner, enter a selected organization, and be revoked without provider claims
-becoming authorization.
+**Outcome:** A generated local persona can create or enter an organization and
+exercise the real app-owned membership and role boundary without installing an
+authentication provider.
 
-**Scope:** Exact Better Auth package/lock, reviewed auth schema migration, local
-email verification/recovery, secure session adapter, app-owned organization and
-invite records, owner membership/pilot-profile link, organization switch API,
-last-owner protection, revocation, rate limits, CSRF/origin/redirect controls,
-and audit metadata.
+**Scope:** Provider-neutral identity interface, explicit local/test-only persona
+adapter, server-side generated-persona allowlist, hosted-mode startup rejection,
+app-owned organization and membership records, owner membership/pilot-profile
+link, organization selection API, last-owner protection, current-membership role
+checks, Alpha/Beta personas, and payload-redacted audit metadata.
 
-**Non-goals:** SSO, custom roles, billing, production email provider, or using
-Better Auth organization/role claims.
+**Non-goals:** Better Auth, credentials, registration, login, cookies, email
+verification/recovery, invitations, SSO, production identity, or accepting a
+browser-supplied user, organization, or role as authority.
 
-**Acceptance:** Registration/verification/login/recovery/link/revoke/delete and
-invite lifecycle tests pass; provider active-org/owner claims cannot elevate;
-membership removal blocks access even with a live identity session.
+**Acceptance:** The adapter requires both a local/test environment and an
+explicit development flag; staging/production configuration fails at startup;
+only server-allowlisted generated persona names resolve to user IDs; every route
+still derives organization access from current canonical membership and forced
+RLS; removing membership blocks the next operation; Alpha/Beta exact-ID denials
+remain indistinguishable.
 
-**Dependencies:** A03–A04, D-013.
+**Dependencies:** A03–A04, D-002, D-013, D-015.
 
-**Verification:** `pnpm test:auth` plus API Alpha/Beta claim-mismatch, revoked
-session, last-owner, secure-cookie, CSRF/origin, redirect, and rate-limit tests.
+**Verification:** `pnpm test:authorization` covers the configuration matrix,
+unknown/arbitrary persona rejection, role matrix, membership removal, last-owner
+rules, organization switching, exact-ID denial, and one-connection pool reuse.
 
-**Contract impact:** Adds auth callbacks plus organization/session API schemas;
-update generated OpenAPI. No role behavior beyond the accepted contract.
+**Contract impact:** Adds organization and membership API schemas to generated
+contracts. The persona control is a D-015 local test-harness exception outside
+`/api/v1/`, excluded from public OpenAPI and hosted route inventories.
 
-**Operational impact:** Auth migrations, email capture, session cleanup, auth
-alerts, incident revocation, and backup/deletion ownership are exercised.
+**Operational impact:** Documents the local-only identity switch, generated seed,
+startup interlock, and the later A13b replacement point. It creates no auth schema
+or hosted credential.
 
 ## Milestone 3 — Durable upload and isolated processing
 
@@ -387,20 +401,24 @@ alarms.
 
 ### A12 — Build the minimal web vertical path
 
-**Outcome:** A user signs in, creates/enters an organization, uploads one file,
-watches its status, and opens a flight summary with a 2D MapLibre track.
+**Outcome:** A generated local persona creates/enters an organization, uploads
+one file, watches its status, and opens a flight summary with a 2D MapLibre
+track.
 
-**Scope:** Generated API client only, accessible auth/organization screens,
-single-file upload, processing status polling, actionable failure display,
-flight summary, capability-aware MapLibre track, loading/empty/error states, CSP,
-and provider-free/local basemap option.
+**Scope:** Generated API client only, a clearly marked development-persona
+control, accessible organization screens, single-file upload, processing status
+polling, actionable failure display, flight summary, capability-aware MapLibre
+track, loading/empty/error states, CSP, and provider-free/local basemap option.
 
 **Non-goals:** Batch upload UI, review/reconciliation, chart suite, fleet lists,
-manual entry, export, maintenance, billing, or private server-action writes.
+manual entry, export, maintenance, billing, login/registration/recovery/invite
+screens, or private server-action writes.
 
 **Acceptance:** The browser performs no domain mutation outside `/api/v1/`;
 organization switch clears prior data/cache; coordinates never enter tile/style
-requests; corrupt/unsupported/key failures are distinct and understandable.
+requests; corrupt/unsupported/key failures are distinct and understandable; the
+UI states that the generated persona is local development only and the persona
+control is absent from hosted builds.
 
 **Dependencies:** A03, A05–A07, A11. UI shell may begin after A03.
 
@@ -414,36 +432,82 @@ behavior only if error/status wording changes observable rules.
 **Operational impact:** Browser error correlation without payload, CSP reporting,
 and no distributed Next.js cache dependency.
 
-### A13 — Close local end-to-end failure and isolation acceptance
+### A13a — Close the functional local application
 
-**Outcome:** The complete local Phase 1A path passes success, corrupt-input,
-idempotency, deletion, and cross-organization acceptance from the browser/API to
-database/object/parser boundaries.
+**Outcome:** The complete functional application path passes locally under the
+generated identity: organization entry, upload, processing, summary, track,
+corrupt-input, idempotency, deletion, and cross-organization behavior work from
+the browser through database/object/parser boundaries.
 
 **Scope:** Generated Alpha/Beta scenario builders, chosen valid fixture by policy,
 controlled corrupt derivative, exact re-upload, organization removal, object
 purge, worker kill/retry, redaction canaries, clean-checkout script, and evidence
 report.
 
-**Non-goals:** Full Phase 1 acceptance suite, broad fixture matrix, production
-cloud, load testing beyond documented walking-skeleton thresholds, or usability
-study.
+**Non-goals:** Real authentication, any hosted deployment, full Phase 1 acceptance
+suite, broad fixture matrix, load testing beyond documented walking-skeleton
+thresholds, or usability study. Passing A13a does not authorize staging or a
+release.
 
-**Acceptance:** Phase 1A local exit gate passes; corrupt input fails independently;
-same bytes create one flight; Beta cannot infer Alpha; organization removal
-leaves zero active DB/object payload; logs contain no canary values.
+**Acceptance:** The functional local gate passes; corrupt input fails
+independently; same bytes create one flight; Beta cannot infer Alpha;
+organization removal leaves zero active DB/object payload; logs contain no
+canary values; hosted-mode startup rejects the development identity.
 
 **Dependencies:** A01–A12.
 
-**Verification:** `pnpm test:e2e:local` from a clean checkout plus database/object
-absence queries, worker recovery, privacy scan, and retained sanitized report.
+**Verification:** `pnpm test:e2e:functional` from a clean checkout plus
+database/object absence queries, worker recovery, privacy scan, hosted-mode
+identity rejection, and a retained sanitized report.
 
 **Contract impact:** Any discovered mismatch must update canonical docs explicitly;
 no silent test-only exception.
 
-**Operational impact:** Establishes the release smoke command and evidence format.
+**Operational impact:** Establishes the local functional smoke command and
+evidence format. The environment remains disposable, generated, and no-cloud.
 
-## Milestone 5 — Deployed non-production path
+## Milestone 5 — Verified identity before hosting
+
+### A13b — Replace the development identity with verified sessions
+
+**Outcome:** A verified user can register/sign in, create or enter an
+organization, run the same functional path, and be revoked without provider
+claims becoming authorization; the development identity remains unavailable in
+staged and hosted modes.
+
+**Scope:** Exact Better Auth package/lock, reviewed auth schema migration, local
+email verification/recovery, secure provider-neutral session adapter, app-owned
+invitations, verified-user organization creation/linking, invite acceptance,
+organization switching, session and membership revocation, account deletion,
+rate limits, CSRF/origin/redirect controls, auth audit metadata, and repetition of
+the A13a browser/API/database isolation path under real sessions.
+
+**Non-goals:** SSO, custom roles, billing, production email provider, using
+Better Auth organization/role claims, AWS, or weakening any local functional
+acceptance to accommodate the provider.
+
+**Acceptance:** Registration/verification/login/recovery/link/revoke/delete and
+invite lifecycle tests pass; provider active-org/owner claims cannot elevate;
+membership removal blocks access even with a live identity session; secure cookie
+and request controls pass; staged/hosted route inventory contains no development
+identity operation; the repeated A13a path remains green.
+
+**Dependencies:** A13a, D-013, D-015.
+
+**Verification:** `pnpm test:auth` plus `pnpm test:e2e:local`; Alpha/Beta
+claim-mismatch, revoked session, last-owner, secure-cookie, CSRF/origin, redirect,
+rate-limit, provider-migration, local-adapter absence, and full-path replay tests.
+
+**Contract impact:** Adds auth callbacks and session schemas, confirms the local
+persona control remains excluded from public and hosted route inventories, and
+updates generated OpenAPI. No role behavior changes from the accepted app-owned
+contract.
+
+**Operational impact:** Auth migrations, local email capture, session cleanup,
+auth alerts, incident revocation, backup/deletion ownership, and the hard
+development-identity exclusion gate are exercised before AWS.
+
+## Milestone 6 — Deployed non-production path
 
 ### A14 — Provision and deploy isolated AWS staging
 
@@ -464,7 +528,8 @@ or parser credential; exact digest promotion and previous-digest rollback pass;
 environment can be destroyed and recreated. Frankfurt fallback remains
 synthetic-only and cannot enable customer uploads.
 
-**Dependencies:** A01, A04, A08, A13, D-014; external AWS account/spend approval.
+**Dependencies:** A01, A04, A08, A13b, D-014; external AWS account/spend
+approval.
 
 **Verification:** IaC format/validate/plan/policy tests, staging smoke, image
 signature/SBOM check, role assumption denial matrix, rollback, destroy/recreate,
@@ -521,7 +586,7 @@ Phase 1C features, or waiving any external gate.
 decision exception; no UI/API claims unsupported variants or enabled providers;
 critical/high controls have owners/evidence; Phase 1B entry risks are current.
 
-**Dependencies:** A13–A15 and A09 supported-format gate.
+**Dependencies:** A13b–A15 and A09 supported-format gate.
 
 **Verification:** `pnpm verify`, `pnpm test:e2e:local`, staging smoke, security
 checklist audit, operational tabletop, sanitized exit report, and clean Git/status

@@ -103,8 +103,10 @@ record is generated and safe to delete.
   migration ledger, and generated Alpha/Beta organization records.
 
 The production database schema and row-level organization isolation are now
-present locally. Authentication and AWS resources deliberately begin in later
-tasks. No AWS help is needed for this foundation. When A14 reaches the cloud
-setup, the account-owner steps will be provided one at a time with their
-purpose, expected cost/security effect, a verification check, and a safe stop
-or rollback step.
+present locally. A05 adds a generated local-only identity for functional
+development; it is not a login and cannot run in hosted modes. Better Auth is
+deliberately deferred to A13b, after the functional local application passes,
+and AWS remains deferred to A14. No AWS help is needed for this foundation. When
+A14 reaches the cloud setup, the account-owner steps will be provided one at a
+time with their purpose, expected cost/security effect, a verification check,
+and a safe stop or rollback step.

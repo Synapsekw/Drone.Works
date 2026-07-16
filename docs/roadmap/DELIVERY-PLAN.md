@@ -2,7 +2,7 @@
 
 Status: accepted
 Owner: product and engineering
-Last updated: 2026-07-12
+Last updated: 2026-07-16
 
 ## Purpose
 
@@ -97,6 +97,12 @@ An authorized user creates or enters an organization, uploads one supported DJI 
 - Import status and actionable failure reason.
 - Flight summary API and minimal web page with a 2D track.
 - Structured logs, request correlation, and basic job observability.
+
+D-015 sequences this work through a generated local/test-only identity first.
+The functional local application must pass before Better Auth integration, but
+that intermediate gate is not an authenticated or releasable Phase 1A outcome.
+Verified web sessions and the repeated end-to-end path remain mandatory before
+any AWS staging deployment.
 
 ### Excluded
 

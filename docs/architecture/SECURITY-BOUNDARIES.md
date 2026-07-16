@@ -11,8 +11,8 @@ The abuse-case analysis and release gates are in
 
 | Boundary | Trusted input crossing it | Forbidden input or capability | Enforcement |
 |---|---|---|---|
-| Browser → web/API | validated request, session cookie, CSRF/origin context | client-selected role, object key, queue payload, database tenant context | Better Auth session lookup, schemas, rate limits, app-derived identifiers |
-| Identity → authorization | `sessionId`, `userId` only | provider active organization or role | D-013 identity adapter; canonical membership and RLS |
+| Browser → web/API | validated request plus a verified hosted session, or one server-resolved generated persona in local/test only | client-selected user/organization/role, object key, queue payload, database tenant context | D-015 environment/persona interlock or Better Auth session lookup, schemas, rate limits, app-derived identifiers |
+| Identity → authorization | generated local `userId`, or hosted `sessionId` and `userId` only | arbitrary browser user; provider active organization or role | D-015/D-013 identity adapters; canonical membership and RLS |
 | API/worker → PostgreSQL | transaction-local organization, bounded parameters | contextless customer query, owner/superuser/BYPASSRLS connection | non-owner roles, forced RLS, composite organization keys, organization-required repositories |
 | API/worker → S3 | derived key, exact version, checksum, bounded expiry | public ACL, client key, bucket listing, unsigned customer read | prefix-scoped IAM, Block Public Access, adapter, signed exact-version GET |
 | Queue → worker | version, organization ID, domain ID | telemetry, coordinates, source bytes, keychains, credentials | strict payload schema and RLS reload |
@@ -20,6 +20,21 @@ The abuse-case analysis and release gates are in
 | Key broker → DJI | separately authorized bounded provider request | parser network, broad credentials, redirects, logged request/response bodies | disabled-by-default allowlist adapter and D-012 gates |
 | Application → telemetry/log provider | outcome, timing, opaque correlation IDs, aggregate counts | coordinates, telemetry, serials, names, object keys, auth/session tokens | structured allowlist and redaction tests |
 | Operator → production | federated, time-bound approved session | shared keys, standing admin, direct customer export | separate account, least privilege, SSM, CloudTrail, audited break-glass procedure |
+
+## Development identity boundary
+
+The generated persona adapter exists only to assemble and test the functional
+application before Better Auth integration. It requires validated `local` or
+`test` mode, a separate explicit enable flag, and a server-owned generated
+scenario manifest. A development control may select only a named allowlisted
+persona; it never supplies a user ID, organization ID, membership, or role.
+
+Every request still reloads current app-owned membership and enters PostgreSQL
+through the ordinary forced-RLS transaction. Hosted configuration must reject
+the adapter at startup and hosted route inventories must not contain its control.
+A13a evidence is neither authentication nor release evidence. A13b replaces the
+identity source with verified Better Auth sessions and repeats the complete
+functional and Alpha/Beta paths before A14.
 
 ## Data classes and cryptography
 

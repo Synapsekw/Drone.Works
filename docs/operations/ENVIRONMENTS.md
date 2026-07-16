@@ -7,8 +7,8 @@ Last updated: 2026-07-16
 
 | Environment | Data | Dependencies | Credentials | Lifetime |
 |---|---|---|---|---|
-| Local | generated data and authorized ignored fixtures only | native Node/pnpm, native PostgreSQL, loopback/filesystem S3 adapter, local email capture | local random values; no production credential | developer controlled |
-| CI | generated repository-safe fixtures | native PostgreSQL service, loopback object/email services, OCI builder for Linux parser proof | short-lived CI identity; no customer account | per workflow |
+| Local | generated data and authorized ignored fixtures only | native Node/pnpm, native PostgreSQL, loopback/filesystem S3 adapter, local email capture | explicit local-only generated persona before A13b; local random values; no production credential | developer controlled |
+| CI | generated repository-safe fixtures | native PostgreSQL service, loopback object/email services, OCI builder for Linux parser proof | generated test identity or short-lived CI identity; no customer account | per workflow |
 | Staging | generated synthetic organizations only by default | complete AWS shape in an approved, operational region in the non-production account | environment-scoped IAM roles and secrets | ephemeral or scheduled off |
 | Production | authorized customer data | production account, EC2, RDS, S3, ECR, KMS, Secrets Manager, CloudWatch | workload roles and federated operators | continuous |
 
@@ -44,6 +44,12 @@ Production and non-production have distinct AWS accounts, KMS keys, buckets,
 databases, signing domains, OAuth clients, email identities, and alert channels.
 There is no shared database, bucket, or wildcard secret. Preview deployments are
 UI-only or use ephemeral generated data; they never connect to production.
+
+The D-015 development identity requires validated `local` or `test` mode, an
+independent explicit enable flag, and a server-owned generated persona manifest.
+Staging and production configuration reject it at startup, and their route
+inventories contain no persona control. A13b installs Better Auth and repeats the
+functional path before A14 may deploy staging.
 
 ## Build and promotion
 

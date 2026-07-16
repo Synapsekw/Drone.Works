@@ -45,6 +45,21 @@ memory.
 | Maps | MapLibre GL JS; provider selected later | The renderer is decoupled from private track data and the tile provider. |
 | Hosting | AWS region selected through the D-014 readiness gate | UAE `me-central-1` is the preferred customer-data target; Frankfurt `eu-central-1` is permitted for synthetic-only staging while UAE is not operationally suitable. Region remains an infrastructure input. |
 
+## Local-first identity sequence
+
+A05–A13a run the functional application through the same provider-neutral
+identity interface that Better Auth will use, but the identity source is a
+generated local/test-only persona. The server resolves an allowlisted persona to
+one generated user ID; the browser cannot submit arbitrary user, organization,
+membership, or role identifiers. Canonical membership, application role checks,
+organization-required repositories, and forced RLS remain unchanged.
+
+A13b replaces that identity source with verified Better Auth sessions and reruns
+the complete functional and Alpha/Beta paths. Staging and production startup
+reject the development adapter, and A14 cannot begin until A13b passes. Local
+PostgreSQL remains the primary development database throughout; only managed RDS
+is deferred.
+
 ## Initial AWS topology
 
 - The target region is an explicit IaC input. Required regional services and
@@ -96,9 +111,10 @@ and [S3 version-deletion behavior](https://docs.aws.amazon.com/AmazonS3/latest/u
 
 ## Phase 1A vertical flow
 
-1. Better Auth establishes a verified user session. The API receives only the
-   user ID; route organization, canonical membership, role checks, and RLS
-   authorize every operation.
+1. In A05–A13a, the local/test adapter supplies one server-resolved generated
+   user ID. From A13b onward, Better Auth establishes a verified session and the
+   API receives only its user/session IDs. In both cases route organization,
+   canonical membership, role checks, and RLS authorize every operation.
 2. An upload declaration creates an organization-owned import item and a
    derived S3 key. The client or API performs a checksum-bound conditional put;
    completion is accepted only after `HEAD` confirms the version and digest.

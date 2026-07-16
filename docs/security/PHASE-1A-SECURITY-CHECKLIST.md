@@ -19,6 +19,7 @@ An unchecked blocking item keeps the stated boundary disabled.
 
 ## Before staging promotion
 
+- [ ] Staging/production startup rejects the development identity adapter and hosted route inventories contain no persona control.
 - [ ] Alpha/Beta negative suite passes with the ordinary non-owner pooled database role.
 - [ ] Migration checksums, independent ledger, grants, owners, RLS, and isolation digest pass.
 - [ ] Outbox atomicity, stable dispatch, retry, cancellation, stale lease, and queue metrics pass.
@@ -60,4 +61,3 @@ An unchecked blocking item keeps the stated boundary disabled.
 - [ ] Incident contacts, severity rules, credential compromise, cross-tenant, deletion, and parser escape runbooks are exercised.
 - [ ] Critical/high threat controls in `THREAT-MODEL.md` have named owners and linked evidence.
 - [ ] External blockers and disabled features match the product/decision documents; no UI implies unsupported capability.
-

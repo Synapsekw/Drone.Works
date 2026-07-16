@@ -16,10 +16,24 @@ and role claims. The organization in the versioned API route, a current
 Drone.Works membership, repository authorization, and PostgreSQL RLS jointly
 decide access.
 
-Better Auth must be pinned exactly during repository bootstrap. The evaluated
-npm release was `better-auth@1.6.23` (MIT; registry integrity
+Better Auth must be pinned exactly during A13b, after the functional local gate
+and before hosted staging. The evaluated npm release was `better-auth@1.6.23`
+(MIT; registry integrity
 `sha512-4vOaRd9UiKGKm9R+ej0jjU1es3MiJIiNc9Qq3VCnYqOZ4/nb5272QqTxWYoDxyUXl5x6A2x2we5KZKQO9teTQQ==`).
 That is evaluation evidence, not permission to upgrade automatically.
+
+## Implementation sequence
+
+D-015 changes timing, not the selected provider or security contract. A05 first
+creates the provider-neutral identity interface and app-owned authorization
+using a generated local/test-only persona. A06–A13a build the functional local
+application against that seam. A13b installs Better Auth, reviews its real
+migration and lifecycle, removes the development identity from hosted route
+inventories, and repeats the complete end-to-end isolation path before A14.
+
+The development persona is not a login or session substitute. It cannot run in
+staging or production, cannot supply arbitrary user/organization/role claims,
+and cannot satisfy any authentication or release gate below.
 
 ## Comparison
 
@@ -94,4 +108,3 @@ Selection does not waive implementation verification. Before production use:
 4. document auth schema backup/restore and deletion behavior; and
 5. retain the provider-neutral negative tests so replacing Better Auth cannot
    weaken organization isolation.
-

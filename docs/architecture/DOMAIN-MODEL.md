@@ -1,6 +1,6 @@
 # Canonical domain model and provenance proof
 
-Status: draft Phase 0 proof
+Status: accepted Phase 0 proof
 Last updated: 2026-07-15
 
 ## Purpose

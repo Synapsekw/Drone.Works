@@ -1,7 +1,7 @@
 # DJI keychain trust boundary
 
-Status: proposed; controlled live broker, decode, and offline recovery path proven
-Last updated: 2026-07-14
+Status: accepted boundary; production provider disabled pending enablement gates
+Last updated: 2026-07-16
 
 ## Decision summary
 
@@ -180,9 +180,9 @@ Twelve provider scenarios prove exact endpoint allowlisting, HTTPS enforcement, 
 
 The real first fixture produced one bounded request containing one group and nine allowlisted feature points. DJI returned one validated group with nine feature points; the broker serialized only counts and sizes. A 128 MB V8 old-space run failed cleanly as `parser_memory_limit`; at 256 MB, the valid fixture decoded 27,228 frames with monotonic time, bounded coordinates and battery values, and the expected location, battery, signal, and attitude capabilities. Observed child RSS was approximately 411–413 MB, showing that V8 old-space and total process memory require separate limits.
 
-One subsequent provider call drove three offline decodes with the same ephemeral keychain in fresh children: valid, controlled truncation, then valid again. The derivative failed independently and the later valid source reproduced 27,228 frames, proving recovery. The derivative currently reports generic `decode_failed`, so production-quality `truncated_records` classification remains open. No derivative request or metadata was sent to DJI.
+One subsequent provider call drove three offline decodes with the same ephemeral keychain in fresh children: valid, controlled truncation, then valid again. The derivative failed independently and the later valid source reproduced 27,228 frames, proving recovery. The hardened native artifact now reports `truncated_records` from structural and declared-duration evidence. No derivative request or metadata was sent to DJI.
 
-## Acceptance gates before a real request
+## Production enablement gates
 
 - [x] Repository owner confirms authority to accept the DJI API agreement for Drone.Works.
 - [ ] A Drone.Works Open API application/key exists in an accepted secret store. A temporary ignored development key exists but is not a production secret-store decision.

@@ -273,14 +273,14 @@ Use D-008 versioned per-flight columnar telemetry and the D-009 native Rust pars
 
 ## D-012 — DJI keychain trust boundary
 
-Status: proposed
+Status: accepted
 Date: 2026-07-12
 
 ### Context
 
 Version 13+ DJI logs require a keychain obtained through a DJI API. Giving the untrusted parser an API credential or network access would violate parser isolation, while placing plaintext keychains in durable jobs or logs would create a sensitive secret-distribution problem.
 
-### Proposed decision
+### Decision
 
 Use a trusted keychain broker outside the parser process. The broker separately enforces authorization to use a keychain for decoding and authorization to transmit a request to DJI. It checks a source-scoped encrypted cache first, validates bounded requests and responses, and passes plaintext keychains to a fresh no-network parser child only through ephemeral private IPC.
 
@@ -298,12 +298,18 @@ Phase 0 permits one narrow research exception to the disabled application provid
 - Jobs carry source references and authorization state, not keychain payloads.
 - Real DJI access remains disabled until the acceptance gates in `../architecture/KEYCHAIN-BOUNDARY.md` pass.
 
-### Acceptance evidence required
+### Production enablement evidence required
 
 - Private parser request/keychain IPC is bounded, sanitized, and crash-cleaned.
 - The provider adapter is tested against a mock server for redirects, timeouts, response limits, errors, and redaction.
 - Current DJI terms, product notices/consent, and authority to use the API are approved.
-- Cache schema, RLS, KMS rotation, backup, and deletion behavior pass their Phase 0 proofs.
+- Cache schema, RLS, KMS rotation, backup, and deletion behavior pass their Phase 1A hosted tests.
+
+The architecture decision is accepted because the broker, private IPC, mock
+provider, controlled one-shot request, offline recovery, parser isolation, and
+redaction evidence pass. Acceptance does not enable the production provider.
+`DisabledKeychainProvider` remains mandatory until every applicable enablement
+gate passes; A09 owns the stop/go decision for the walking skeleton.
 
 ## D-013 — Self-hosted authentication with an app-owned authorization boundary
 

@@ -17,6 +17,9 @@ Read these documents in order:
 
 - [`roadmap/DELIVERY-PLAN.md`](roadmap/DELIVERY-PLAN.md) defines the evidence-gated path from discovery through the private pilot beta.
 - [`roadmap/PHASE-0-DISCOVERY.md`](roadmap/PHASE-0-DISCOVERY.md) defines the immediate technical discovery work, decision gates, deliverables, and stop conditions.
+- [`roadmap/PHASE-0-EXIT-REVIEW.md`](roadmap/PHASE-0-EXIT-REVIEW.md) records Phase 0 completion evidence and the safe external gates carried into Phase 1A.
+- [`roadmap/PHASE-1A-BACKLOG.md`](roadmap/PHASE-1A-BACKLOG.md) is the ordered implementation-ready walking-skeleton issue set.
+- [`roadmap/RISK-REGISTER.md`](roadmap/RISK-REGISTER.md) tracks delivery triggers, owners, mitigations, and fallbacks.
 - [`architecture/README.md`](architecture/README.md) indexes architecture evidence and designs as they are produced.
 - [`operations/README.md`](operations/README.md) indexes environments, deployment, recovery, and cost policy.
 - [`security/README.md`](security/README.md) indexes the threat model, privacy flow, and Phase 1A security gate.

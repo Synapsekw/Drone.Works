@@ -1,8 +1,8 @@
 # Phase 0 — Technical discovery plan
 
-Status: proposed
+Status: complete with safe external enablement gates
 Target timebox: 10–15 focused working days for one primary builder with AI assistance
-Last updated: 2026-07-12
+Last updated: 2026-07-16
 
 ## Objective
 
@@ -391,18 +391,20 @@ The total is a focus estimate, not a promise. Fixture acquisition, encrypted-log
 
 ## Phase 0 completion checklist
 
-- [ ] Fixture policy and initial manifest exist.
-- [ ] One Phase 1A DJI variant is supported by evidence.
-- [ ] Corrupt/unsupported failure isolation is demonstrated.
-- [ ] Encrypted-log strategy is accepted, explicitly excluded, or remains a named blocker.
-- [ ] Canonical model and provenance rules are demonstrated with parser output.
-- [ ] Organization-isolation negative tests pass.
-- [ ] Telemetry benchmark and cost estimate are reproducible.
-- [ ] Stack, authentication, jobs, object storage, and deployment decisions are accepted.
-- [ ] Threat model and Phase 1A security checklist exist.
-- [ ] Decision log reflects conclusions and rejected alternatives.
-- [ ] Phase 1A issue set is ordered and implementation-ready.
-- [ ] Product-contract changes discovered during research are reviewed explicitly.
+- [x] Fixture policy and initial manifest exist.
+- [x] One Phase 1A DJI variant is supported by narrow technical evidence; production enablement remains A09-gated.
+- [x] Corrupt/unsupported failure isolation is demonstrated.
+- [x] Encrypted-log strategy is accepted under D-012 with the production provider disabled pending named external gates.
+- [x] Canonical model and provenance rules are demonstrated with parser output.
+- [x] Organization-isolation negative tests pass.
+- [x] Telemetry benchmark and cost estimate are reproducible.
+- [x] Stack, authentication, jobs, object storage, and deployment decisions are accepted.
+- [x] Threat model and Phase 1A security checklist exist.
+- [x] Decision log reflects conclusions and rejected alternatives.
+- [x] Phase 1A issue set is ordered and implementation-ready.
+- [x] Product-contract changes discovered during research were reviewed; no Phase 1 behavior expansion was accepted.
+
+See [`PHASE-0-EXIT-REVIEW.md`](PHASE-0-EXIT-REVIEW.md) for the evidence map and safe external gates.
 
 ## Stop conditions
 

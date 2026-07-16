@@ -1,6 +1,6 @@
 # Drone.Works delivery plan
 
-Status: proposed
+Status: accepted
 Owner: product and engineering
 Last updated: 2026-07-12
 
@@ -59,6 +59,11 @@ The team can begin the production walking skeleton without guessing about DJI fe
 
 Detailed work and exit criteria are defined in [`PHASE-0-DISCOVERY.md`](PHASE-0-DISCOVERY.md).
 
+The implementation-ready next increment is in
+[`PHASE-1A-BACKLOG.md`](PHASE-1A-BACKLOG.md), with the bounded
+[`PHASE-1B-OUTLINE.md`](PHASE-1B-OUTLINE.md) and active
+[`RISK-REGISTER.md`](RISK-REGISTER.md).
+
 ### Exit gate
 
 - Every Phase 0 blocking decision is accepted or explicitly deferred with a safe temporary boundary.
@@ -67,6 +72,11 @@ Detailed work and exit criteria are defined in [`PHASE-0-DISCOVERY.md`](PHASE-0-
 - The organization-isolation approach has an executable proof covering a cross-tenant negative case.
 - Telemetry benchmark evidence supports a provisional storage choice and cost estimate.
 - Phase 1A tasks are small enough to implement and verify independently.
+
+Exit review: passed on 2026-07-16 with safe external enablement gates documented
+in [`PHASE-0-EXIT-REVIEW.md`](PHASE-0-EXIT-REVIEW.md). Phase 1A may begin at A01;
+hosted customer data and production DJI retrieval remain disabled until their
+named tasks pass.
 
 ## Phase 1A — Walking skeleton
 

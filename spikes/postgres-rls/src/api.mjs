@@ -271,6 +271,115 @@ function ownershipTransferInput(body) {
   return input.new_owner_user_id;
 }
 
+function batteryInput(body) {
+  const input = requireObject(body);
+  const fields = ["display_name", "serial_number", "lifecycle"];
+  const errors = validateKeys(input, fields, []);
+  if (Object.keys(input).length === 0) {
+    errors.push({ field: "body", detail: "must include at least one battery field" });
+  }
+  if (Object.hasOwn(input, "display_name")
+      && (typeof input.display_name !== "string"
+        || input.display_name.trim().length === 0
+        || input.display_name.length > 200)) {
+    errors.push({
+      field: "display_name",
+      detail: "must be a non-empty string of at most 200 characters",
+    });
+  }
+  if (Object.hasOwn(input, "serial_number")
+      && input.serial_number !== null
+      && (typeof input.serial_number !== "string"
+        || input.serial_number.trim().length === 0
+        || input.serial_number.length > 200)) {
+    errors.push({
+      field: "serial_number",
+      detail: "must be null or a non-empty string of at most 200 characters",
+    });
+  }
+  if (Object.hasOwn(input, "lifecycle")
+      && !["active", "retired"].includes(input.lifecycle)) {
+    errors.push({ field: "lifecycle", detail: "must be active or retired" });
+  }
+  if (errors.length > 0) {
+    throw new ValidationError(errors);
+  }
+  const battery = {};
+  if (Object.hasOwn(input, "display_name")) {
+    battery.displayName = input.display_name.trim();
+  }
+  if (Object.hasOwn(input, "serial_number")) {
+    battery.serialNumber = input.serial_number === null
+      ? null
+      : input.serial_number.trim();
+  }
+  if (Object.hasOwn(input, "lifecycle")) {
+    battery.lifecycle = input.lifecycle;
+  }
+  return Object.freeze(battery);
+}
+
+function importBatchInput(body) {
+  const input = requireObject(body);
+  const errors = validateKeys(input, ["files"]);
+  if (!Array.isArray(input.files)
+      || input.files.length === 0
+      || input.files.length > 50) {
+    errors.push({ field: "files", detail: "must contain between 1 and 50 files" });
+  }
+  const files = [];
+  const clientFileIds = new Set();
+  if (Array.isArray(input.files)) {
+    input.files.forEach((file, index) => {
+      if (file === null || typeof file !== "object" || Array.isArray(file)) {
+        errors.push({ field: `files[${index}]`, detail: "must be an object" });
+        return;
+      }
+      for (const field of ["client_file_id", "original_filename"]) {
+        if (!Object.hasOwn(file, field)) {
+          errors.push({ field: `files[${index}].${field}`, detail: "is required" });
+        }
+      }
+      for (const field of Object.keys(file)) {
+        if (!["client_file_id", "original_filename"].includes(field)) {
+          errors.push({ field: `files[${index}].${field}`, detail: "is not allowed" });
+        }
+      }
+      if (!validIdentifier(file.client_file_id)) {
+        errors.push({
+          field: `files[${index}].client_file_id`,
+          detail: "must be a non-empty opaque identifier",
+        });
+      } else if (clientFileIds.has(file.client_file_id)) {
+        errors.push({
+          field: `files[${index}].client_file_id`,
+          detail: "must be unique within the batch",
+        });
+      } else {
+        clientFileIds.add(file.client_file_id);
+      }
+      if (typeof file.original_filename !== "string"
+          || file.original_filename.trim().length === 0
+          || file.original_filename.length > 255) {
+        errors.push({
+          field: `files[${index}].original_filename`,
+          detail: "must be a non-empty string of at most 255 characters",
+        });
+      }
+      files.push({
+        clientFileId: file.client_file_id,
+        originalFilename: typeof file.original_filename === "string"
+          ? file.original_filename.trim()
+          : file.original_filename,
+      });
+    });
+  }
+  if (errors.length > 0) {
+    throw new ValidationError(errors);
+  }
+  return Object.freeze(files.map((file) => Object.freeze(file)));
+}
+
 function requestHash(input) {
   return createHash("sha256").update(JSON.stringify({
     pilot_profile_id: input.pilotProfileId,
@@ -281,6 +390,13 @@ function requestHash(input) {
     location_text: input.locationText,
     notes: input.notes,
   })).digest("hex");
+}
+
+function importBatchRequestHash(files) {
+  return createHash("sha256").update(JSON.stringify(files.map((file) => ({
+    client_file_id: file.clientFileId,
+    original_filename: file.originalFilename,
+  })))).digest("hex");
 }
 
 function decodeIdentifier(value) {
@@ -393,7 +509,7 @@ export function createApiServer({
             userId: identity.userId,
             idempotencyKey,
             requestHash: requestHash(input),
-            createFlightId: createId,
+            createFlightId: () => createId("flight-manual"),
             ...input,
             now: now(),
           }),
@@ -516,6 +632,218 @@ export function createApiServer({
           return;
         }
         sendJson(response, 200, { data: flight });
+        return;
+      }
+
+      const tagsRoute = request.method === "GET"
+        ? matchRoute(
+          url.pathname,
+          /^\/api\/v1\/organizations\/([^/]+)\/tags$/,
+        )
+        : null;
+      if (tagsRoute !== null) {
+        const [organizationId] = tagsRoute;
+        const tags = await withOrganization(
+          pool,
+          organizationId,
+          (repositories) => repositories.listTagsForMember(identity.userId),
+        );
+        if (tags === null) {
+          sendProblem(response, HIDDEN_RESOURCE_PROBLEM);
+          return;
+        }
+        sendJson(response, 200, { data: tags });
+        return;
+      }
+
+      const flightTagRoute = ["PUT", "DELETE"].includes(request.method)
+        ? matchRoute(
+          url.pathname,
+          /^\/api\/v1\/organizations\/([^/]+)\/flights\/([^/]+)\/tags\/([^/]+)$/,
+        )
+        : null;
+      if (flightTagRoute !== null) {
+        const [organizationId, flightId, tagId] = flightTagRoute;
+        const link = await withOrganization(
+          pool,
+          organizationId,
+          (repositories) => (request.method === "PUT"
+            ? repositories.putFlightTagForMember({
+              userId: identity.userId,
+              flightId,
+              tagId,
+              now: now(),
+            })
+            : repositories.deleteFlightTagForMember({
+              userId: identity.userId,
+              flightId,
+              tagId,
+              now: now(),
+            })),
+        );
+        if (link === null) {
+          sendProblem(response, HIDDEN_RESOURCE_PROBLEM);
+          return;
+        }
+        if (request.method === "DELETE") {
+          sendEmpty(response, 204);
+        } else {
+          sendJson(response, 200, { data: link });
+        }
+        return;
+      }
+
+      const batteriesRoute = request.method === "GET"
+        ? matchRoute(
+          url.pathname,
+          /^\/api\/v1\/organizations\/([^/]+)\/batteries$/,
+        )
+        : null;
+      if (batteriesRoute !== null) {
+        const [organizationId] = batteriesRoute;
+        const batteries = await withOrganization(
+          pool,
+          organizationId,
+          (repositories) => repositories.listBatteriesForMember(identity.userId),
+        );
+        if (batteries === null) {
+          sendProblem(response, HIDDEN_RESOURCE_PROBLEM);
+          return;
+        }
+        sendJson(response, 200, { data: batteries });
+        return;
+      }
+
+      const batteryRoute = request.method === "PATCH"
+        ? matchRoute(
+          url.pathname,
+          /^\/api\/v1\/organizations\/([^/]+)\/batteries\/([^/]+)$/,
+        )
+        : null;
+      if (batteryRoute !== null) {
+        const [organizationId, batteryId] = batteryRoute;
+        const input = batteryInput(await readJsonBody(request));
+        const battery = await withOrganization(
+          pool,
+          organizationId,
+          (repositories) => repositories.updateBatteryForManager({
+            userId: identity.userId,
+            batteryId,
+            battery: input,
+            now: now(),
+          }),
+        );
+        if (battery === null) {
+          sendProblem(response, HIDDEN_RESOURCE_PROBLEM);
+          return;
+        }
+        sendJson(response, 200, { data: battery });
+        return;
+      }
+
+      const flightBatteryRoute = ["PUT", "DELETE"].includes(request.method)
+        ? matchRoute(
+          url.pathname,
+          /^\/api\/v1\/organizations\/([^/]+)\/flights\/([^/]+)\/batteries\/([^/]+)$/,
+        )
+        : null;
+      if (flightBatteryRoute !== null) {
+        const [organizationId, flightId, batteryId] = flightBatteryRoute;
+        const link = await withOrganization(
+          pool,
+          organizationId,
+          (repositories) => (request.method === "PUT"
+            ? repositories.putFlightBatteryForManager({
+              userId: identity.userId,
+              flightId,
+              batteryId,
+              now: now(),
+            })
+            : repositories.deleteFlightBatteryForManager({
+              userId: identity.userId,
+              flightId,
+              batteryId,
+              now: now(),
+            })),
+        );
+        if (link === null) {
+          sendProblem(response, HIDDEN_RESOURCE_PROBLEM);
+          return;
+        }
+        if (request.method === "DELETE") {
+          sendEmpty(response, 204);
+        } else {
+          sendJson(response, 200, { data: link });
+        }
+        return;
+      }
+
+      const createImportBatchRoute = request.method === "POST"
+        ? matchRoute(
+          url.pathname,
+          /^\/api\/v1\/organizations\/([^/]+)\/import-batches$/,
+        )
+        : null;
+      if (createImportBatchRoute !== null) {
+        const [organizationId] = createImportBatchRoute;
+        const idempotencyKey = request.headers["idempotency-key"];
+        if (!validIdentifier(idempotencyKey)) {
+          throw new ValidationError([{
+            field: "Idempotency-Key",
+            detail: "must be a non-empty opaque identifier",
+          }]);
+        }
+        const files = importBatchInput(await readJsonBody(request));
+        const result = await withOrganization(
+          pool,
+          organizationId,
+          (repositories) => repositories.createImportBatchForMember({
+            userId: identity.userId,
+            idempotencyKey,
+            requestHash: importBatchRequestHash(files),
+            files,
+            createId,
+            now: now(),
+          }),
+        );
+        if (result === null) {
+          sendProblem(response, HIDDEN_RESOURCE_PROBLEM);
+          return;
+        }
+        if (result.kind === "conflict") {
+          sendProblem(response, {
+            type: "about:blank",
+            title: "Conflict",
+            status: 409,
+            detail: "The idempotency key was already used with different input",
+          });
+          return;
+        }
+        sendJson(response, 201, { data: result.batch });
+        return;
+      }
+
+      const importBatchRoute = request.method === "GET"
+        ? matchRoute(
+          url.pathname,
+          /^\/api\/v1\/organizations\/([^/]+)\/import-batches\/([^/]+)$/,
+        )
+        : null;
+      if (importBatchRoute !== null) {
+        const [organizationId, batchId] = importBatchRoute;
+        const batch = await withOrganization(
+          pool,
+          organizationId,
+          (repositories) => repositories.findImportBatchForMember({
+            userId: identity.userId,
+            batchId,
+          }),
+        );
+        if (batch === null) {
+          sendProblem(response, HIDDEN_RESOURCE_PROBLEM);
+          return;
+        }
+        sendJson(response, 200, { data: batch });
         return;
       }
 

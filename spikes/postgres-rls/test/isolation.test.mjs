@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { after, before, test } from "node:test";
 import pg from "pg";
 import { PgBoss } from "pg-boss";
-import { createApiServer } from "../src/api.mjs";
+import { API_PREFIX, createApiServer } from "../src/api.mjs";
 import {
   DownloadAuthorizationError,
   MAX_DOWNLOAD_TTL_MS,
@@ -102,12 +102,16 @@ const hiddenResourceProblem = Object.freeze({
   status: 404,
   detail: "Resource is not available",
 });
-let createdFlightSequence = 0;
+const createdResourceSequences = new Map();
 const apiServer = createApiServer({
   pool: applicationPool,
   signer: apiSigner,
   now: () => new Date(fixedNow),
-  createId: () => `flight-manual-${++createdFlightSequence}`,
+  createId(kind) {
+    const sequence = (createdResourceSequences.get(kind) ?? 0) + 1;
+    createdResourceSequences.set(kind, sequence);
+    return `${kind}-${sequence}`;
+  },
   authenticate(request) {
     const authorization = request.headers.authorization;
     const session = typeof authorization === "string"
@@ -134,6 +138,21 @@ async function apiRequest(path, session, options = {}) {
     contentType: response.headers.get("content-type"),
     body: responseText.length === 0 ? null : JSON.parse(responseText),
   };
+}
+
+async function assertOrganizationSqlRejects(organizationId, sql, predicate) {
+  const client = await applicationPool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      "SELECT set_config('app.organization_id', $1, true)",
+      [organizationId],
+    );
+    await assert.rejects(client.query(sql), predicate);
+  } finally {
+    await client.query("ROLLBACK").catch(() => undefined);
+    client.release();
+  }
 }
 
 before(async () => {
@@ -194,7 +213,7 @@ test("ordinary connections are non-owner, non-superuser, and unable to bypass RL
         AND c.relkind = 'r'
       ORDER BY c.relname`,
   );
-  assert.equal(tables.rowCount, 14);
+  assert.equal(tables.rowCount, 20);
   for (const table of tables.rows) {
     assert.equal(table.owner, "droneworks_migrator");
     assert.equal(table.relrowsecurity, true);
@@ -1786,4 +1805,463 @@ test("ownership transfer and deletion requests are owner-only and organization-i
     membership_count: 0,
     audit_count: 0,
   });
+});
+
+test("flight tags and batteries enforce member, pilot-own, and manager boundaries", async () => {
+  const tagsPath = "/api/v1/organizations/org-alpha/tags";
+  for (const session of [
+    "session-alpha-owner",
+    "session-alpha-admin",
+    "session-alpha-pilot",
+    "session-alpha-viewer",
+  ]) {
+    const listed = await apiRequest(tagsPath, session);
+    assert.equal(listed.status, 200);
+    assert.deepEqual(listed.body.data.map((tag) => tag.id), [
+      "tag-alpha-inspection",
+      "tag-alpha-training",
+    ]);
+  }
+  const crossOrganizationTags = await apiRequest(tagsPath, "session-beta-admin");
+  assert.equal(crossOrganizationTags.status, 404);
+  assert.deepEqual(crossOrganizationTags.body, hiddenResourceProblem);
+
+  const pilotTagPath = `${API_PREFIX}/organizations/org-alpha/flights/flight-alpha/tags/tag-alpha-training`;
+  const pilotAddedTag = await apiRequest(pilotTagPath, "session-alpha-pilot", {
+    method: "PUT",
+  });
+  assert.equal(pilotAddedTag.status, 200);
+  assert.deepEqual(pilotAddedTag.body.data, {
+    canonical_flight_id: "flight-alpha",
+    tag_id: "tag-alpha-training",
+    origin: "user_override",
+  });
+  const replayedTag = await apiRequest(pilotTagPath, "session-alpha-pilot", {
+    method: "PUT",
+  });
+  assert.deepEqual(replayedTag, pilotAddedTag);
+
+  for (const denied of [{
+    path: `${API_PREFIX}/organizations/org-alpha/flights/flight-alpha/tags/tag-alpha-training`,
+    session: "session-alpha-viewer",
+  }, {
+    path: `${API_PREFIX}/organizations/org-alpha/flights/flight-manual-1/tags/tag-alpha-training`,
+    session: "session-alpha-pilot",
+  }, {
+    path: `${API_PREFIX}/organizations/org-alpha/flights/flight-alpha/tags/tag-beta-inspection`,
+    session: "session-alpha-admin",
+  }, {
+    path: `${API_PREFIX}/organizations/org-beta/flights/flight-alpha/tags/tag-alpha-training`,
+    session: "session-beta-admin",
+  }]) {
+    const response = await apiRequest(denied.path, denied.session, { method: "PUT" });
+    assert.equal(response.status, 404, `${denied.session} must not access ${denied.path}`);
+    assert.deepEqual(response.body, hiddenResourceProblem);
+  }
+  const removedTag = await apiRequest(pilotTagPath, "session-alpha-pilot", {
+    method: "DELETE",
+  });
+  assert.equal(removedTag.status, 204);
+  const importedTagRemoval = await apiRequest(
+    `${API_PREFIX}/organizations/org-alpha/flights/flight-alpha/tags/tag-alpha-inspection`,
+    "session-alpha-admin",
+    { method: "DELETE" },
+  );
+  assert.equal(importedTagRemoval.status, 404);
+  assert.deepEqual(importedTagRemoval.body, hiddenResourceProblem);
+
+  const batteriesPath = `${API_PREFIX}/organizations/org-alpha/batteries`;
+  for (const session of [
+    "session-alpha-owner",
+    "session-alpha-admin",
+    "session-alpha-pilot",
+    "session-alpha-viewer",
+  ]) {
+    const listed = await apiRequest(batteriesPath, session);
+    assert.equal(listed.status, 200);
+    assert.deepEqual(listed.body.data.map((battery) => battery.id), [
+      "battery-alpha",
+      "battery-alpha-spare",
+    ]);
+  }
+  const invalidBattery = await apiRequest(
+    `${batteriesPath}/battery-alpha-spare`,
+    "session-alpha-owner",
+    {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ lifecycle: "unknown", object_key: "denied" }),
+    },
+  );
+  assert.equal(invalidBattery.status, 400);
+  assert.deepEqual(invalidBattery.body.errors, [{
+    field: "object_key",
+    detail: "is not allowed",
+  }, {
+    field: "lifecycle",
+    detail: "must be active or retired",
+  }]);
+  for (const session of [
+    "session-alpha-pilot",
+    "session-alpha-viewer",
+    "session-beta-admin",
+  ]) {
+    const denied = await apiRequest(
+      `${batteriesPath}/battery-alpha-spare`,
+      session,
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ lifecycle: "retired" }),
+      },
+    );
+    assert.equal(denied.status, 404);
+    assert.deepEqual(denied.body, hiddenResourceProblem);
+  }
+  const updatedBattery = await apiRequest(
+    `${batteriesPath}/battery-alpha-spare`,
+    "session-alpha-owner",
+    {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        display_name: "Alpha Spare Retired",
+        serial_number: "SYNTH-ALPHA-SPARE",
+        lifecycle: "retired",
+      }),
+    },
+  );
+  assert.equal(updatedBattery.status, 200);
+  assert.deepEqual(updatedBattery.body.data, {
+    id: "battery-alpha-spare",
+    display_name: "Alpha Spare Retired",
+    serial_number: "SYNTH-ALPHA-SPARE",
+    lifecycle: "retired",
+  });
+
+  const batteryLinkPath = `${API_PREFIX}/organizations/org-alpha/flights/flight-alpha/batteries/battery-alpha-spare`;
+  const addedBattery = await apiRequest(batteryLinkPath, "session-alpha-admin", {
+    method: "PUT",
+  });
+  assert.equal(addedBattery.status, 200);
+  assert.deepEqual(addedBattery.body.data, {
+    canonical_flight_id: "flight-alpha",
+    battery_id: "battery-alpha-spare",
+    origin: "user_override",
+  });
+  const replayedBattery = await apiRequest(batteryLinkPath, "session-alpha-admin", {
+    method: "PUT",
+  });
+  assert.deepEqual(replayedBattery, addedBattery);
+  for (const denied of [{
+    path: batteryLinkPath,
+    session: "session-alpha-pilot",
+  }, {
+    path: batteryLinkPath,
+    session: "session-alpha-viewer",
+  }, {
+    path: `${API_PREFIX}/organizations/org-alpha/flights/flight-alpha/batteries/battery-beta`,
+    session: "session-alpha-admin",
+  }]) {
+    const response = await apiRequest(denied.path, denied.session, { method: "PUT" });
+    assert.equal(response.status, 404);
+    assert.deepEqual(response.body, hiddenResourceProblem);
+  }
+  const removedBattery = await apiRequest(batteryLinkPath, "session-alpha-owner", {
+    method: "DELETE",
+  });
+  assert.equal(removedBattery.status, 204);
+  const importedBatteryRemoval = await apiRequest(
+    `${API_PREFIX}/organizations/org-alpha/flights/flight-alpha/batteries/battery-alpha`,
+    "session-alpha-admin",
+    { method: "DELETE" },
+  );
+  assert.equal(importedBatteryRemoval.status, 404);
+  assert.deepEqual(importedBatteryRemoval.body, hiddenResourceProblem);
+
+  const resourceEvents = await withOrganization(
+    applicationPool,
+    "org-alpha",
+    async (repositories) => (await repositories.listAuditEvents()).filter(
+      (event) => [
+        "battery.updated",
+        "flight.battery_added",
+        "flight.battery_removed",
+        "flight.tag_added",
+        "flight.tag_removed",
+      ].includes(event.action),
+    ),
+  );
+  assert.deepEqual(resourceEvents.map((event) => event.action).sort(), [
+    "battery.updated",
+    "flight.battery_added",
+    "flight.battery_removed",
+    "flight.tag_added",
+    "flight.tag_removed",
+  ]);
+  const serializedEvents = JSON.stringify(resourceEvents);
+  assert.equal(serializedEvents.includes("Alpha Spare Retired"), false);
+  assert.equal(serializedEvents.includes("SYNTH-ALPHA-SPARE"), false);
+});
+
+test("upload and import records are idempotent, uploader-scoped, and organization-isolated", async () => {
+  const importsPath = `${API_PREFIX}/organizations/org-alpha/import-batches`;
+  const files = [{
+    client_file_id: "client-new-a",
+    original_filename: "synthetic-a.txt",
+  }, {
+    client_file_id: "client-new-b",
+    original_filename: "synthetic-b.txt",
+  }];
+  const missingKey = await apiRequest(importsPath, "session-alpha-pilot", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ files }),
+  });
+  assert.equal(missingKey.status, 400);
+  assert.deepEqual(missingKey.body.errors, [{
+    field: "Idempotency-Key",
+    detail: "must be a non-empty opaque identifier",
+  }]);
+  const duplicateClientId = await apiRequest(importsPath, "session-alpha-pilot", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "idempotency-key": "import-invalid",
+    },
+    body: JSON.stringify({ files: [files[0], files[0]] }),
+  });
+  assert.equal(duplicateClientId.status, 400);
+  assert.deepEqual(duplicateClientId.body.errors, [{
+    field: "files[1].client_file_id",
+    detail: "must be unique within the batch",
+  }]);
+  for (const session of ["session-alpha-viewer", "session-beta-admin"]) {
+    const denied = await apiRequest(importsPath, session, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "idempotency-key": `import-denied-${session}`,
+      },
+      body: JSON.stringify({ files }),
+    });
+    assert.equal(denied.status, 404);
+    assert.deepEqual(denied.body, hiddenResourceProblem);
+  }
+
+  const created = await apiRequest(importsPath, "session-alpha-pilot", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "idempotency-key": "import-pilot-1",
+    },
+    body: JSON.stringify({ files }),
+  });
+  assert.equal(created.status, 201);
+  assert.equal(created.body.data.id, "import-batch-1");
+  assert.equal(created.body.data.uploaded_by_user_id, "user-alpha-pilot");
+  assert.equal(created.body.data.state, "uploaded");
+  assert.deepEqual(created.body.data.items.map((item) => ({
+    id: item.id,
+    client_file_id: item.client_file_id,
+    state: item.state,
+    raw_source_id: item.raw_source_id,
+  })), [{
+    id: "import-item-1",
+    client_file_id: "client-new-a",
+    state: "uploaded",
+    raw_source_id: null,
+  }, {
+    id: "import-item-2",
+    client_file_id: "client-new-b",
+    state: "uploaded",
+    raw_source_id: null,
+  }]);
+  const replayed = await apiRequest(importsPath, "session-alpha-pilot", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "idempotency-key": "import-pilot-1",
+    },
+    body: JSON.stringify({ files }),
+  });
+  assert.deepEqual(replayed, created);
+  const conflict = await apiRequest(importsPath, "session-alpha-pilot", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "idempotency-key": "import-pilot-1",
+    },
+    body: JSON.stringify({ files: [files[0]] }),
+  });
+  assert.equal(conflict.status, 409);
+
+  const pilotRead = await apiRequest(
+    `${importsPath}/import-batch-1`,
+    "session-alpha-pilot",
+  );
+  assert.equal(pilotRead.status, 200);
+  assert.deepEqual(pilotRead.body, created.body);
+  const managerRead = await apiRequest(
+    `${importsPath}/import-batch-1`,
+    "session-alpha-owner",
+  );
+  assert.equal(managerRead.status, 200);
+  assert.deepEqual(managerRead.body, created.body);
+  for (const denied of [{
+    path: `${importsPath}/import-batch-1`,
+    session: "session-alpha-viewer",
+  }, {
+    path: `${API_PREFIX}/organizations/org-beta/import-batches/import-batch-1`,
+    session: "session-beta-admin",
+  }, {
+    path: `${API_PREFIX}/organizations/org-alpha/import-batches/import-batch-beta`,
+    session: "session-alpha-owner",
+  }]) {
+    const response = await apiRequest(denied.path, denied.session);
+    assert.equal(response.status, 404);
+    assert.deepEqual(response.body, hiddenResourceProblem);
+  }
+
+  const managerFiles = [{
+    client_file_id: "client-manager-a",
+    original_filename: "synthetic-manager.txt",
+  }];
+  const managerCreated = await apiRequest(importsPath, "session-alpha-owner", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "idempotency-key": "import-manager-1",
+    },
+    body: JSON.stringify({ files: managerFiles }),
+  });
+  assert.equal(managerCreated.status, 201);
+  assert.equal(managerCreated.body.data.id, "import-batch-2");
+  const unrelatedPilot = await apiRequest(
+    `${importsPath}/import-batch-2`,
+    "session-alpha-pilot",
+  );
+  assert.equal(unrelatedPilot.status, 404);
+  assert.deepEqual(unrelatedPilot.body, hiddenResourceProblem);
+
+  const importEvents = await withOrganization(
+    applicationPool,
+    "org-alpha",
+    async (repositories) => (await repositories.listAuditEvents()).filter(
+      (event) => event.action === "import_batch.created",
+    ),
+  );
+  assert.deepEqual(importEvents.map((event) => event.metadata), [{
+    item_count: 2,
+  }, {
+    item_count: 1,
+  }]);
+  const serializedAudit = JSON.stringify(importEvents);
+  assert.equal(serializedAudit.includes("synthetic-a.txt"), false);
+  assert.equal(serializedAudit.includes("synthetic-manager.txt"), false);
+});
+
+test("remaining-resource RLS survives pooled reuse and composite ownership rejects cross-organization links", async () => {
+  const alpha = await withOrganization(applicationPool, "org-alpha", async (repositories) => ({
+    pid: await repositories.connectionId(),
+    tags: await repositories.listTagsForMember("user-alpha"),
+    batteries: await repositories.listBatteriesForMember("user-alpha"),
+    batch: await repositories.findImportBatchForMember({
+      userId: "user-alpha",
+      batchId: "import-batch-alpha",
+    }),
+  }));
+  assert.deepEqual(alpha.tags.map((tag) => tag.id), [
+    "tag-alpha-inspection",
+    "tag-alpha-training",
+  ]);
+  assert.deepEqual(alpha.batteries.map((battery) => battery.id), [
+    "battery-alpha",
+    "battery-alpha-spare",
+  ]);
+  assert.equal(alpha.batch.id, "import-batch-alpha");
+
+  const contextless = await applicationPool.query(
+    `SELECT pg_backend_pid() AS pid,
+            current_setting('app.organization_id', true) AS organization_id,
+            (SELECT count(*)::integer FROM droneworks.tags) AS tag_count,
+            (SELECT count(*)::integer FROM droneworks.batteries) AS battery_count,
+            (SELECT count(*)::integer FROM droneworks.flight_tags) AS flight_tag_count,
+            (SELECT count(*)::integer FROM droneworks.flight_batteries) AS flight_battery_count,
+            (SELECT count(*)::integer FROM droneworks.import_batches) AS import_batch_count,
+            (SELECT count(*)::integer FROM droneworks.import_items) AS import_item_count`,
+  );
+  assert.deepEqual({
+    ...contextless.rows[0],
+    pid: Number(contextless.rows[0].pid),
+  }, {
+    pid: alpha.pid,
+    organization_id: "",
+    tag_count: 0,
+    battery_count: 0,
+    flight_tag_count: 0,
+    flight_battery_count: 0,
+    import_batch_count: 0,
+    import_item_count: 0,
+  });
+
+  const beta = await withOrganization(applicationPool, "org-beta", async (repositories) => ({
+    pid: await repositories.connectionId(),
+    tags: await repositories.listTagsForMember("user-beta"),
+    batteries: await repositories.listBatteriesForMember("user-beta"),
+    batch: await repositories.findImportBatchForMember({
+      userId: "user-beta",
+      batchId: "import-batch-beta",
+    }),
+  }));
+  assert.equal(beta.pid, alpha.pid);
+  assert.deepEqual(beta.tags.map((tag) => tag.id), ["tag-beta-inspection"]);
+  assert.deepEqual(beta.batteries.map((battery) => battery.id), ["battery-beta"]);
+  assert.equal(beta.batch.id, "import-batch-beta");
+
+  await assertOrganizationSqlRejects(
+    "org-alpha",
+    `INSERT INTO droneworks.flight_tags (
+       organization_id, canonical_flight_id, tag_id, origin
+     ) VALUES ('org-alpha', 'flight-alpha', 'tag-beta-inspection', 'user_override')`,
+    (error) => error.code === "23503"
+      && error.constraint === "flight_tags_organization_id_tag_id_fkey",
+  );
+  await assertOrganizationSqlRejects(
+    "org-beta",
+    `INSERT INTO droneworks.flight_batteries (
+       organization_id, canonical_flight_id, battery_id, origin
+     ) VALUES ('org-beta', 'flight-beta', 'battery-alpha', 'user_override')`,
+    (error) => error.code === "23503"
+      && error.constraint === "flight_batteries_organization_id_battery_id_fkey",
+  );
+  await assertOrganizationSqlRejects(
+    "org-alpha",
+    `INSERT INTO droneworks.import_items (
+       organization_id,
+       id,
+       import_batch_id,
+       client_file_id,
+       original_filename,
+       raw_source_id,
+       state,
+       created_at
+     ) VALUES (
+       'org-alpha',
+       'import-item-cross-source',
+       'import-batch-alpha',
+       'client-cross-source',
+       'synthetic-cross.txt',
+       'raw-beta',
+       'uploaded',
+       '2026-07-16T00:00:00Z'
+     )`,
+    (error) => error.code === "23503"
+      && error.constraint === "import_items_organization_id_raw_source_id_fkey",
+  );
+  await assertOrganizationSqlRejects(
+    "org-beta",
+    "INSERT INTO droneworks.tags (organization_id, id, name) VALUES ('org-alpha', 'tag-wrong-context', 'Denied')",
+    (error) => error.code === "42501" && /row-level security policy/.test(error.message),
+  );
 });

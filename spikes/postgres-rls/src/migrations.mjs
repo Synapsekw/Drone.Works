@@ -7,6 +7,7 @@ const REVIEWED_MIGRATIONS = Object.freeze([
   Object.freeze({
     id: "002_audit_event_resource_index",
     sha256: "fb500ee71794b8c0fd9f7a0746396275b6c070b29f49b22921300ea80dcbaef5",
+    isolationContract: "preserve",
     url: new URL(
       "../sql/migrations/002_audit_event_resource_index.sql",
       import.meta.url,
@@ -15,8 +16,26 @@ const REVIEWED_MIGRATIONS = Object.freeze([
   Object.freeze({
     id: "003_organization_administration",
     sha256: "38b8dc1212c55b98a019331df940a751674f1600372376c12149c31cbe86feaf",
+    isolationContract: "preserve",
     url: new URL(
       "../sql/migrations/003_organization_administration.sql",
+      import.meta.url,
+    ),
+  }),
+  Object.freeze({
+    id: "004_remaining_resources",
+    sha256: "f4bd578249dea0e8d9b9035191350d224e8c60238437241f2e7c358df487ca90",
+    isolationContract: "expand",
+    addedTables: Object.freeze([
+      "batteries",
+      "flight_batteries",
+      "flight_tags",
+      "import_batches",
+      "import_items",
+      "tags",
+    ]),
+    url: new URL(
+      "../sql/migrations/004_remaining_resources.sql",
       import.meta.url,
     ),
   }),
@@ -73,6 +92,8 @@ export async function loadReviewedMigrations() {
       id: migration.id,
       sha256: migration.sha256,
       sql,
+      isolationContract: migration.isolationContract,
+      addedTables: migration.addedTables ?? Object.freeze([]),
     }));
   }));
 }

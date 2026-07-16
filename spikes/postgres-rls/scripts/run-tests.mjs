@@ -95,7 +95,7 @@ try {
     const migration = await readFile(new URL("../sql/001_isolation.sql", import.meta.url), "utf8");
     const seed = await readFile(new URL("../sql/002_seed.sql", import.meta.url), "utf8");
     await bootstrapClient.query(migration);
-    const contractBefore = await readCustomerIsolationContract(bootstrapClient);
+    let previousContract = await readCustomerIsolationContract(bootstrapClient);
     reviewedMigrations = await loadReviewedMigrations();
 
     const migrationClient = new Client({
@@ -116,17 +116,60 @@ try {
         if (result.status !== "applied") {
           throw new Error(`expected reviewed migration to apply, got ${result.status}`);
         }
+        const currentContract = await readCustomerIsolationContract(bootstrapClient);
+        if (reviewedMigration.isolationContract === "preserve") {
+          if (isolationContractSha256(previousContract)
+              !== isolationContractSha256(currentContract)) {
+            throw new Error(
+              `reviewed migration ${reviewedMigration.id} changed the customer isolation contract`,
+            );
+          }
+        } else if (reviewedMigration.isolationContract === "expand") {
+          const previousByTable = new Map(
+            previousContract.map((table) => [table.relname, table]),
+          );
+          const currentByTable = new Map(
+            currentContract.map((table) => [table.relname, table]),
+          );
+          for (const [tableName, table] of previousByTable) {
+            if (JSON.stringify(currentByTable.get(tableName)) !== JSON.stringify(table)) {
+              throw new Error(
+                `reviewed migration ${reviewedMigration.id} changed existing isolation for ${tableName}`,
+              );
+            }
+          }
+          const addedTables = [...currentByTable.keys()]
+            .filter((tableName) => !previousByTable.has(tableName))
+            .sort();
+          if (JSON.stringify(addedTables)
+              !== JSON.stringify([...reviewedMigration.addedTables].sort())) {
+            throw new Error(
+              `reviewed migration ${reviewedMigration.id} added an unexpected customer table set`,
+            );
+          }
+          for (const tableName of addedTables) {
+            const table = currentByTable.get(tableName);
+            if (table.owner !== "droneworks_migrator"
+                || table.relrowsecurity !== true
+                || table.relforcerowsecurity !== true
+                || table.policies.length !== 1) {
+              throw new Error(
+                `reviewed migration ${reviewedMigration.id} did not isolate ${tableName}`,
+              );
+            }
+          }
+        } else {
+          throw new Error(
+            `reviewed migration ${reviewedMigration.id} has no isolation-contract declaration`,
+          );
+        }
+        previousContract = currentContract;
       }
     } finally {
       await migrationClient.end();
     }
 
-    const contractAfter = await readCustomerIsolationContract(bootstrapClient);
-    const beforeDigest = isolationContractSha256(contractBefore);
-    isolationContractDigest = isolationContractSha256(contractAfter);
-    if (beforeDigest !== isolationContractDigest) {
-      throw new Error("reviewed migration changed the customer isolation contract");
-    }
+    isolationContractDigest = isolationContractSha256(previousContract);
     await bootstrapClient.query(seed);
   } finally {
     await bootstrapClient.end();

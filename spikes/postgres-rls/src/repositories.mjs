@@ -926,6 +926,501 @@ export function createRepositories(client) {
       return organization;
     },
 
+    async listTagsForMember(userId) {
+      requireId(userId, "userId");
+      const membership = await client.query(
+        `SELECT role
+           FROM droneworks.memberships
+          WHERE user_id = $1
+          FOR KEY SHARE`,
+        [userId],
+      );
+      if (membership.rowCount === 0) {
+        return null;
+      }
+      const result = await client.query(
+        `SELECT id, name
+           FROM droneworks.tags
+          ORDER BY name, id`,
+      );
+      return result.rows;
+    },
+
+    async putFlightTagForMember({ userId, flightId, tagId, now }) {
+      requireId(userId, "userId");
+      requireId(flightId, "flightId");
+      requireId(tagId, "tagId");
+      const authorized = await client.query(
+        `SELECT f.organization_id
+           FROM droneworks.memberships AS membership
+           JOIN droneworks.canonical_flights AS f
+             ON f.organization_id = membership.organization_id
+           JOIN droneworks.tags AS tag
+             ON tag.organization_id = f.organization_id
+            AND tag.id = $3
+          WHERE membership.user_id = $1
+            AND f.id = $2
+            AND f.state <> 'deleted'
+            AND (
+              membership.role IN ('owner', 'admin')
+              OR (
+                membership.role = 'pilot'
+                AND EXISTS (
+                  SELECT 1
+                    FROM droneworks.pilot_profiles AS pilot
+                   WHERE pilot.organization_id = f.organization_id
+                     AND pilot.id = f.pilot_profile_id
+                     AND pilot.membership_user_id = membership.user_id
+                )
+              )
+            )
+          FOR KEY SHARE OF membership, f, tag`,
+        [userId, flightId, tagId],
+      );
+      if (authorized.rowCount === 0) {
+        return null;
+      }
+      const inserted = await client.query(
+        `INSERT INTO droneworks.flight_tags (
+           organization_id,
+           canonical_flight_id,
+           tag_id,
+           origin
+         ) VALUES (
+           droneworks.current_organization_id(),
+           $1,
+           $2,
+           'user_override'
+         )
+         ON CONFLICT DO NOTHING
+         RETURNING canonical_flight_id, tag_id, origin`,
+        [flightId, tagId],
+      );
+      const link = inserted.rows[0] ?? (await client.query(
+        `SELECT canonical_flight_id, tag_id, origin
+           FROM droneworks.flight_tags
+          WHERE canonical_flight_id = $1
+            AND tag_id = $2`,
+        [flightId, tagId],
+      )).rows[0];
+      if (inserted.rowCount === 1) {
+        await recordAuditEvent(client, {
+          userId,
+          action: "flight.tag_added",
+          flightId,
+          changedFields: ["tags"],
+          metadata: {},
+          now,
+        });
+      }
+      return link;
+    },
+
+    async deleteFlightTagForMember({ userId, flightId, tagId, now }) {
+      requireId(userId, "userId");
+      requireId(flightId, "flightId");
+      requireId(tagId, "tagId");
+      const deleted = await client.query(
+        `DELETE FROM droneworks.flight_tags AS link
+          USING droneworks.canonical_flights AS flight,
+                droneworks.memberships AS membership
+          WHERE flight.organization_id = link.organization_id
+            AND flight.id = link.canonical_flight_id
+            AND membership.organization_id = flight.organization_id
+            AND membership.user_id = $1
+            AND link.canonical_flight_id = $2
+            AND link.tag_id = $3
+            AND link.origin = 'user_override'
+            AND flight.state <> 'deleted'
+            AND (
+              membership.role IN ('owner', 'admin')
+              OR (
+                membership.role = 'pilot'
+                AND EXISTS (
+                  SELECT 1
+                    FROM droneworks.pilot_profiles AS pilot
+                   WHERE pilot.organization_id = flight.organization_id
+                     AND pilot.id = flight.pilot_profile_id
+                     AND pilot.membership_user_id = membership.user_id
+                )
+              )
+            )
+        RETURNING link.canonical_flight_id, link.tag_id, link.origin`,
+        [userId, flightId, tagId],
+      );
+      const link = deleted.rows[0] ?? null;
+      if (link !== null) {
+        await recordAuditEvent(client, {
+          userId,
+          action: "flight.tag_removed",
+          flightId,
+          changedFields: ["tags"],
+          metadata: {},
+          now,
+        });
+      }
+      return link;
+    },
+
+    async listBatteriesForMember(userId) {
+      requireId(userId, "userId");
+      const membership = await client.query(
+        `SELECT role
+           FROM droneworks.memberships
+          WHERE user_id = $1
+          FOR KEY SHARE`,
+        [userId],
+      );
+      if (membership.rowCount === 0) {
+        return null;
+      }
+      const result = await client.query(
+        `SELECT id, display_name, serial_number, lifecycle
+           FROM droneworks.batteries
+          ORDER BY display_name, id`,
+      );
+      return result.rows;
+    },
+
+    async updateBatteryForManager({ userId, batteryId, battery, now }) {
+      requireId(userId, "userId");
+      requireId(batteryId, "batteryId");
+      if (battery === null || typeof battery !== "object") {
+        throw new TypeError("battery must be an object");
+      }
+      const current = await client.query(
+        `SELECT resource.id,
+                resource.display_name,
+                resource.serial_number,
+                resource.lifecycle
+           FROM droneworks.memberships AS membership
+           JOIN droneworks.batteries AS resource
+             ON resource.organization_id = membership.organization_id
+          WHERE membership.user_id = $1
+            AND membership.role IN ('owner', 'admin')
+            AND resource.id = $2
+          FOR UPDATE OF membership, resource`,
+        [userId, batteryId],
+      );
+      const previous = current.rows[0];
+      if (previous === undefined) {
+        return null;
+      }
+      const requested = {
+        display_name: battery.displayName ?? previous.display_name,
+        serial_number: Object.hasOwn(battery, "serialNumber")
+          ? battery.serialNumber
+          : previous.serial_number,
+        lifecycle: battery.lifecycle ?? previous.lifecycle,
+      };
+      const changedFields = Object.keys(requested).filter(
+        (field) => requested[field] !== previous[field],
+      );
+      if (changedFields.length === 0) {
+        return previous;
+      }
+      const updated = await client.query(
+        `UPDATE droneworks.batteries
+            SET display_name = $2,
+                serial_number = $3,
+                lifecycle = $4
+          WHERE id = $1
+        RETURNING id, display_name, serial_number, lifecycle`,
+        [
+          batteryId,
+          requested.display_name,
+          requested.serial_number,
+          requested.lifecycle,
+        ],
+      );
+      await recordAuditEvent(client, {
+        userId,
+        action: "battery.updated",
+        resourceType: "battery",
+        resourceId: batteryId,
+        changedFields,
+        metadata: {},
+        now,
+      });
+      return updated.rows[0];
+    },
+
+    async putFlightBatteryForManager({ userId, flightId, batteryId, now }) {
+      requireId(userId, "userId");
+      requireId(flightId, "flightId");
+      requireId(batteryId, "batteryId");
+      const authorized = await client.query(
+        `SELECT flight.organization_id
+           FROM droneworks.memberships AS membership
+           JOIN droneworks.canonical_flights AS flight
+             ON flight.organization_id = membership.organization_id
+           JOIN droneworks.batteries AS battery
+             ON battery.organization_id = flight.organization_id
+            AND battery.id = $3
+          WHERE membership.user_id = $1
+            AND membership.role IN ('owner', 'admin')
+            AND flight.id = $2
+            AND flight.state <> 'deleted'
+          FOR KEY SHARE OF membership, flight, battery`,
+        [userId, flightId, batteryId],
+      );
+      if (authorized.rowCount === 0) {
+        return null;
+      }
+      const inserted = await client.query(
+        `INSERT INTO droneworks.flight_batteries (
+           organization_id,
+           canonical_flight_id,
+           battery_id,
+           origin
+         ) VALUES (
+           droneworks.current_organization_id(),
+           $1,
+           $2,
+           'user_override'
+         )
+         ON CONFLICT DO NOTHING
+         RETURNING canonical_flight_id, battery_id, origin`,
+        [flightId, batteryId],
+      );
+      const link = inserted.rows[0] ?? (await client.query(
+        `SELECT canonical_flight_id, battery_id, origin
+           FROM droneworks.flight_batteries
+          WHERE canonical_flight_id = $1
+            AND battery_id = $2`,
+        [flightId, batteryId],
+      )).rows[0];
+      if (inserted.rowCount === 1) {
+        await recordAuditEvent(client, {
+          userId,
+          action: "flight.battery_added",
+          flightId,
+          changedFields: ["batteries"],
+          metadata: {},
+          now,
+        });
+      }
+      return link;
+    },
+
+    async deleteFlightBatteryForManager({ userId, flightId, batteryId, now }) {
+      requireId(userId, "userId");
+      requireId(flightId, "flightId");
+      requireId(batteryId, "batteryId");
+      const deleted = await client.query(
+        `DELETE FROM droneworks.flight_batteries AS link
+          USING droneworks.canonical_flights AS flight,
+                droneworks.memberships AS membership
+          WHERE flight.organization_id = link.organization_id
+            AND flight.id = link.canonical_flight_id
+            AND membership.organization_id = flight.organization_id
+            AND membership.user_id = $1
+            AND membership.role IN ('owner', 'admin')
+            AND link.canonical_flight_id = $2
+            AND link.battery_id = $3
+            AND link.origin = 'user_override'
+            AND flight.state <> 'deleted'
+        RETURNING link.canonical_flight_id, link.battery_id, link.origin`,
+        [userId, flightId, batteryId],
+      );
+      const link = deleted.rows[0] ?? null;
+      if (link !== null) {
+        await recordAuditEvent(client, {
+          userId,
+          action: "flight.battery_removed",
+          flightId,
+          changedFields: ["batteries"],
+          metadata: {},
+          now,
+        });
+      }
+      return link;
+    },
+
+    async createImportBatchForMember(input) {
+      const userId = requireId(input.userId, "userId");
+      const idempotencyKey = requireId(input.idempotencyKey, "idempotencyKey");
+      const requestHash = requireId(input.requestHash, "requestHash");
+      const now = requireDate(input.now, "now");
+      if (!Array.isArray(input.files) || input.files.length === 0) {
+        throw new TypeError("files must be a non-empty array");
+      }
+      if (typeof input.createId !== "function") {
+        throw new TypeError("createId must be a function");
+      }
+      const membership = await client.query(
+        `SELECT role
+           FROM droneworks.memberships
+          WHERE user_id = $1
+            AND role IN ('owner', 'admin', 'pilot')
+          FOR KEY SHARE`,
+        [userId],
+      );
+      if (membership.rowCount === 0) {
+        return null;
+      }
+
+      const operation = "create_import_batch";
+      const claim = await client.query(
+        `INSERT INTO droneworks.api_idempotency_requests (
+           organization_id,
+           user_id,
+           operation,
+           idempotency_key,
+           request_hash,
+           created_at
+         ) VALUES (
+           droneworks.current_organization_id(),
+           $1,
+           $2,
+           $3,
+           $4,
+           $5
+         )
+         ON CONFLICT DO NOTHING
+         RETURNING request_hash`,
+        [userId, operation, idempotencyKey, requestHash, now.toISOString()],
+      );
+      if (claim.rowCount === 0) {
+        const previous = await client.query(
+          `SELECT request_hash, response_status, response_body
+             FROM droneworks.api_idempotency_requests
+            WHERE user_id = $1
+              AND operation = $2
+              AND idempotency_key = $3
+            FOR UPDATE`,
+          [userId, operation, idempotencyKey],
+        );
+        const saved = previous.rows[0];
+        if (saved.request_hash !== requestHash) {
+          return { kind: "conflict" };
+        }
+        if (saved.response_status !== 201 || saved.response_body === null) {
+          throw new Error("idempotent request is incomplete");
+        }
+        return { kind: "replayed", batch: saved.response_body };
+      }
+
+      const batchId = requireId(input.createId("import-batch"), "batchId");
+      const batchResult = await client.query(
+        `INSERT INTO droneworks.import_batches (
+           organization_id,
+           id,
+           uploaded_by_user_id,
+           state,
+           created_at
+         ) VALUES (
+           droneworks.current_organization_id(),
+           $1,
+           $2,
+           'uploaded',
+           $3
+         )
+         RETURNING id, organization_id, uploaded_by_user_id, state, created_at`,
+        [batchId, userId, now.toISOString()],
+      );
+      const items = [];
+      for (const file of input.files) {
+        const itemId = requireId(input.createId("import-item"), "itemId");
+        const item = await client.query(
+          `INSERT INTO droneworks.import_items (
+             organization_id,
+             id,
+             import_batch_id,
+             client_file_id,
+             original_filename,
+             state,
+             created_at
+           ) VALUES (
+             droneworks.current_organization_id(),
+             $1,
+             $2,
+             $3,
+             $4,
+             'uploaded',
+             $5
+           )
+           RETURNING id,
+                     import_batch_id,
+                     client_file_id,
+                     original_filename,
+                     raw_source_id,
+                     state,
+                     created_at`,
+          [
+            itemId,
+            batchId,
+            requireId(file.clientFileId, "clientFileId"),
+            file.originalFilename,
+            now.toISOString(),
+          ],
+        );
+        items.push(item.rows[0]);
+      }
+      const batch = { ...batchResult.rows[0], items };
+      await recordAuditEvent(client, {
+        userId,
+        action: "import_batch.created",
+        resourceType: "import_batch",
+        resourceId: batchId,
+        changedFields: ["state", "items"],
+        metadata: { item_count: items.length },
+        now,
+      });
+      await client.query(
+        `UPDATE droneworks.api_idempotency_requests
+            SET response_status = 201,
+                response_body = $4,
+                completed_at = $5
+          WHERE user_id = $1
+            AND operation = $2
+            AND idempotency_key = $3`,
+        [userId, operation, idempotencyKey, JSON.stringify(batch), now.toISOString()],
+      );
+      return { kind: "created", batch };
+    },
+
+    async findImportBatchForMember({ userId, batchId }) {
+      requireId(userId, "userId");
+      requireId(batchId, "batchId");
+      const result = await client.query(
+        `SELECT batch.id,
+                batch.organization_id,
+                batch.uploaded_by_user_id,
+                batch.state,
+                batch.created_at
+           FROM droneworks.memberships AS membership
+           JOIN droneworks.import_batches AS batch
+             ON batch.organization_id = membership.organization_id
+          WHERE membership.user_id = $1
+            AND batch.id = $2
+            AND (
+              membership.role IN ('owner', 'admin')
+              OR batch.uploaded_by_user_id = membership.user_id
+            )
+          FOR KEY SHARE OF membership, batch`,
+        [userId, batchId],
+      );
+      const batch = result.rows[0];
+      if (batch === undefined) {
+        return null;
+      }
+      const items = await client.query(
+        `SELECT id,
+                import_batch_id,
+                client_file_id,
+                original_filename,
+                raw_source_id,
+                state,
+                created_at
+           FROM droneworks.import_items
+          WHERE import_batch_id = $1
+          ORDER BY id`,
+        [batchId],
+      );
+      return { ...batch, items: items.rows };
+    },
+
     async findDownloadableObject({ userId, resourceType, resourceId, now }) {
       requireId(userId, "userId");
       requireId(resourceId, "resourceId");

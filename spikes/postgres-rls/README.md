@@ -2,7 +2,7 @@
 
 This disposable Phase 0 spike proves the first relational slice of P0-05 against the generic canonical ownership model. It uses a real native PostgreSQL 18 server, forced row-level security, a non-owner application role, an actual `pg` connection pool, and a pinned pg-boss queue. It does not use Docker or the Homebrew service cluster.
 
-The schema deliberately stays small: organizations, memberships, pilot profiles, aircraft, canonical flights, immutable flight revisions, telemetry samples, raw sources, export artifacts, their flight-scope links, flight-assignment overrides, API idempotency state, and audit events. Every customer-owned child carries `organization_id`; composite foreign keys prevent a resource in one organization from referencing a parent in another.
+The schema deliberately stays small: organizations, memberships, pilot profiles, aircraft, batteries, tags, canonical flights, flight tag/battery links, immutable flight revisions, telemetry samples, raw sources, upload/import batches and items, export artifacts, their flight-scope links, flight-assignment overrides, API idempotency state, and audit events. Every customer-owned child carries `organization_id`; composite foreign keys prevent a resource in one organization from referencing a parent in another.
 
 ## Install
 
@@ -34,8 +34,8 @@ The tests prove:
 - the migration login has no inherited customer access and may explicitly assume only the schema owner for reviewed SQL;
 - a separate no-login audit owner protects the append-only migration ledger from both the runner and schema owner;
 - exact checksums, migration-ID conflicts, equivalent replay, serialized application, and recorded session identity are enforced;
-- the ordered reviewed migration set leaves the digest of customer-table owners, grants, policies, RLS, and `FORCE RLS` unchanged;
-- all fourteen customer-owned tables enable and force row-level security;
+- contract-preserving migrations leave the digest of customer-table owners, grants, policies, RLS, and `FORCE RLS` unchanged, while the declared remaining-resource migration adds exactly its six isolated tables without changing existing table isolation;
+- all twenty customer-owned tables enable and force row-level security;
 - absent organization context returns no rows and rejects writes;
 - Alpha/Beta direct-ID reads, joins, aggregates, exports, and mutations remain isolated;
 - composite foreign keys reject cross-organization pilot/aircraft relationships;
@@ -56,6 +56,9 @@ The tests prove:
 - restoration is limited to fewer than 30 days and every successful mutation creates an RLS-protected, payload-redacted audit event; and
 - owner/admin member and settings operations preserve historical pilot profiles while denying pilot, viewer, and cross-organization access;
 - ownership transfer and organization deletion requests are owner-only, preserve a single-owner invariant, remain reversible, and redact setting values from audits; and
+- tag edits enforce manager or pilot-own-flight scope while battery mutations remain manager-only, preserve imported links, and redact values from audits;
+- upload declarations create idempotent per-file import records for owner/admin/pilot identities, deny viewers, and limit reads to managers or the uploading pilot;
+- the six added resource tables return zero rows after context clears on the reused pooled backend, and composite ownership rejects cross-organization tag, battery, and raw-source links; and
 - forced RLS still applies after explicitly assuming the migration-owner role.
 
 The repository wrapper opens a transaction and sets `app.organization_id` with transaction-local `set_config(..., true)` before exposing repositories. Repository queries intentionally omit redundant organization predicates so the executable evidence demonstrates database enforcement. Application membership and role authorization must independently validate the selected organization before calling this trusted boundary; RLS does not replace authorization.
@@ -64,4 +67,4 @@ The queue proof uses pg-boss's real PostgreSQL persistence and retry state, whil
 
 The API proof uses Node's loopback HTTP server and an injected synthetic session-identity adapter so authorization remains independent of the unresolved web-session provider and Fastify shortlist. It emits snake-case JSON success documents and RFC 9457 problem details. The download proof still uses an injected deterministic signer rather than a storage vendor.
 
-The spike does not yet prove the remaining tags/batteries/import/export API matrix, real provider-side URL expiry and object deletion, Drizzle generation, production credential delivery and external audit retention, permanent flight/organization deletion, or queue behavior under worker termination. Those remain P0-05/P0-07 follow-ups documented in [`../../docs/architecture/TENANCY.md`](../../docs/architecture/TENANCY.md).
+The spike does not yet prove complete organization export, real provider-side URL expiry and object deletion, additional Phase 1 resource types such as maintenance records, Drizzle generation, production credential delivery and external audit retention, permanent flight/organization deletion, or queue behavior under worker termination. Those remain P0-05/P0-07 follow-ups documented in [`../../docs/architecture/TENANCY.md`](../../docs/architecture/TENANCY.md).

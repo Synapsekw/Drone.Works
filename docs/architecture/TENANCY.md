@@ -1,7 +1,7 @@
 # Organization isolation
 
 Status: draft Phase 0 proof
-Last updated: 2026-07-15
+Last updated: 2026-07-16
 
 ## Purpose
 
@@ -18,17 +18,24 @@ erDiagram
     ORGANIZATION ||--o{ MEMBERSHIP : owns
     ORGANIZATION ||--o{ PILOT_PROFILE : owns
     ORGANIZATION ||--o{ AIRCRAFT : owns
+    ORGANIZATION ||--o{ TAG : owns
+    ORGANIZATION ||--o{ BATTERY : owns
     PILOT_PROFILE ||--o{ CANONICAL_FLIGHT : assigned_to
     AIRCRAFT ||--o{ CANONICAL_FLIGHT : operated_with
+    TAG }o--o{ CANONICAL_FLIGHT : classifies
+    BATTERY }o--o{ CANONICAL_FLIGHT : powered
     CANONICAL_FLIGHT ||--o{ FLIGHT_REVISION : revised_as
     FLIGHT_REVISION ||--o{ TELEMETRY_SAMPLE : contains
     ORGANIZATION ||--o{ RAW_SOURCE : owns
     ORGANIZATION ||--o{ EXPORT_ARTIFACT : owns
     RAW_SOURCE }o--o{ CANONICAL_FLIGHT : contains
     EXPORT_ARTIFACT }o--o{ CANONICAL_FLIGHT : includes
+    ORGANIZATION ||--o{ IMPORT_BATCH : owns
+    IMPORT_BATCH ||--|{ IMPORT_ITEM : contains
+    RAW_SOURCE o|--o{ IMPORT_ITEM : retained_as
 ```
 
-Every child has a non-null `organization_id`. Parent keys and foreign keys include that organization identifier, so a Beta flight cannot reference an Alpha pilot, aircraft, revision, or telemetry parent even if an application mutation supplies exact resource IDs. Raw-source and export-artifact references are also organization-owned RLS rows; their physical object keys are derived only after authorization and are not accepted as client input. This relational slice persists generic flight facts and capability names; source-specific parser structures remain outside it.
+Every child has a non-null `organization_id`. Parent keys and foreign keys include that organization identifier, so a Beta flight cannot reference an Alpha pilot, aircraft, battery, tag, import batch, raw source, revision, or telemetry parent even if an application mutation supplies exact resource IDs. Raw-source and export-artifact references are also organization-owned RLS rows; their physical object keys are derived only after authorization and are not accepted as client input. Imported and user-added flight tag/battery links retain distinct origins. This relational slice persists generic flight facts and capability names; source-specific parser structures remain outside it.
 
 The full canonical schema still validates provenance, effective facts, sample counts, and fingerprint integrity before persistence. This spike does not duplicate that complete validator as database constraints.
 
@@ -54,7 +61,7 @@ The candidate deployment path has no login for the customer-schema owner. A non-
 
 The operational ledger lives outside the customer schema and is owned by a separate no-login audit role. The runner has execute access only to security-definer read/append functions and has no direct table privileges. The migrator cannot read or rewrite the ledger, and the runner cannot assume the audit owner. Application and queue roles cannot assume the migrator or access the operational schema. This is operational metadata only: migration IDs and digests must never contain organization or customer payload.
 
-The runner snapshots a deterministic customer-isolation contract before and after the reviewed migration set. The contract covers every customer table's owner, grants, RLS and `FORCE RLS` flags, and policy expressions. The first follow-up adds only an audit lookup index; the next adds organization settings/deletion state, the single-owner index, and historical pilot unlink behavior. Both are checksum-pinned, ledger-recorded, and leave the isolation-contract digest unchanged. In this candidate model, routine privileged maintenance must ship as a reviewed migration; there is no separate standing ad-hoc DML role. Production credential delivery, CI identity, externally retained database audit logs, and emergency procedure remain deployment/operations decisions rather than authority granted to ordinary processes.
+The runner snapshots a deterministic customer-isolation contract around every reviewed migration. The contract covers every customer table's owner, grants, RLS and `FORCE RLS` flags, and policy expressions. The audit-index and organization-administration migrations are checksum-pinned, ledger-recorded, and leave the isolation-contract digest unchanged. The next reviewed migration explicitly expands the contract by exactly six declared tables for tags, batteries, their flight links, import batches, and import items; the runner rejects changes to existing table isolation, unexpected added tables, or any added table without migrator ownership plus enabled and forced RLS. In this candidate model, routine privileged maintenance must ship as a reviewed migration; there is no separate standing ad-hoc DML role. Production credential delivery, CI identity, externally retained database audit logs, and emergency procedure remain deployment/operations decisions rather than authority granted to ordinary processes.
 
 ## Pooled-connection contract
 
@@ -78,8 +85,8 @@ Repository methods do not accept an optional organization filter. They can run o
 The integration suite currently proves, with synthetic Alpha and Beta records:
 
 - ordinary-role attributes and table ownership;
-- explicit reviewed-migration elevation, independent ledger ownership, checksum/replay controls, and unchanged isolation-contract digest;
-- RLS enabled and forced on all fourteen tables;
+- explicit reviewed-migration elevation, independent ledger ownership, checksum/replay controls, and declared isolation-contract preservation or expansion;
+- RLS enabled and forced on all twenty tables;
 - missing-context read and write denial;
 - direct-ID, join, aggregate, export, and mutation isolation;
 - cross-organization relationship rejection through composite foreign keys;
@@ -88,6 +95,7 @@ The integration suite currently proves, with synthetic Alpha and Beta records:
 - versioned HTTP flight reads and download issuance with membership, role, pilot ownership, and organization-policy checks;
 - versioned flight creation and mutation with idempotency, audit redaction, reversible deletion, role checks, and uniform IDOR denial;
 - versioned organization administration with owner/admin member and settings operations, owner-only ownership transfer and deletion requests, historical pilot retention, and uniform IDOR denial;
+- versioned tag, battery, and upload/import operations with pilot-own versus manager roles, idempotency, payload-redacted audits, uploader scope, composite ownership, and uniform IDOR denial;
 - imported pilot/aircraft assignments retained as a separate baseline while an organization-owned override row supplies the effective reassignment;
 - organization-derived raw-source/export keys, bounded link lifetime, uniform denial, and membership-revocation checks; and
 - forced RLS behavior for the table owner, alongside explicit superuser bypass evidence.
@@ -120,6 +128,10 @@ The administration slice exposes manager-only membership listing and idempotent 
 
 Ownership transfer is a separate owner-only transaction: it locks both memberships, demotes the current owner, promotes an existing organization member, and relies on a partial unique index to prevent two owners. Organization deletion is likewise owner-only and records a reversible `pending_deletion` request timestamp; cancellation restores `active` state. Repeated equivalent requests do not create duplicate audit events. Administration audits retain action/resource/changed-field information but omit organization setting values.
 
+All members may list organization tag and battery definitions. Owners/admins may update battery records and add or remove user-origin battery links on active flights; imported battery links remain immutable through that endpoint. Owners/admins may likewise add or remove user-origin flight tags, while a pilot may do so only for a flight currently assigned to the membership's linked pilot profile. Viewers cannot mutate either resource. Exact IDs from another organization, missing membership, wrong role, and unknown IDs return the same not-found response.
+
+Owner, admin, and pilot identities may create an upload/import batch with one item per declared file; viewers may not. Creation requires organization/user/operation-scoped idempotency, validates bounded unique client file IDs, and stores no client-supplied object key. Equivalent replay returns the original batch and items without duplicate rows or audits. Owners/admins may read any organization batch; a pilot may read only a batch they uploaded. Audit metadata records only the item count, not filenames. The proof stops at durable `uploaded` records and does not claim object transfer, detection, parsing, retry, or review-state transitions.
+
 ## Object and download boundary
 
 Object paths are derived only after an organization-owned database row is authorized. The executable shape is:
@@ -135,9 +147,9 @@ The authorization query holds a row lock on the membership and artifact until si
 
 ## Remaining P0-05 proof obligations
 
-- Extend the API role matrix across tags/batteries, upload/import actions, complete organization export, and permanent organization deletion.
+- Extend the API role matrix across complete organization export and permanent organization deletion.
 - Exercise worker termination, cancellation, queue-age observability, and idempotent domain mutation under retry before accepting pg-boss.
 - Exercise object-key derivation, URL expiry, membership revocation, and deletion against real object-storage artifacts rather than the signer adapter alone.
-- Extend isolation tests across imports, overrides, audit events, cached organization-linked secrets, and deletion paths as those schemas become executable.
+- Extend isolation tests across cached organization-linked secrets and permanent deletion paths as those schemas become executable.
 
 D-002 remains proposed until the remaining API/resource, non-relational, and deletion obligations above are closed. Production credentials, external audit retention, and emergency operations remain P0-07 deployment proof obligations.

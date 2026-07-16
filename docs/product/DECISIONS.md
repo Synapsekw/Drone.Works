@@ -1,7 +1,7 @@
 # Decision Log — Drone.Works
 
 Status: active
-Last updated: 2026-07-15
+Last updated: 2026-07-16
 
 This file records architectural and implementation decisions. Product behavior belongs in `BEHAVIOR.md`; unresolved choices remain open here until accepted.
 
@@ -62,7 +62,9 @@ The privileged-access follow-up adds a non-inheriting migration login that may e
 
 The organization-administration API follow-up proves owner/admin member listing, idempotent non-owner membership changes, settings updates, member removal with historical pilot-profile retention, and payload-redacted audits. A second checksum-pinned reviewed migration adds the organization settings/deletion state, partial single-owner index, and unlink-on-member-removal constraint without changing the isolation-contract digest. A separate owner-only transaction transfers ownership to an existing member, while owner-only deletion request/cancellation records reversible organization state without executing permanent deletion. Pilot, viewer, missing-member, and cross-organization requests remain indistinguishable.
 
-This evidence does not yet accept D-002. The remaining API resource matrix, provider-side signed-URL expiry and object deletion, the remaining customer-owned resource types, and permanent deletion paths remain open. Production credential delivery, externally retained audit logs, and emergency operations remain P0-07 concerns. See `../architecture/TENANCY.md`.
+The remaining-resource follow-up expands the reviewed isolation contract by exactly six declared tables for tags, batteries, flight associations, import batches, and import items while rejecting any change to existing table isolation. All twenty customer tables are migrator-owned with enabled and forced RLS. All members may list tag and battery definitions; owner/admin battery mutations and pilot-own tag mutations retain imported-versus-user origins and produce payload-redacted audits. Owner/admin/pilot upload declarations create idempotent batches and per-file items, while reads are limited to managers or the uploading pilot. Composite foreign keys, exact-ID API denials, and contextless reuse of the same pooled backend retain the Alpha/Beta boundary.
+
+This evidence does not yet accept D-002. Complete organization export, provider-side signed-URL expiry and object deletion, additional Phase 1 resource types such as maintenance records, and permanent deletion paths remain open. Production credential delivery, externally retained audit logs, and emergency operations remain P0-07 concerns. See `../architecture/TENANCY.md`.
 
 ## D-003 — Canonical normalized flight model
 

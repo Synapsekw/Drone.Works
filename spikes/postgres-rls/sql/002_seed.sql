@@ -35,6 +35,22 @@ INSERT INTO droneworks.aircraft (organization_id, id, display_name) VALUES
   ('org-alpha', 'aircraft-alpha', 'Alpha Aircraft'),
   ('org-beta', 'aircraft-beta', 'Beta Aircraft');
 
+INSERT INTO droneworks.tags (organization_id, id, name) VALUES
+  ('org-alpha', 'tag-alpha-inspection', 'Inspection'),
+  ('org-alpha', 'tag-alpha-training', 'Training'),
+  ('org-beta', 'tag-beta-inspection', 'Inspection');
+
+INSERT INTO droneworks.batteries (
+  organization_id,
+  id,
+  display_name,
+  serial_number,
+  lifecycle
+) VALUES
+  ('org-alpha', 'battery-alpha', 'Alpha Battery', 'SYNTH-ALPHA-BATTERY', 'active'),
+  ('org-alpha', 'battery-alpha-spare', 'Alpha Spare', NULL, 'active'),
+  ('org-beta', 'battery-beta', 'Beta Battery', 'SYNTH-BETA-BATTERY', 'active');
+
 INSERT INTO droneworks.canonical_flights (
   organization_id,
   id,
@@ -104,6 +120,47 @@ INSERT INTO droneworks.raw_sources (
   ('org-alpha', 'raw-alpha-other', 'raw-revision-alpha-other', 'retained'),
   ('org-alpha', 'raw-alpha-shared', 'raw-revision-alpha-shared', 'retained'),
   ('org-beta', 'raw-beta', 'raw-revision-beta', 'retained');
+
+INSERT INTO droneworks.flight_tags (
+  organization_id,
+  canonical_flight_id,
+  tag_id,
+  origin
+) VALUES
+  ('org-alpha', 'flight-alpha', 'tag-alpha-inspection', 'imported'),
+  ('org-beta', 'flight-beta', 'tag-beta-inspection', 'imported');
+
+INSERT INTO droneworks.flight_batteries (
+  organization_id,
+  canonical_flight_id,
+  battery_id,
+  origin
+) VALUES
+  ('org-alpha', 'flight-alpha', 'battery-alpha', 'imported'),
+  ('org-beta', 'flight-beta', 'battery-beta', 'imported');
+
+INSERT INTO droneworks.import_batches (
+  organization_id,
+  id,
+  uploaded_by_user_id,
+  state,
+  created_at
+) VALUES
+  ('org-alpha', 'import-batch-alpha', 'user-alpha-pilot', 'completed', '2026-07-01T07:55:00Z'),
+  ('org-beta', 'import-batch-beta', 'user-beta-pilot', 'completed', '2026-07-03T07:55:00Z');
+
+INSERT INTO droneworks.import_items (
+  organization_id,
+  id,
+  import_batch_id,
+  client_file_id,
+  original_filename,
+  raw_source_id,
+  state,
+  created_at
+) VALUES
+  ('org-alpha', 'import-item-alpha', 'import-batch-alpha', 'client-file-alpha', 'alpha-synthetic.txt', 'raw-alpha', 'completed', '2026-07-01T07:55:00Z'),
+  ('org-beta', 'import-item-beta', 'import-batch-beta', 'client-file-beta', 'beta-synthetic.txt', 'raw-beta', 'completed', '2026-07-03T07:55:00Z');
 
 INSERT INTO droneworks.export_artifacts (
   organization_id,

@@ -1,12 +1,12 @@
 ---
 type: north-star
 status: active
-last-updated: 2026-07-16-1634
+last-updated: 2026-07-16-2005
 tags: [project/drone-works, north-star]
 related:
   - "[[project-history]]"
   - "[[memory]]"
-  - "[[2026-07-16-1634-phase-zero-complete]]"
+  - "[[2026-07-16-2005-phase-1a-foundation]]"
 ---
 
 # Drone.Works — North Star
@@ -24,21 +24,21 @@ Drone.Works is an explainable operational record for small professional drone te
 | Increment | State | Current outcome |
 |---|---|---|
 | Phase 0 — Technical discovery | Complete | Accepted evidence/decisions, safe external gates, threat model, and implementation-ready backlog. |
-| Phase 1A — Walking skeleton | Ready | Begin A01; organization → upload → asynchronous parse → canonical flight → 2D track. |
+| Phase 1A — Walking skeleton | In progress | A01–A03 runnable foundation complete; A04 PostgreSQL/RLS boundary is next. |
 | Phase 1B — Trustworthy imports | Planned | Explain every batch outcome and reconcile uncertainty without silent loss. |
 | Phase 1C — Operational logbook | Planned | Daily flight, fleet, replay, correction, search, and export workflow. |
 | Phase 1D — Maintenance and hardening | Planned | Basic maintenance plus deletion, recovery, security, and operations gates. |
 
 ## Now
 
-- **Phase:** Phase 0 is complete with safe external enablement gates; Phase 1A is ready to start at A01.
-- **Branch:** source commit `068aadb` is local on `main`, which is forty commits ahead of `origin/main` before this vault-only closeout commit; nothing was pushed. An unrelated `.obsidian/app.json` change remains unstaged and untouched.
-- **Completed evidence:** all P0-01 through P0-09 outputs are present. D-002/D-008/D-009/D-011/D-012/D-013/D-014 are accepted; the exit review, sixteen-task Phase 1A backlog, Phase 1B outline, risk register, threat model, operations package, and security checklist are current.
-- **Verification baseline:** 34 native PostgreSQL/pg-boss, five telemetry, 78 parser/containment, and three object lifecycle tests pass with zero skips/failures. No Docker, persistent database, cloud credential, paid resource, or customer data was used; syntax, whitespace, and privacy patterns pass.
-- **Blocking evidence:** no local Phase 0 work remains. A09 production DJI terms/consent/managed-secret/fixture gate remains external and the provider stays disabled. A14–A15 require AWS account/spend authority; live S3/restore gates keep hosted customer data disabled.
-- **Next technical action:** begin Phase 1A A01 repository bootstrap, followed by A02's no-cloud local runtime and A03's versioned API contract.
-- **Next external decision:** decide whether the remaining fixtures may use DJI processing; production terms, notice/consent, managed-secret, retention, and deletion gates remain separate under D-012.
-- **Parallel follow-up:** preserve every hosted-data, provider, and security gate in the task that introduces its boundary.
+- **Phase:** Phase 1A implementation is active. A01 repository bootstrap, A02 no-cloud local runtime, and A03 versioned API contract are complete; work stops cleanly before A04's production database boundary.
+- **Branch:** source commit `dee7add` is local on `main`, which is forty-two commits ahead of `origin/main` before this vault-only closeout commit; nothing was pushed. An unrelated `.obsidian/app.json` change remains unstaged and untouched.
+- **Completed evidence:** the pinned Node/pnpm/TypeScript workspace builds web, API, and worker processes; native PostgreSQL plus loopback object/email services start with generated data and clean up without Docker; Fastify emits an OpenAPI 3.1 contract, RFC 9457 problems, correlation IDs, route inventory, and a compiled same-origin web client.
+- **Verification baseline:** `pnpm verify`, `pnpm test:contract`, and `pnpm build` pass; four API contract tests pass; two clean `dev:up`/smoke/`dev:down` cycles proved web, API, worker, object, email, generated PostgreSQL seed, and cleanup. No Docker, AWS credential/resource, real email, persistent database, customer data, or private fixture was used.
+- **Blocking evidence:** A04 has no external cloud blocker and should use native PostgreSQL with generated Alpha/Beta data. A09 production DJI gates remain external and disabled. A14–A15 still require AWS account/spend authority and live hosted-data evidence.
+- **Next technical action:** implement A04's checksum-pinned PostgreSQL migration and forced-RLS boundary against the generic canonical schema, including ordinary-role, cross-organization, ownership, pooled-connection clearing, and replay tests. Do not provision RDS.
+- **Next external decision:** no AWS action is needed through A13. Before A14, confirm an operational approved region and account/spend authority; Frankfurt is synthetic-only while UAE is not operationally suitable, and customer residency remains an explicit gate.
+- **Parallel follow-up:** when cloud help becomes necessary, provide the first-time account owner one step at a time with purpose, cost/security effect, verification, and safe stop/rollback; never request secret values.
 - **Privacy:** raw fixtures remain ignored and local. No raw values, coordinates, identifiers, keychain feature points, credentials, or generated parser artifacts belong in this vault.
 
 ## Workstream status

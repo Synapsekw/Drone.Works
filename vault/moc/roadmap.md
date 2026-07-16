@@ -19,10 +19,13 @@ related: ["[[00-north-star]]", "[[project-history]]"]
 
 ```text
 Phase 0 complete
-  -> A01 production repository bootstrap
-  -> A02 no-cloud local runtime
-  -> A03 versioned API contract
+  -> A01 production repository bootstrap (complete)
+  -> A02 no-cloud local runtime (complete)
+  -> A03 versioned API contract (complete)
+  -> A04 PostgreSQL migration and forced-RLS boundary
   -> continue the ordered Phase 1A vertical path
 ```
 
-Phase 0 is complete. Begin at A01 and keep A09 DJI enablement plus A14–A15 AWS hosted-data work fail-closed until their external authority and evidence pass.
+Resume at A04 using native PostgreSQL and generated Alpha/Beta data; RDS is not
+needed. Keep A09 DJI enablement plus A14–A15 AWS hosted-data work fail-closed
+until their external authority and evidence pass.

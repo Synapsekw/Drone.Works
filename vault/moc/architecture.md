@@ -21,6 +21,9 @@ related: ["[[00-north-star]]"]
 - [Phase 1A security checklist](../../docs/security/PHASE-1A-SECURITY-CHECKLIST.md)
 - [Canonical decision log](../../docs/product/DECISIONS.md)
 
-## Open Phase 0 architecture outputs
+## Current implementation boundary
 
-- P0-09 walking-skeleton backlog and final gate reconciliation.
+- A01–A03 promote the accepted stack into a runnable, Docker-free foundation.
+- A04 is the next boundary: production-named PostgreSQL migrations and forced
+  organization RLS, still on native local PostgreSQL with generated data.
+- Hosted RDS and AWS conformance remain A14–A15 gates.

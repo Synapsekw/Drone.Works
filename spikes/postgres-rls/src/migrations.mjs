@@ -72,6 +72,16 @@ const REVIEWED_MIGRATIONS = Object.freeze([
       import.meta.url,
     ),
   }),
+  Object.freeze({
+    id: "008_permanent_flight_deletion",
+    sha256: "096c6480b3f3e72b0f84809e816651c2811378717972b8292f9244bce576b570",
+    isolationContract: "tighten",
+    changedTables: Object.freeze(["canonical_flights", "raw_sources"]),
+    url: new URL(
+      "../sql/migrations/008_permanent_flight_deletion.sql",
+      import.meta.url,
+    ),
+  }),
 ]);
 
 function sha256(value) {

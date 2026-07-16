@@ -19,18 +19,23 @@ import {
 } from "../src/exports.mjs";
 import {
   ORGANIZATION_DELETION_GRACE_MS,
+  permanentlyDeleteFlight,
   permanentlyDeleteOrganization,
 } from "../src/deletions.mjs";
 import {
+  enqueueFlightDeletion,
   enqueueOrganizationDeletion,
   enqueueOrganizationExport,
   FLIGHT_REFRESH_QUEUE,
+  FLIGHT_DELETION_QUEUE,
+  flightDeletionPayload,
   enqueueFlightRefresh,
   ORGANIZATION_DELETION_QUEUE,
   organizationDeletionPayload,
   ORGANIZATION_EXPORT_QUEUE,
   organizationExportPayload,
   processNextOrganizationDeletion,
+  processNextFlightDeletion,
   processNextFlightRefresh,
   processNextOrganizationExport,
 } from "../src/jobs.mjs";
@@ -537,6 +542,11 @@ before(async () => {
     deleteAfterSeconds: 3600,
   });
   await queueBoss.createQueue(ORGANIZATION_DELETION_QUEUE, {
+    retryLimit: 1,
+    retryDelay: 0,
+    deleteAfterSeconds: 3600,
+  });
+  await queueBoss.createQueue(FLIGHT_DELETION_QUEUE, {
     retryLimit: 1,
     retryDelay: 0,
     deleteAfterSeconds: 3600,
@@ -3782,4 +3792,305 @@ test("permanent organization deletion is grace-bound, retry-safe, and isolated",
     id: "org-delete-early",
     state: "pending_deletion",
   }]);
+});
+
+test("permanent flight deletion removes payload and preserves shared sources", async () => {
+  await bootstrapPool.query(
+    `INSERT INTO droneworks.canonical_flights (
+       organization_id,
+       id,
+       pilot_profile_id,
+       aircraft_id,
+       imported_pilot_profile_id,
+       imported_aircraft_id,
+       source_kind,
+       state,
+       takeoff_at,
+       takeoff_timezone,
+       duration_ms,
+       location_text,
+       notes,
+       deleted_at,
+       deleted_from_state
+     ) VALUES
+       (
+         'org-alpha',
+         'flight-permanent-delete',
+         'pilot-alpha',
+         'aircraft-alpha',
+         'pilot-alpha',
+         'aircraft-alpha',
+         'imported',
+         'deleted',
+         '2026-05-01T08:00:00Z',
+         'UTC',
+         1000,
+         'Synthetic permanent deletion location',
+         'Synthetic permanent deletion note',
+         '2026-06-01T12:00:00Z',
+         'active'
+       ),
+       (
+         'org-alpha',
+         'flight-shared-source-peer',
+         'pilot-alpha',
+         'aircraft-alpha',
+         'pilot-alpha',
+         'aircraft-alpha',
+         'imported',
+         'active',
+         '2026-05-01T09:00:00Z',
+         'UTC',
+         1000,
+         'Synthetic shared-source location',
+         'Synthetic shared-source note',
+         NULL,
+         NULL
+       ),
+       (
+         'org-alpha',
+         'flight-delete-too-early',
+         'pilot-alpha',
+         'aircraft-alpha',
+         'pilot-alpha',
+         'aircraft-alpha',
+         'imported',
+         'deleted',
+         '2026-06-30T08:00:00Z',
+         'UTC',
+         1000,
+         'Synthetic early location',
+         'Synthetic early note',
+         '2026-07-01T12:00:00Z',
+         'active'
+       );
+
+     INSERT INTO droneworks.flight_revisions (
+       organization_id,
+       id,
+       canonical_flight_id,
+       processing_revision_id,
+       facts,
+       capabilities
+     ) VALUES (
+       'org-alpha',
+       'revision-permanent-delete',
+       'flight-permanent-delete',
+       'processing-permanent-delete',
+       '{"private":"synthetic payload"}',
+       ARRAY['telemetry.altitude']
+     );
+
+     INSERT INTO droneworks.telemetry_samples (
+       organization_id, flight_revision_id, elapsed_ms, height_agl_m
+     ) VALUES
+       ('org-alpha', 'revision-permanent-delete', 0, 1),
+       ('org-alpha', 'revision-permanent-delete', 1000, 2);
+
+     INSERT INTO droneworks.raw_sources (
+       organization_id, id, object_revision_id, state
+     ) VALUES
+       ('org-alpha', 'raw-permanent-exclusive', 'revision-permanent-exclusive', 'retained'),
+       ('org-alpha', 'raw-permanent-shared', 'revision-permanent-shared', 'retained');
+
+     INSERT INTO droneworks.raw_source_flights (
+       organization_id, raw_source_id, canonical_flight_id
+     ) VALUES
+       ('org-alpha', 'raw-permanent-exclusive', 'flight-permanent-delete'),
+       ('org-alpha', 'raw-permanent-shared', 'flight-permanent-delete'),
+       ('org-alpha', 'raw-permanent-shared', 'flight-shared-source-peer');
+
+     INSERT INTO droneworks.import_items (
+       organization_id,
+       id,
+       import_batch_id,
+       client_file_id,
+       original_filename,
+       raw_source_id,
+       state,
+       created_at
+     ) VALUES
+       (
+         'org-alpha',
+         'import-item-permanent-exclusive',
+         'import-batch-alpha',
+         'client-permanent-exclusive',
+         'synthetic-exclusive.txt',
+         'raw-permanent-exclusive',
+         'completed',
+         '2026-05-01T07:00:00Z'
+       ),
+       (
+         'org-alpha',
+         'import-item-permanent-shared',
+         'import-batch-alpha',
+         'client-permanent-shared',
+         'synthetic-shared.txt',
+         'raw-permanent-shared',
+         'completed',
+         '2026-05-01T07:00:00Z'
+       )`,
+  );
+
+  const appDeletePrivileges = await bootstrapPool.query(
+    `SELECT has_table_privilege(
+              'droneworks_app',
+              'droneworks.canonical_flights',
+              'DELETE'
+            ) AS deletes_flights,
+            has_table_privilege(
+              'droneworks_app',
+              'droneworks.raw_sources',
+              'DELETE'
+            ) AS deletes_sources`,
+  );
+  assert.deepEqual(appDeletePrivileges.rows[0], {
+    deletes_flights: false,
+    deletes_sources: false,
+  });
+  await assertOrganizationSqlRejects(
+    "org-alpha",
+    "DELETE FROM droneworks.canonical_flights WHERE id = 'flight-permanent-delete'",
+    (error) => error.code === "42501",
+  );
+
+  const payload = flightDeletionPayload({
+    schemaVersion: 1,
+    organizationId: "org-alpha",
+    flightId: "flight-permanent-delete",
+    deletedAt: "2026-06-01T12:00:00.000Z",
+  });
+  assert.throws(
+    () => flightDeletionPayload({ ...payload, rawSourceId: "not-durable" }),
+    /must contain only/,
+  );
+
+  const early = await permanentlyDeleteFlight(deletionPool, {
+    organizationId: "org-alpha",
+    flightId: "flight-delete-too-early",
+    deletedAt: new Date("2026-07-01T12:00:00Z"),
+  }, { now: fixedNow });
+  assert.equal(early.status, "not_eligible");
+  const crossOrganization = await permanentlyDeleteFlight(deletionPool, {
+    organizationId: "org-beta",
+    flightId: "flight-permanent-delete",
+    deletedAt: new Date("2026-06-01T12:00:00Z"),
+  }, { now: fixedNow });
+  assert.equal(crossOrganization.status, "not_eligible");
+  const staleReference = await permanentlyDeleteFlight(deletionPool, {
+    organizationId: "org-alpha",
+    flightId: "flight-permanent-delete",
+    deletedAt: new Date("2026-06-02T12:00:00Z"),
+  }, { now: fixedNow });
+  assert.equal(staleReference.status, "not_eligible");
+
+  const jobId = await enqueueFlightDeletion(queueBoss, payload);
+  let failAfterCommit = true;
+  await assert.rejects(
+    processNextFlightDeletion(queueBoss, deletionPool, {
+      now: fixedNow,
+      afterDelete(outcome) {
+        if (failAfterCommit) {
+          failAfterCommit = false;
+          assert.equal(outcome.status, "deleted");
+          throw new Error("synthetic post-flight-deletion failure");
+        }
+      },
+    }),
+    /synthetic post-flight-deletion failure/,
+  );
+
+  const verificationClient = await applicationPool.connect();
+  let removal;
+  try {
+    await verificationClient.query("BEGIN");
+    await verificationClient.query(
+      "SELECT set_config('app.organization_id', $1, true)",
+      ["org-alpha"],
+    );
+    const result = await verificationClient.query(
+        `SELECT
+           (SELECT count(*)::integer
+              FROM droneworks.canonical_flights
+             WHERE id = 'flight-permanent-delete') AS flight_count,
+           (SELECT count(*)::integer
+              FROM droneworks.flight_revisions
+             WHERE id = 'revision-permanent-delete') AS revision_count,
+           (SELECT count(*)::integer
+              FROM droneworks.telemetry_samples
+             WHERE flight_revision_id = 'revision-permanent-delete') AS telemetry_count,
+           (SELECT count(*)::integer
+              FROM droneworks.raw_sources
+             WHERE id = 'raw-permanent-exclusive') AS exclusive_source_count,
+           (SELECT count(*)::integer
+              FROM droneworks.raw_sources
+             WHERE id = 'raw-permanent-shared') AS shared_source_count,
+           (SELECT count(*)::integer
+              FROM droneworks.raw_source_flights
+             WHERE raw_source_id = 'raw-permanent-shared'
+               AND canonical_flight_id = 'flight-shared-source-peer') AS peer_link_count,
+           (SELECT raw_source_id
+              FROM droneworks.import_items
+             WHERE id = 'import-item-permanent-exclusive') AS exclusive_import_source,
+           (SELECT raw_source_id
+              FROM droneworks.import_items
+             WHERE id = 'import-item-permanent-shared') AS shared_import_source`,
+    );
+    removal = result.rows[0];
+    await verificationClient.query("COMMIT");
+  } catch (error) {
+    await verificationClient.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    verificationClient.release();
+  }
+  assert.deepEqual(removal, {
+    flight_count: 0,
+    revision_count: 0,
+    telemetry_count: 0,
+    exclusive_source_count: 0,
+    shared_source_count: 1,
+    peer_link_count: 1,
+    exclusive_import_source: null,
+    shared_import_source: "raw-permanent-shared",
+  });
+
+  const events = await withOrganization(
+    applicationPool,
+    "org-alpha",
+    async (repositories) => (await repositories.listAuditEvents()).filter(
+      (event) => event.action === "flight.permanently_deleted"
+        && event.resource_id === "flight-permanent-delete",
+    ),
+  );
+  assert.equal(events.length, 1);
+  assert.equal(events[0].actor_user_id, "system:deletion-worker");
+  assert.deepEqual(events[0].metadata, {
+    deleted_at: "2026-06-01T12:00:00.000Z",
+    deleted_raw_source_count: 1,
+  });
+  const serializedEvent = JSON.stringify(events[0]);
+  assert.equal(serializedEvent.includes("Synthetic permanent deletion note"), false);
+  assert.equal(serializedEvent.includes("Synthetic permanent deletion location"), false);
+  assert.equal(serializedEvent.includes("synthetic payload"), false);
+  assert.equal(serializedEvent.includes("revision-permanent-exclusive"), false);
+
+  const retried = await processNextFlightDeletion(queueBoss, deletionPool, {
+    now: new Date("2026-07-16T12:00:00Z"),
+  });
+  assert.equal(retried.jobId, jobId);
+  assert.deepEqual(retried.outcome, {
+    status: "already_deleted",
+    organizationId: "org-alpha",
+    flightId: "flight-permanent-delete",
+    deletedAt: "2026-06-01T12:00:00.000Z",
+    completedAt: fixedNow.toISOString(),
+    deletedRawSourceCount: 1,
+  });
+  assert.deepEqual(
+    (await deletionPool.query(
+      "SELECT current_setting('app.organization_id', true) AS organization_id",
+    )).rows[0],
+    { organization_id: "" },
+  );
 });

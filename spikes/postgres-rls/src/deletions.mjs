@@ -79,3 +79,54 @@ export async function permanentlyDeleteOrganization(pool, input, options = {}) {
     client.release();
   }
 }
+
+export async function permanentlyDeleteFlight(pool, input, options = {}) {
+  if (pool === null || typeof pool?.connect !== "function") {
+    throw new TypeError("pool.connect must be a function");
+  }
+  if (input === null || typeof input !== "object" || Array.isArray(input)) {
+    throw new TypeError("flight deletion input is required");
+  }
+  const organizationId = requireId(input.organizationId, "organizationId");
+  const flightId = requireId(input.flightId, "flightId");
+  const deletedAt = requireDate(input.deletedAt, "deletedAt");
+  const now = requireDate(options.now ?? new Date(), "now");
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const result = await client.query(
+      `SELECT outcome,
+              organization_id,
+              flight_id,
+              deleted_at,
+              completed_at,
+              deleted_raw_source_count
+         FROM droneworks.permanently_delete_flight($1, $2, $3, $4)`,
+      [
+        organizationId,
+        flightId,
+        deletedAt.toISOString(),
+        now.toISOString(),
+      ],
+    );
+    if (result.rowCount !== 1) {
+      throw new Error("permanent flight deletion returned no outcome");
+    }
+    await client.query("COMMIT");
+    const row = result.rows[0];
+    return Object.freeze({
+      status: row.outcome,
+      organizationId: row.organization_id,
+      flightId: row.flight_id,
+      deletedAt: row.deleted_at?.toISOString() ?? null,
+      completedAt: row.completed_at?.toISOString() ?? null,
+      deletedRawSourceCount: row.deleted_raw_source_count,
+    });
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
+}

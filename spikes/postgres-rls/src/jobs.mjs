@@ -2,7 +2,10 @@ import {
   loadFlightForJob,
   loadOrganizationExportForJob,
 } from "./repositories.mjs";
-import { permanentlyDeleteOrganization } from "./deletions.mjs";
+import {
+  permanentlyDeleteFlight,
+  permanentlyDeleteOrganization,
+} from "./deletions.mjs";
 
 export const FLIGHT_REFRESH_QUEUE = "canonical-flight-refresh-v1";
 export const FLIGHT_REFRESH_PAYLOAD_VERSION = 1;
@@ -27,6 +30,16 @@ export const ORGANIZATION_DELETION_PAYLOAD_VERSION = 1;
 
 const ORGANIZATION_DELETION_PAYLOAD_KEYS = Object.freeze([
   "deletionRequestedAt",
+  "organizationId",
+  "schemaVersion",
+]);
+
+export const FLIGHT_DELETION_QUEUE = "flight-deletion-v1";
+export const FLIGHT_DELETION_PAYLOAD_VERSION = 1;
+
+const FLIGHT_DELETION_PAYLOAD_KEYS = Object.freeze([
+  "deletedAt",
+  "flightId",
   "organizationId",
   "schemaVersion",
 ]);
@@ -289,6 +302,89 @@ export async function processNextOrganizationDeletion(boss, pool, options = {}) 
     return Object.freeze({ jobId: job.id, outcome });
   } catch (error) {
     await boss.fail(ORGANIZATION_DELETION_QUEUE, job.id, {
+      error: error instanceof Error ? error.message : "job failed",
+    });
+    throw error;
+  }
+}
+
+export function flightDeletionPayload(input) {
+  if (input === null || typeof input !== "object" || Array.isArray(input)) {
+    throw new TypeError("job payload must be an object");
+  }
+  const keys = Object.keys(input).sort();
+  if (keys.length !== FLIGHT_DELETION_PAYLOAD_KEYS.length
+      || keys.some((key, index) => key !== FLIGHT_DELETION_PAYLOAD_KEYS[index])) {
+    throw new TypeError(
+      "job payload must contain only schemaVersion, organizationId, flightId, and deletedAt",
+    );
+  }
+  if (input.schemaVersion !== FLIGHT_DELETION_PAYLOAD_VERSION) {
+    throw new TypeError(
+      `schemaVersion must be ${FLIGHT_DELETION_PAYLOAD_VERSION}`,
+    );
+  }
+  const deletedAt = new Date(input.deletedAt);
+  if (typeof input.deletedAt !== "string"
+      || Number.isNaN(deletedAt.valueOf())
+      || deletedAt.toISOString() !== input.deletedAt) {
+    throw new TypeError("deletedAt must be a canonical ISO timestamp");
+  }
+  return Object.freeze({
+    schemaVersion: FLIGHT_DELETION_PAYLOAD_VERSION,
+    organizationId: requireId(input.organizationId, "organizationId"),
+    flightId: requireId(input.flightId, "flightId"),
+    deletedAt: input.deletedAt,
+  });
+}
+
+export async function enqueueFlightDeletion(boss, input, options = {}) {
+  if (boss === null || typeof boss?.send !== "function") {
+    throw new TypeError("boss.send must be a function");
+  }
+  const id = await boss.send(
+    FLIGHT_DELETION_QUEUE,
+    flightDeletionPayload(input),
+    options,
+  );
+  if (typeof id !== "string" || id.length === 0) {
+    throw new Error("queue did not accept the flight deletion job");
+  }
+  return id;
+}
+
+export async function executeFlightDeletion(pool, job, options = {}) {
+  if (job === null || typeof job !== "object") {
+    throw new TypeError("queued job is required");
+  }
+  const payload = flightDeletionPayload(job.data);
+  const outcome = await permanentlyDeleteFlight(pool, {
+    organizationId: payload.organizationId,
+    flightId: payload.flightId,
+    deletedAt: new Date(payload.deletedAt),
+  }, { now: options.now });
+  if (typeof options.afterDelete === "function") {
+    await options.afterDelete(outcome);
+  }
+  return outcome;
+}
+
+export async function processNextFlightDeletion(boss, pool, options = {}) {
+  if (boss === null || typeof boss?.fetch !== "function") {
+    throw new TypeError("boss.fetch must be a function");
+  }
+  const [job] = await boss.fetch(FLIGHT_DELETION_QUEUE, {
+    includeMetadata: true,
+  });
+  if (job === undefined) {
+    return null;
+  }
+  try {
+    const outcome = await executeFlightDeletion(pool, job, options);
+    await boss.complete(FLIGHT_DELETION_QUEUE, job.id, outcome);
+    return Object.freeze({ jobId: job.id, outcome });
+  } catch (error) {
+    await boss.fail(FLIGHT_DELETION_QUEUE, job.id, {
       error: error instanceof Error ? error.message : "job failed",
     });
     throw error;

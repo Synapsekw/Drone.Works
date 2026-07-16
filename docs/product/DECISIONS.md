@@ -72,7 +72,9 @@ The export-generation follow-up freezes a sanitized ordered data snapshot for al
 
 The permanent-organization-deletion follow-up adds a dedicated non-superuser worker with no direct customer-table access and removes ordinary-app `DELETE` from the organization root through a checksum-pinned privilege-tightening migration. Its sole deletion function binds to the exact pending-request timestamp, enforces the 30-day grace boundary, applies transaction-local forced RLS, deletes all twenty-two child table types in explicit dependency order, deletes the root, and atomically records a payload-free receipt in the separately owned operational schema. One synthetic organization with a row in every customer table reaches zero rows; early, cancelled, and cross-organization/stale references do not delete. A failure after commit retries through pg-boss and returns the original receipt without repeating the effect. This proves active relational deletion, pooled clearing, and retry idempotency without claiming object, cache, log, or backup deletion; the worker-configured backup deadline is mechanism evidence, not a selected production retention value.
 
-This evidence does not yet accept D-002. Provider-side signed-URL expiry and object deletion, cached-secret/log/backup deletion and verification, permanent flight deletion, and atomic API-to-queue dispatch remain open. Production credential delivery, externally retained audit logs, and emergency operations remain P0-07 concerns. See `../architecture/TENANCY.md`.
+The permanent-flight-deletion follow-up removes ordinary-app `DELETE` from canonical flights and raw sources and grants the same dedicated worker one timestamp-bound function. After the 30-day restoration window it deletes the canonical record, revisions, telemetry, associations, and overrides; clears retained import references before deleting raw sources linked only to that flight; and preserves a source still linked to another retained flight. Early, restored/missing, cross-organization, and stale references return the same non-eligible outcome. The retained action evidence contains only an opaque flight reference, UTC deletion time, removed-source count, system actor, and changed field. A post-commit pg-boss failure retries to that same evidence without repeating the effect, and pooled context clears.
+
+This evidence does not yet accept D-002. Provider-side signed-URL expiry and object deletion, cached-secret/log/backup deletion and verification, and atomic API-to-queue dispatch remain open. Production credential delivery, externally retained audit logs, and emergency operations remain P0-07 concerns. See `../architecture/TENANCY.md`.
 
 ## D-003 — Canonical normalized flight model
 
@@ -106,7 +108,7 @@ Retained raw objects are immutable. They remain available while legitimately ref
 
 ### Consequences
 
-Object references need lifecycle tracking. A raw object shared by processing revisions is not deleted prematurely. Technical caches must be de-identified if retained beyond customer deletion. The Phase 0 lifecycle proof keeps immutable revisions separate from mutable delete/restore state and makes source deletion eligibility explicit; database, object-storage, export, log, and backup enforcement remain later proof obligations.
+Object references need lifecycle tracking. A raw object shared by processing revisions is not deleted prematurely. Technical caches must be de-identified if retained beyond customer deletion. The Phase 0 relational proof now removes an expired deleted flight and its exclusive raw-source row while retaining a source linked to another flight; object-provider, cache, export, log, and backup enforcement remain later proof obligations.
 
 ## D-005 — Flight facts and user overrides
 

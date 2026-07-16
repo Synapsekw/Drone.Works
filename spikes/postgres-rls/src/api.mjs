@@ -389,6 +389,143 @@ function emptyObjectInput(body) {
   return input;
 }
 
+function rfc3339Date(value, field, errors) {
+  const validShape = typeof value === "string"
+    && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value);
+  const parsed = validShape ? new Date(value) : new Date(Number.NaN);
+  if (!validShape || Number.isNaN(parsed.valueOf())) {
+    errors.push({ field, detail: "must be an RFC 3339 timestamp" });
+  }
+  return parsed;
+}
+
+function maintenanceScheduleInput(body) {
+  const input = requireObject(body);
+  const allowed = [
+    "aircraft_id",
+    "title",
+    "schedule_type",
+    "interval_value",
+    "due_at",
+    "baseline_at",
+    "due_soon_threshold_percent",
+    "due_soon_days",
+  ];
+  const errors = validateKeys(input, allowed, [
+    "aircraft_id",
+    "title",
+    "schedule_type",
+    "baseline_at",
+  ]);
+  if (!validIdentifier(input.aircraft_id)) {
+    errors.push({
+      field: "aircraft_id",
+      detail: "must be a non-empty opaque identifier",
+    });
+  }
+  if (typeof input.title !== "string"
+      || input.title.trim().length === 0
+      || input.title.length > 200) {
+    errors.push({
+      field: "title",
+      detail: "must be a non-empty string of at most 200 characters",
+    });
+  }
+  const usageSchedule = ["flight_hours", "flight_count"].includes(
+    input.schedule_type,
+  );
+  const dateSchedule = input.schedule_type === "one_shot_date";
+  if (!usageSchedule && !dateSchedule) {
+    errors.push({
+      field: "schedule_type",
+      detail: "must be flight_hours, flight_count, or one_shot_date",
+    });
+  }
+  const baselineAt = rfc3339Date(input.baseline_at, "baseline_at", errors);
+  let intervalValue = null;
+  let dueAt = null;
+  let dueSoonThresholdPercent = null;
+  let dueSoonDays = null;
+  if (usageSchedule) {
+    if (!Number.isSafeInteger(input.interval_value) || input.interval_value <= 0) {
+      errors.push({ field: "interval_value", detail: "must be a positive integer" });
+    } else {
+      intervalValue = input.interval_value;
+    }
+    if (Object.hasOwn(input, "due_at")) {
+      errors.push({ field: "due_at", detail: "is allowed only for one_shot_date" });
+    }
+    if (Object.hasOwn(input, "due_soon_days")) {
+      errors.push({
+        field: "due_soon_days",
+        detail: "is allowed only for one_shot_date",
+      });
+    }
+    dueSoonThresholdPercent = input.due_soon_threshold_percent ?? 80;
+    if (!Number.isSafeInteger(dueSoonThresholdPercent)
+        || dueSoonThresholdPercent < 1
+        || dueSoonThresholdPercent > 99) {
+      errors.push({
+        field: "due_soon_threshold_percent",
+        detail: "must be an integer from 1 through 99",
+      });
+    }
+  }
+  if (dateSchedule) {
+    dueAt = rfc3339Date(input.due_at, "due_at", errors);
+    if (Object.hasOwn(input, "interval_value")) {
+      errors.push({
+        field: "interval_value",
+        detail: "is not allowed for one_shot_date",
+      });
+    }
+    if (Object.hasOwn(input, "due_soon_threshold_percent")) {
+      errors.push({
+        field: "due_soon_threshold_percent",
+        detail: "is not allowed for one_shot_date",
+      });
+    }
+    dueSoonDays = input.due_soon_days ?? 30;
+    if (!Number.isSafeInteger(dueSoonDays) || dueSoonDays <= 0) {
+      errors.push({ field: "due_soon_days", detail: "must be a positive integer" });
+    }
+  }
+  if (errors.length > 0) {
+    throw new ValidationError(errors);
+  }
+  return Object.freeze({
+    aircraftId: input.aircraft_id,
+    title: input.title.trim(),
+    scheduleType: input.schedule_type,
+    intervalValue,
+    dueAt,
+    baselineAt,
+    dueSoonThresholdPercent,
+    dueSoonDays,
+  });
+}
+
+function maintenanceCompletionInput(body) {
+  const input = requireObject(body);
+  const errors = validateKeys(input, ["completed_at", "details"]);
+  const completedAt = rfc3339Date(input.completed_at, "completed_at", errors);
+  if (typeof input.details !== "string"
+      || input.details.trim().length === 0
+      || input.details.length > 2_000) {
+    errors.push({
+      field: "details",
+      detail: "must be a non-empty string of at most 2000 characters",
+    });
+  }
+  if (errors.length > 0) {
+    throw new ValidationError(errors);
+  }
+  return Object.freeze({
+    completedAt,
+    details: input.details.trim(),
+  });
+}
+
 function requestHash(input) {
   return createHash("sha256").update(JSON.stringify({
     pilot_profile_id: input.pilotProfileId,
@@ -412,6 +549,26 @@ function organizationExportRequestHash() {
   return createHash("sha256")
     .update("complete-organization-export:v1")
     .digest("hex");
+}
+
+function maintenanceScheduleRequestHash(input) {
+  return createHash("sha256").update(JSON.stringify({
+    aircraft_id: input.aircraftId,
+    title: input.title,
+    schedule_type: input.scheduleType,
+    interval_value: input.intervalValue,
+    due_at: input.dueAt?.toISOString() ?? null,
+    baseline_at: input.baselineAt.toISOString(),
+    due_soon_threshold_percent: input.dueSoonThresholdPercent,
+    due_soon_days: input.dueSoonDays,
+  })).digest("hex");
+}
+
+function maintenanceCompletionRequestHash(input) {
+  return createHash("sha256").update(JSON.stringify({
+    completed_at: input.completedAt.toISOString(),
+    details: input.details,
+  })).digest("hex");
 }
 
 function decodeIdentifier(value) {
@@ -927,6 +1084,146 @@ export function createApiServer({
           return;
         }
         sendJson(response, 200, { data: exportRequest });
+        return;
+      }
+
+      const createMaintenanceScheduleRoute = request.method === "POST"
+        ? matchRoute(
+          url.pathname,
+          /^\/api\/v1\/organizations\/([^/]+)\/maintenance-schedules$/,
+        )
+        : null;
+      if (createMaintenanceScheduleRoute !== null) {
+        const [organizationId] = createMaintenanceScheduleRoute;
+        const idempotencyKey = request.headers["idempotency-key"];
+        if (!validIdentifier(idempotencyKey)) {
+          throw new ValidationError([{
+            field: "Idempotency-Key",
+            detail: "must be a non-empty opaque identifier",
+          }]);
+        }
+        const input = maintenanceScheduleInput(await readJsonBody(request));
+        const result = await withOrganization(
+          pool,
+          organizationId,
+          (repositories) => repositories.createMaintenanceScheduleForManager({
+            userId: identity.userId,
+            idempotencyKey,
+            requestHash: maintenanceScheduleRequestHash(input),
+            createId,
+            ...input,
+            now: now(),
+          }),
+        );
+        if (result === null) {
+          sendProblem(response, HIDDEN_RESOURCE_PROBLEM);
+          return;
+        }
+        if (result.kind === "conflict") {
+          sendProblem(response, {
+            type: "about:blank",
+            title: "Conflict",
+            status: 409,
+            detail: "The idempotency key was already used with different input",
+          });
+          return;
+        }
+        sendJson(response, 201, { data: result.schedule });
+        return;
+      }
+
+      const maintenanceSchedulesRoute = request.method === "GET"
+        ? matchRoute(
+          url.pathname,
+          /^\/api\/v1\/organizations\/([^/]+)\/maintenance-schedules$/,
+        )
+        : null;
+      if (maintenanceSchedulesRoute !== null) {
+        const [organizationId] = maintenanceSchedulesRoute;
+        const schedules = await withOrganization(
+          pool,
+          organizationId,
+          (repositories) => repositories.listMaintenanceSchedulesForMember({
+            userId: identity.userId,
+            now: now(),
+          }),
+        );
+        if (schedules === null) {
+          sendProblem(response, HIDDEN_RESOURCE_PROBLEM);
+          return;
+        }
+        sendJson(response, 200, { data: schedules });
+        return;
+      }
+
+      const maintenanceScheduleRoute = request.method === "GET"
+        ? matchRoute(
+          url.pathname,
+          /^\/api\/v1\/organizations\/([^/]+)\/maintenance-schedules\/([^/]+)$/,
+        )
+        : null;
+      if (maintenanceScheduleRoute !== null) {
+        const [organizationId, scheduleId] = maintenanceScheduleRoute;
+        const schedule = await withOrganization(
+          pool,
+          organizationId,
+          (repositories) => repositories.findMaintenanceScheduleForMember({
+            userId: identity.userId,
+            scheduleId,
+            now: now(),
+          }),
+        );
+        if (schedule === null) {
+          sendProblem(response, HIDDEN_RESOURCE_PROBLEM);
+          return;
+        }
+        sendJson(response, 200, { data: schedule });
+        return;
+      }
+
+      const maintenanceCompletionRoute = request.method === "POST"
+        ? matchRoute(
+          url.pathname,
+          /^\/api\/v1\/organizations\/([^/]+)\/maintenance-schedules\/([^/]+)\/completions$/,
+        )
+        : null;
+      if (maintenanceCompletionRoute !== null) {
+        const [organizationId, scheduleId] = maintenanceCompletionRoute;
+        const idempotencyKey = request.headers["idempotency-key"];
+        if (!validIdentifier(idempotencyKey)) {
+          throw new ValidationError([{
+            field: "Idempotency-Key",
+            detail: "must be a non-empty opaque identifier",
+          }]);
+        }
+        const input = maintenanceCompletionInput(await readJsonBody(request));
+        const result = await withOrganization(
+          pool,
+          organizationId,
+          (repositories) => repositories.completeMaintenanceScheduleForManager({
+            userId: identity.userId,
+            scheduleId,
+            idempotencyKey,
+            requestHash: maintenanceCompletionRequestHash(input),
+            createId,
+            ...input,
+            now: now(),
+          }),
+        );
+        if (result === null) {
+          sendProblem(response, HIDDEN_RESOURCE_PROBLEM);
+          return;
+        }
+        if (result.kind === "conflict") {
+          sendProblem(response, {
+            type: "about:blank",
+            title: "Conflict",
+            status: 409,
+            detail: "The idempotency key was already used with different input",
+          });
+          return;
+        }
+        sendJson(response, 201, { data: result.result });
         return;
       }
 

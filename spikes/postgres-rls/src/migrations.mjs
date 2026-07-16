@@ -49,6 +49,19 @@ const REVIEWED_MIGRATIONS = Object.freeze([
       import.meta.url,
     ),
   }),
+  Object.freeze({
+    id: "006_maintenance_resources",
+    sha256: "6aebc04dca6b62632acc80af375227482d810fb7efe99a0712c08183ef197fcf",
+    isolationContract: "expand",
+    addedTables: Object.freeze([
+      "maintenance_completions",
+      "maintenance_schedules",
+    ]),
+    url: new URL(
+      "../sql/migrations/006_maintenance_resources.sql",
+      import.meta.url,
+    ),
+  }),
 ]);
 
 function sha256(value) {

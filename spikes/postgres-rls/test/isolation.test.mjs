@@ -222,7 +222,7 @@ test("ordinary connections are non-owner, non-superuser, and unable to bypass RL
         AND c.relkind = 'r'
       ORDER BY c.relname`,
   );
-  assert.equal(tables.rowCount, 21);
+  assert.equal(tables.rowCount, 23);
   for (const table of tables.rows) {
     assert.equal(table.owner, "droneworks_migrator");
     assert.equal(table.relrowsecurity, true);
@@ -452,6 +452,11 @@ test("queue ownership is limited to infrastructure and cannot read customer tabl
               'droneworks.organization_export_requests',
               'SELECT'
             ) AS reads_export_requests,
+            has_table_privilege(
+              'droneworks_queue',
+              'droneworks.maintenance_schedules',
+              'SELECT'
+            ) AS reads_maintenance_schedules,
             has_schema_privilege('droneworks_app', 'droneworks_jobs', 'USAGE') AS app_reads_queue_schema
        FROM pg_roles
       WHERE rolname = 'droneworks_queue'`,
@@ -465,6 +470,7 @@ test("queue ownership is limited to infrastructure and cannot read customer tabl
     owns_queue_schema: true,
     reads_customer_flights: false,
     reads_export_requests: false,
+    reads_maintenance_schedules: false,
     app_reads_queue_schema: false,
   });
 });
@@ -2368,6 +2374,8 @@ test("complete organization export requests are manager-only, idempotent, and or
     "flight_tags",
     "import_batches",
     "import_items",
+    "maintenance_completions",
+    "maintenance_schedules",
     "memberships",
     "organizations",
     "pilot_profiles",
@@ -2391,6 +2399,8 @@ test("complete organization export requests are manager-only, idempotent, and or
     import_batches: 3,
     import_items: 4,
     memberships: 4,
+    maintenance_completions: 0,
+    maintenance_schedules: 0,
     organizations: 1,
     pilot_profiles: 2,
     raw_source_flights: 5,
@@ -2591,4 +2601,364 @@ test("organization export jobs persist strict references and reapply RLS at exec
     malformedJobId,
   );
   assert.equal(malformed.state, "failed");
+});
+
+test("maintenance schedules are manager-mutated, member-readable, and usage-derived", async () => {
+  const schedulesPath = `${API_PREFIX}/organizations/org-alpha/maintenance-schedules`;
+  const totals = await withOrganization(
+    applicationPool,
+    "org-alpha",
+    (repositories) => repositories.flightTotals(),
+  );
+  const scheduleInput = {
+    aircraft_id: "aircraft-alpha",
+    title: "Synthetic airframe inspection",
+    schedule_type: "flight_hours",
+    interval_value: 10,
+    baseline_at: "2026-01-01T00:00:00Z",
+  };
+  const missingKey = await apiRequest(schedulesPath, "session-alpha-owner", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(scheduleInput),
+  });
+  assert.equal(missingKey.status, 400);
+  assert.deepEqual(missingKey.body.errors, [{
+    field: "Idempotency-Key",
+    detail: "must be a non-empty opaque identifier",
+  }]);
+
+  for (const session of [
+    "session-alpha-pilot",
+    "session-alpha-viewer",
+    "session-beta-admin",
+  ]) {
+    const denied = await apiRequest(schedulesPath, session, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "idempotency-key": `maintenance-denied-${session}`,
+      },
+      body: JSON.stringify(scheduleInput),
+    });
+    assert.equal(denied.status, 404);
+    assert.deepEqual(denied.body, hiddenResourceProblem);
+  }
+  const crossAircraft = await apiRequest(schedulesPath, "session-alpha-owner", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "idempotency-key": "maintenance-cross-aircraft",
+    },
+    body: JSON.stringify({ ...scheduleInput, aircraft_id: "aircraft-beta" }),
+  });
+  assert.equal(crossAircraft.status, 404);
+  assert.deepEqual(crossAircraft.body, hiddenResourceProblem);
+
+  const created = await apiRequest(schedulesPath, "session-alpha-owner", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "idempotency-key": "maintenance-schedule-alpha-1",
+    },
+    body: JSON.stringify(scheduleInput),
+  });
+  assert.equal(created.status, 201);
+  assert.equal(created.body.data.id, "maintenance-schedule-1");
+  assert.equal(created.body.data.organization_id, "org-alpha");
+  assert.equal(created.body.data.aircraft_id, "aircraft-alpha");
+  assert.equal(created.body.data.aircraft_name, "Alpha Aircraft");
+  assert.equal(created.body.data.schedule_type, "flight_hours");
+  assert.equal(created.body.data.interval_value, 10);
+  assert.equal(created.body.data.due_soon_threshold_percent, 80);
+  assert.equal(created.body.data.due_soon_days, null);
+  assert.equal(created.body.data.condition, "current");
+  assert.deepEqual(created.body.data.usage, {
+    baseline_at: "2026-01-01T00:00:00.000Z",
+    flight_count: totals.flightCount,
+    duration_ms: totals.durationMs,
+    consumed_value: totals.durationMs / 3_600_000,
+  });
+  assert.equal(created.body.data.last_completion, null);
+
+  const replayed = await apiRequest(schedulesPath, "session-alpha-owner", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "idempotency-key": "maintenance-schedule-alpha-1",
+    },
+    body: JSON.stringify(scheduleInput),
+  });
+  assert.deepEqual(replayed, created);
+
+  const oneShot = await apiRequest(schedulesPath, "session-alpha-admin", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "idempotency-key": "maintenance-schedule-alpha-date",
+    },
+    body: JSON.stringify({
+      aircraft_id: "aircraft-alpha",
+      title: "Synthetic calendar inspection",
+      schedule_type: "one_shot_date",
+      due_at: "2026-07-25T12:00:00Z",
+      baseline_at: "2026-01-01T00:00:00Z",
+    }),
+  });
+  assert.equal(oneShot.status, 201);
+  assert.equal(oneShot.body.data.id, "maintenance-schedule-2");
+  assert.equal(oneShot.body.data.created_by_user_id, "user-alpha");
+  assert.equal(oneShot.body.data.due_soon_days, 30);
+  assert.equal(oneShot.body.data.condition, "due_soon");
+
+  for (const session of [
+    "session-alpha-owner",
+    "session-alpha-admin",
+    "session-alpha-pilot",
+    "session-alpha-viewer",
+  ]) {
+    const read = await apiRequest(
+      `${schedulesPath}/maintenance-schedule-1`,
+      session,
+    );
+    assert.equal(read.status, 200);
+    assert.deepEqual(read.body, created.body);
+  }
+  const listed = await apiRequest(schedulesPath, "session-alpha-viewer");
+  assert.equal(listed.status, 200);
+  assert.deepEqual(listed.body.data.map((schedule) => schedule.id), [
+    "maintenance-schedule-1",
+    "maintenance-schedule-2",
+  ]);
+  for (const denied of [{
+    path: `${API_PREFIX}/organizations/org-beta/maintenance-schedules/maintenance-schedule-1`,
+    session: "session-beta-admin",
+  }, {
+    path: `${schedulesPath}/maintenance-schedule-unknown`,
+    session: "session-alpha-owner",
+  }]) {
+    const response = await apiRequest(denied.path, denied.session);
+    assert.equal(response.status, 404);
+    assert.deepEqual(response.body, hiddenResourceProblem);
+  }
+
+  const completionPath = `${schedulesPath}/maintenance-schedule-1/completions`;
+  const completionInput = {
+    completed_at: "2026-07-15T12:00:00Z",
+    details: "Synthetic inspection completed",
+  };
+  for (const session of [
+    "session-alpha-pilot",
+    "session-alpha-viewer",
+    "session-beta-admin",
+  ]) {
+    const denied = await apiRequest(completionPath, session, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "idempotency-key": `maintenance-completion-denied-${session}`,
+      },
+      body: JSON.stringify(completionInput),
+    });
+    assert.equal(denied.status, 404);
+    assert.deepEqual(denied.body, hiddenResourceProblem);
+  }
+  const completed = await apiRequest(completionPath, "session-alpha-admin", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "idempotency-key": "maintenance-completion-alpha-1",
+    },
+    body: JSON.stringify(completionInput),
+  });
+  assert.equal(completed.status, 201);
+  assert.deepEqual(completed.body.data.completion, {
+    id: "maintenance-completion-1",
+    organization_id: "org-alpha",
+    maintenance_schedule_id: "maintenance-schedule-1",
+    completed_by_user_id: "user-alpha",
+    completed_at: fixedNow.toISOString(),
+    details: "Synthetic inspection completed",
+    recorded_at: fixedNow.toISOString(),
+  });
+  assert.equal(completed.body.data.schedule.condition, "current");
+  assert.deepEqual(completed.body.data.schedule.usage, {
+    baseline_at: fixedNow.toISOString(),
+    flight_count: 0,
+    duration_ms: 0,
+    consumed_value: 0,
+  });
+  assert.deepEqual(completed.body.data.schedule.last_completion, {
+    id: "maintenance-completion-1",
+    completed_by_user_id: "user-alpha",
+    completed_at: fixedNow.toISOString(),
+    details: "Synthetic inspection completed",
+    recorded_at: fixedNow.toISOString(),
+  });
+  const completionReplay = await apiRequest(
+    completionPath,
+    "session-alpha-admin",
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "idempotency-key": "maintenance-completion-alpha-1",
+      },
+      body: JSON.stringify(completionInput),
+    },
+  );
+  assert.deepEqual(completionReplay, completed);
+
+  const events = await withOrganization(
+    applicationPool,
+    "org-alpha",
+    async (repositories) => (await repositories.listAuditEvents()).filter(
+      (event) => event.action.startsWith("maintenance_"),
+    ),
+  );
+  assert.deepEqual(events.map((event) => event.action).sort(), [
+    "maintenance_schedule.completed",
+    "maintenance_schedule.created",
+    "maintenance_schedule.created",
+  ]);
+  const serializedEvents = JSON.stringify(events);
+  assert.equal(serializedEvents.includes("Synthetic airframe inspection"), false);
+  assert.equal(serializedEvents.includes("Synthetic inspection completed"), false);
+});
+
+test("maintenance resources preserve pooled and cross-organization isolation", async () => {
+  const betaCreated = await apiRequest(
+    `${API_PREFIX}/organizations/org-beta/maintenance-schedules`,
+    "session-beta-owner",
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "idempotency-key": "maintenance-schedule-beta-1",
+      },
+      body: JSON.stringify({
+        aircraft_id: "aircraft-beta",
+        title: "Synthetic Beta inspection",
+        schedule_type: "flight_count",
+        interval_value: 10,
+        baseline_at: "2026-01-01T00:00:00Z",
+      }),
+    },
+  );
+  assert.equal(betaCreated.status, 201);
+  assert.equal(betaCreated.body.data.organization_id, "org-beta");
+  assert.equal(betaCreated.body.data.usage.flight_count, 1);
+
+  const alpha = await withOrganization(
+    applicationPool,
+    "org-alpha",
+    async (repositories) => ({
+      pid: await repositories.connectionId(),
+      schedules: await repositories.listMaintenanceSchedulesForMember({
+        userId: "user-alpha-viewer",
+        now: fixedNow,
+      }),
+    }),
+  );
+  assert.deepEqual(alpha.schedules.map((schedule) => schedule.id), [
+    "maintenance-schedule-1",
+    "maintenance-schedule-2",
+  ]);
+  const contextless = await applicationPool.query(
+    `SELECT pg_backend_pid() AS pid,
+            current_setting('app.organization_id', true) AS organization_id,
+            (SELECT count(*)::integer
+               FROM droneworks.maintenance_schedules) AS schedule_count,
+            (SELECT count(*)::integer
+               FROM droneworks.maintenance_completions) AS completion_count`,
+  );
+  assert.deepEqual({
+    ...contextless.rows[0],
+    pid: Number(contextless.rows[0].pid),
+  }, {
+    pid: alpha.pid,
+    organization_id: "",
+    schedule_count: 0,
+    completion_count: 0,
+  });
+  const beta = await withOrganization(
+    applicationPool,
+    "org-beta",
+    async (repositories) => ({
+      pid: await repositories.connectionId(),
+      schedules: await repositories.listMaintenanceSchedulesForMember({
+        userId: "user-beta-viewer",
+        now: fixedNow,
+      }),
+    }),
+  );
+  assert.equal(beta.pid, alpha.pid);
+  assert.deepEqual(beta.schedules.map((schedule) => schedule.id), [
+    "maintenance-schedule-3",
+  ]);
+  assert.equal(JSON.stringify(beta.schedules).includes("org-alpha"), false);
+
+  await assertOrganizationSqlRejects(
+    "org-alpha",
+    `INSERT INTO droneworks.maintenance_schedules (
+       organization_id,
+       id,
+       aircraft_id,
+       title,
+       schedule_type,
+       interval_value,
+       due_at,
+       baseline_at,
+       due_soon_threshold_percent,
+       due_soon_days,
+       created_by_user_id,
+       created_at
+     ) VALUES (
+       'org-alpha',
+       'maintenance-schedule-cross-aircraft',
+       'aircraft-beta',
+       'Synthetic denied schedule',
+       'flight_count',
+       10,
+       NULL,
+       '2026-01-01T00:00:00Z',
+       80,
+       NULL,
+       'user-alpha-owner',
+       '2026-07-15T12:00:00Z'
+     )`,
+    (error) => error.code === "23503"
+      && error.constraint
+        === "maintenance_schedules_organization_id_aircraft_id_fkey",
+  );
+  await assertOrganizationSqlRejects(
+    "org-beta",
+    `INSERT INTO droneworks.maintenance_completions (
+       organization_id,
+       id,
+       maintenance_schedule_id,
+       completed_by_user_id,
+       completed_at,
+       details,
+       recorded_at
+     ) VALUES (
+       'org-beta',
+       'maintenance-completion-cross-schedule',
+       'maintenance-schedule-1',
+       'user-beta-owner',
+       '2026-07-14T12:00:00Z',
+       'Synthetic denied completion',
+       '2026-07-15T12:00:00Z'
+     )`,
+    (error) => error.code === "23503"
+      && error.constraint
+        === "maintenance_completions_organization_id_maintenance_schedu_fkey",
+  );
+  await assertOrganizationSqlRejects(
+    "org-alpha",
+    `UPDATE droneworks.maintenance_completions
+        SET details = 'Denied rewrite'
+      WHERE id = 'maintenance-completion-1'`,
+    (error) => error.code === "42501",
+  );
 });

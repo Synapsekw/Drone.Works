@@ -74,6 +74,12 @@ async function buildOrganizationExportManifest(client, generatedAt) {
        UNION ALL
        SELECT 'memberships', count(*)::integer FROM droneworks.memberships
        UNION ALL
+       SELECT 'maintenance_completions', count(*)::integer
+         FROM droneworks.maintenance_completions
+       UNION ALL
+       SELECT 'maintenance_schedules', count(*)::integer
+         FROM droneworks.maintenance_schedules
+       UNION ALL
        SELECT 'organizations', count(*)::integer FROM droneworks.organizations
        UNION ALL
        SELECT 'pilot_profiles', count(*)::integer FROM droneworks.pilot_profiles
@@ -133,6 +139,141 @@ async function buildOrganizationExportManifest(client, generatedAt) {
     throw new Error("organization export manifest has no organization root");
   }
   return manifest;
+}
+
+function maintenanceScheduleFromRow(row) {
+  const intervalValue = row.interval_value === null
+    ? null
+    : Number(row.interval_value);
+  const flightCount = Number(row.usage_flight_count);
+  const durationMs = Number(row.usage_duration_ms);
+  let consumedValue = null;
+  if (row.schedule_type === "flight_hours") {
+    consumedValue = durationMs / 3_600_000;
+  } else if (row.schedule_type === "flight_count") {
+    consumedValue = flightCount;
+  }
+  return {
+    id: row.id,
+    organization_id: row.organization_id,
+    aircraft_id: row.aircraft_id,
+    aircraft_name: row.aircraft_name,
+    title: row.title,
+    schedule_type: row.schedule_type,
+    interval_value: intervalValue,
+    due_at: row.due_at,
+    baseline_at: row.baseline_at,
+    due_soon_threshold_percent: row.due_soon_threshold_percent,
+    due_soon_days: row.due_soon_days,
+    created_by_user_id: row.created_by_user_id,
+    created_at: row.created_at,
+    condition: row.condition,
+    usage: {
+      baseline_at: row.usage_baseline_at,
+      flight_count: flightCount,
+      duration_ms: durationMs,
+      consumed_value: consumedValue,
+    },
+    last_completion: row.completion_id === null ? null : {
+      id: row.completion_id,
+      completed_by_user_id: row.completed_by_user_id,
+      completed_at: row.completed_at,
+      details: row.completion_details,
+      recorded_at: row.completion_recorded_at,
+    },
+  };
+}
+
+async function findMaintenanceSchedules(client, { userId, scheduleId, now }) {
+  const result = await client.query(
+    `SELECT schedule.id,
+            schedule.organization_id,
+            schedule.aircraft_id,
+            aircraft.display_name AS aircraft_name,
+            schedule.title,
+            schedule.schedule_type,
+            schedule.interval_value,
+            schedule.due_at,
+            schedule.baseline_at,
+            schedule.due_soon_threshold_percent,
+            schedule.due_soon_days,
+            schedule.created_by_user_id,
+            schedule.created_at,
+            coalesce(completion.completed_at, schedule.baseline_at)
+              AS usage_baseline_at,
+            usage.flight_count AS usage_flight_count,
+            usage.duration_ms AS usage_duration_ms,
+            completion.id AS completion_id,
+            completion.completed_by_user_id,
+            completion.completed_at,
+            completion.details AS completion_details,
+            completion.recorded_at AS completion_recorded_at,
+            CASE
+              WHEN schedule.schedule_type = 'one_shot_date'
+                   AND completion.id IS NOT NULL THEN 'current'
+              WHEN schedule.schedule_type = 'one_shot_date'
+                   AND $3::timestamptz >= schedule.due_at THEN 'overdue'
+              WHEN schedule.schedule_type = 'one_shot_date'
+                   AND $3::timestamptz >= schedule.due_at
+                     - make_interval(days => schedule.due_soon_days)
+                THEN 'due_soon'
+              WHEN schedule.schedule_type = 'flight_hours'
+                   AND usage.duration_ms::numeric
+                     >= schedule.interval_value::numeric * 3600000
+                THEN 'overdue'
+              WHEN schedule.schedule_type = 'flight_hours'
+                   AND usage.duration_ms::numeric * 100
+                     >= schedule.interval_value::numeric
+                       * 3600000
+                       * schedule.due_soon_threshold_percent
+                THEN 'due_soon'
+              WHEN schedule.schedule_type = 'flight_count'
+                   AND usage.flight_count >= schedule.interval_value
+                THEN 'overdue'
+              WHEN schedule.schedule_type = 'flight_count'
+                   AND usage.flight_count * 100
+                     >= schedule.interval_value
+                       * schedule.due_soon_threshold_percent
+                THEN 'due_soon'
+              ELSE 'current'
+            END AS condition
+       FROM droneworks.memberships AS membership
+       JOIN droneworks.maintenance_schedules AS schedule
+         ON schedule.organization_id = membership.organization_id
+       JOIN droneworks.aircraft AS aircraft
+         ON aircraft.organization_id = schedule.organization_id
+        AND aircraft.id = schedule.aircraft_id
+       LEFT JOIN LATERAL (
+         SELECT maintenance.id,
+                maintenance.completed_by_user_id,
+                maintenance.completed_at,
+                maintenance.details,
+                maintenance.recorded_at
+           FROM droneworks.maintenance_completions AS maintenance
+          WHERE maintenance.organization_id = schedule.organization_id
+            AND maintenance.maintenance_schedule_id = schedule.id
+          ORDER BY maintenance.completed_at DESC, maintenance.id DESC
+          LIMIT 1
+       ) AS completion ON true
+       CROSS JOIN LATERAL (
+         SELECT count(*)::integer AS flight_count,
+                coalesce(sum(flight.duration_ms), 0)::bigint AS duration_ms
+           FROM droneworks.canonical_flights AS flight
+          WHERE flight.aircraft_id = schedule.aircraft_id
+            AND flight.state = 'active'
+            AND flight.takeoff_at
+              > coalesce(completion.completed_at, schedule.baseline_at)
+       ) AS usage
+      WHERE membership.user_id = $1
+        AND ($2::text IS NULL OR schedule.id = $2)
+      ORDER BY schedule.id`,
+    [
+      requireId(userId, "userId"),
+      scheduleId === null ? null : requireId(scheduleId, "scheduleId"),
+      requireDate(now, "now").toISOString(),
+    ],
+  );
+  return result.rows.map(maintenanceScheduleFromRow);
 }
 
 export function createRepositories(client) {
@@ -1507,6 +1648,362 @@ export function createRepositories(client) {
         [batchId],
       );
       return { ...batch, items: items.rows };
+    },
+
+    async listMaintenanceSchedulesForMember({ userId, now }) {
+      requireId(userId, "userId");
+      requireDate(now, "now");
+      const membership = await client.query(
+        `SELECT 1
+           FROM droneworks.memberships
+          WHERE user_id = $1
+          FOR KEY SHARE`,
+        [userId],
+      );
+      if (membership.rowCount === 0) {
+        return null;
+      }
+      return findMaintenanceSchedules(client, {
+        userId,
+        scheduleId: null,
+        now,
+      });
+    },
+
+    async findMaintenanceScheduleForMember({ userId, scheduleId, now }) {
+      const schedules = await findMaintenanceSchedules(client, {
+        userId,
+        scheduleId,
+        now,
+      });
+      return schedules[0] ?? null;
+    },
+
+    async createMaintenanceScheduleForManager(input) {
+      const userId = requireId(input.userId, "userId");
+      const aircraftId = requireId(input.aircraftId, "aircraftId");
+      const idempotencyKey = requireId(input.idempotencyKey, "idempotencyKey");
+      const requestHash = requireId(input.requestHash, "requestHash");
+      const now = requireDate(input.now, "now");
+      const baselineAt = requireDate(input.baselineAt, "baselineAt");
+      if (typeof input.createId !== "function") {
+        throw new TypeError("createId must be a function");
+      }
+      if (typeof input.title !== "string" || input.title.trim().length === 0) {
+        throw new TypeError("title must be a non-empty string");
+      }
+      if (![
+        "flight_hours",
+        "flight_count",
+        "one_shot_date",
+      ].includes(input.scheduleType)) {
+        throw new TypeError("scheduleType is invalid");
+      }
+      const membership = await client.query(
+        `SELECT role
+           FROM droneworks.memberships
+          WHERE user_id = $1
+            AND role IN ('owner', 'admin')
+          FOR KEY SHARE`,
+        [userId],
+      );
+      if (membership.rowCount === 0) {
+        return null;
+      }
+      const aircraft = await client.query(
+        `SELECT id
+           FROM droneworks.aircraft
+          WHERE id = $1
+          FOR KEY SHARE`,
+        [aircraftId],
+      );
+      if (aircraft.rowCount === 0) {
+        return null;
+      }
+
+      const operation = "create_maintenance_schedule";
+      const claim = await client.query(
+        `INSERT INTO droneworks.api_idempotency_requests (
+           organization_id,
+           user_id,
+           operation,
+           idempotency_key,
+           request_hash,
+           created_at
+         ) VALUES (
+           droneworks.current_organization_id(),
+           $1,
+           $2,
+           $3,
+           $4,
+           $5
+         )
+         ON CONFLICT DO NOTHING
+         RETURNING request_hash`,
+        [userId, operation, idempotencyKey, requestHash, now.toISOString()],
+      );
+      if (claim.rowCount === 0) {
+        const previous = await client.query(
+          `SELECT request_hash, response_status, response_body
+             FROM droneworks.api_idempotency_requests
+            WHERE user_id = $1
+              AND operation = $2
+              AND idempotency_key = $3
+            FOR UPDATE`,
+          [userId, operation, idempotencyKey],
+        );
+        const saved = previous.rows[0];
+        if (saved.request_hash !== requestHash) {
+          return { kind: "conflict" };
+        }
+        if (saved.response_status !== 201 || saved.response_body === null) {
+          throw new Error("idempotent request is incomplete");
+        }
+        return { kind: "replayed", schedule: saved.response_body };
+      }
+
+      const scheduleId = requireId(
+        input.createId("maintenance-schedule"),
+        "scheduleId",
+      );
+      await client.query(
+        `INSERT INTO droneworks.maintenance_schedules (
+           organization_id,
+           id,
+           aircraft_id,
+           title,
+           schedule_type,
+           interval_value,
+           due_at,
+           baseline_at,
+           due_soon_threshold_percent,
+           due_soon_days,
+           created_by_user_id,
+           created_at
+         ) VALUES (
+           droneworks.current_organization_id(),
+           $1,
+           $2,
+           $3,
+           $4,
+           $5,
+           $6,
+           $7,
+           $8,
+           $9,
+           $10,
+           $11
+         )`,
+        [
+          scheduleId,
+          aircraftId,
+          input.title.trim(),
+          input.scheduleType,
+          input.intervalValue,
+          input.dueAt?.toISOString() ?? null,
+          baselineAt.toISOString(),
+          input.dueSoonThresholdPercent,
+          input.dueSoonDays,
+          userId,
+          now.toISOString(),
+        ],
+      );
+      const [schedule] = await findMaintenanceSchedules(client, {
+        userId,
+        scheduleId,
+        now,
+      });
+      await recordAuditEvent(client, {
+        userId,
+        action: "maintenance_schedule.created",
+        resourceType: "maintenance_schedule",
+        resourceId: scheduleId,
+        changedFields: [
+          "aircraft_id",
+          "title",
+          "schedule_type",
+          "baseline_at",
+          "interval",
+        ],
+        metadata: { schedule_type: input.scheduleType },
+        now,
+      });
+      await client.query(
+        `UPDATE droneworks.api_idempotency_requests
+            SET response_status = 201,
+                response_body = $4,
+                completed_at = $5
+          WHERE user_id = $1
+            AND operation = $2
+            AND idempotency_key = $3`,
+        [
+          userId,
+          operation,
+          idempotencyKey,
+          JSON.stringify(schedule),
+          now.toISOString(),
+        ],
+      );
+      return { kind: "created", schedule };
+    },
+
+    async completeMaintenanceScheduleForManager(input) {
+      const userId = requireId(input.userId, "userId");
+      const scheduleId = requireId(input.scheduleId, "scheduleId");
+      const idempotencyKey = requireId(input.idempotencyKey, "idempotencyKey");
+      const requestHash = requireId(input.requestHash, "requestHash");
+      const completedAt = requireDate(input.completedAt, "completedAt");
+      const now = requireDate(input.now, "now");
+      if (typeof input.createId !== "function") {
+        throw new TypeError("createId must be a function");
+      }
+      if (typeof input.details !== "string" || input.details.trim().length === 0) {
+        throw new TypeError("details must be a non-empty string");
+      }
+      const target = await client.query(
+        `SELECT schedule.baseline_at
+           FROM droneworks.memberships AS membership
+           JOIN droneworks.maintenance_schedules AS schedule
+             ON schedule.organization_id = membership.organization_id
+          WHERE membership.user_id = $1
+            AND membership.role IN ('owner', 'admin')
+            AND schedule.id = $2
+          FOR KEY SHARE OF membership`,
+        [userId, scheduleId],
+      );
+      if (target.rowCount === 0) {
+        return null;
+      }
+
+      const operation = `complete_maintenance_schedule:${scheduleId}`;
+      const claim = await client.query(
+        `INSERT INTO droneworks.api_idempotency_requests (
+           organization_id,
+           user_id,
+           operation,
+           idempotency_key,
+           request_hash,
+           created_at
+         ) VALUES (
+           droneworks.current_organization_id(),
+           $1,
+           $2,
+           $3,
+           $4,
+           $5
+         )
+         ON CONFLICT DO NOTHING
+         RETURNING request_hash`,
+        [userId, operation, idempotencyKey, requestHash, now.toISOString()],
+      );
+      if (claim.rowCount === 0) {
+        const previous = await client.query(
+          `SELECT request_hash, response_status, response_body
+             FROM droneworks.api_idempotency_requests
+            WHERE user_id = $1
+              AND operation = $2
+              AND idempotency_key = $3
+            FOR UPDATE`,
+          [userId, operation, idempotencyKey],
+        );
+        const saved = previous.rows[0];
+        if (saved.request_hash !== requestHash) {
+          return { kind: "conflict" };
+        }
+        if (saved.response_status !== 201 || saved.response_body === null) {
+          throw new Error("idempotent request is incomplete");
+        }
+        return { kind: "replayed", result: saved.response_body };
+      }
+
+      const latest = await client.query(
+        `SELECT completed_at
+           FROM droneworks.maintenance_completions
+          WHERE maintenance_schedule_id = $1
+          ORDER BY completed_at DESC, id DESC
+          LIMIT 1`,
+        [scheduleId],
+      );
+      const priorBaseline = latest.rows[0]?.completed_at
+        ?? target.rows[0].baseline_at;
+      if (completedAt <= priorBaseline || completedAt > now) {
+        throw new TypeError(
+          "completedAt must be after the current baseline and not in the future",
+        );
+      }
+      const completionId = requireId(
+        input.createId("maintenance-completion"),
+        "completionId",
+      );
+      const inserted = await client.query(
+        `INSERT INTO droneworks.maintenance_completions (
+           organization_id,
+           id,
+           maintenance_schedule_id,
+           completed_by_user_id,
+           completed_at,
+           details,
+           recorded_at
+         ) VALUES (
+           droneworks.current_organization_id(),
+           $1,
+           $2,
+           $3,
+           $4,
+           $5,
+           $6
+         )
+         RETURNING id,
+                   organization_id,
+                   maintenance_schedule_id,
+                   completed_by_user_id,
+                   completed_at,
+                   details,
+                   recorded_at`,
+        [
+          completionId,
+          scheduleId,
+          userId,
+          completedAt.toISOString(),
+          input.details.trim(),
+          now.toISOString(),
+        ],
+      );
+      const [schedule] = await findMaintenanceSchedules(client, {
+        userId,
+        scheduleId,
+        now,
+      });
+      const responseBody = {
+        completion: inserted.rows[0],
+        schedule,
+      };
+      await recordAuditEvent(client, {
+        userId,
+        action: "maintenance_schedule.completed",
+        resourceType: "maintenance_completion",
+        resourceId: completionId,
+        changedFields: ["completed_at", "details"],
+        metadata: { maintenance_schedule_id: scheduleId },
+        now,
+      });
+      await client.query(
+        `UPDATE droneworks.api_idempotency_requests
+            SET response_status = 201,
+                response_body = $4,
+                completed_at = $5
+          WHERE user_id = $1
+            AND operation = $2
+            AND idempotency_key = $3`,
+        [
+          userId,
+          operation,
+          idempotencyKey,
+          JSON.stringify(responseBody),
+          now.toISOString(),
+        ],
+      );
+      return { kind: "created", result: responseBody };
     },
 
     async createOrganizationExportForManager(input) {

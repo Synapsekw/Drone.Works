@@ -1,0 +1,168 @@
+{
+  "schema_version": 1,
+  "profile": "benchmark",
+  "started_at": "2026-07-16T11:35:54.812Z",
+  "completed_at": "2026-07-16T11:36:42.343Z",
+  "environment": {
+    "platform": "darwin",
+    "operating_system_release": "25.5.0",
+    "architecture": "arm64",
+    "cpu_model": "Apple M4",
+    "logical_cpu_count": 10,
+    "memory_bytes": 25769803776,
+    "free_memory_bytes_at_report": 543080448,
+    "node_version": "v24.11.1",
+    "postgres": {
+      "server_version": "18.4 (Homebrew)",
+      "block_size": "8192",
+      "shared_buffers": "128MB",
+      "fsync": "on",
+      "full_page_writes": "on"
+    },
+    "storage": "local APFS temporary directory; no provider network",
+    "hostname_recorded": false
+  },
+  "dataset": {
+    "organizations": 100,
+    "flights": 100000,
+    "duration_minutes": 20,
+    "source_frame_rate_hz": 5,
+    "samples_per_flight": 6000,
+    "frames": 600000000,
+    "synthetic_relative_track": true,
+    "gap_fraction": 0.004,
+    "warning_events_per_flight": 1,
+    "signal_sparse_every_n_samples": 997,
+    "schema_v2_flights_fraction": 0.1
+  },
+  "measurement_boundaries": {
+    "first_application_read": "first benchmark-process read after ingest; OS filesystem cache was not forcibly dropped",
+    "warm": "median of five subsequent application reads including decompression/query and downsampling",
+    "ingest": "object file writes and PostgreSQL metadata are measured separately; parser and network time excluded",
+    "deletion": "active local object bytes are removed before relational metadata; backups and provider caches excluded",
+    "cost": "usage quantities are measured here; public unit prices and sensitivity are documented separately"
+  },
+  "candidates": [
+    {
+      "candidate": "versioned_columnar_object_with_postgres_metadata",
+      "measurement_scope": {
+        "flights_actual": 100000,
+        "samples_per_flight": 6000,
+        "frames_actual": 600000000,
+        "template_variants": 100,
+        "repeated_templates": true,
+        "note": "Every flight has a physically materialized full-density object; deterministic template reuse limits synthetic generation cost and is disclosed."
+      },
+      "ingest": {
+        "template_generation_ms": 238.76,
+        "object_write_ms": 5554.78,
+        "metadata_insert_ms": 1207.12,
+        "objects_per_second": 18003,
+        "logical_frames_per_second": 108015079
+      },
+      "storage": {
+        "object_bytes_actual": 2872001000,
+        "metadata_bytes_actual": 32063488,
+        "bytes_per_flight_actual": 28720.01,
+        "bytes_per_frame_actual": 4.786668333333333
+      },
+      "retrieval": {
+        "first_application_read_ms": 4.24,
+        "warm_replay_median_ms": 2.87,
+        "replay_points": 1000,
+        "replay_json_bytes": 311648,
+        "window_ms": 1.17,
+        "window_points": 1501,
+        "full_export_ms": 4.67,
+        "full_export_rows": 6000,
+        "full_export_pages": 6,
+        "full_export_json_bytes": 1881033,
+        "operating_system_cache_was_not_dropped": true,
+        "provider_network_latency_excluded": true
+      },
+      "deletion": {
+        "single_flight_ms": 1.95,
+        "single_flight_deleted": 1,
+        "organization_id": 100,
+        "organization_objects_before": 999,
+        "organization_objects_deleted": 999,
+        "organization_objects_after": 0,
+        "organization_ms": 59.21
+      },
+      "replay_summary_matches_full": true,
+      "capability_evolution": {
+        "old_version": 1,
+        "old_columns": [
+          "route_x_m",
+          "route_y_m",
+          "altitude_m",
+          "horizontal_speed_mps",
+          "vertical_speed_mps",
+          "battery_percent",
+          "satellite_count",
+          "signal_percent",
+          "flags",
+          "warning_code"
+        ],
+        "new_version": 2,
+        "new_columns": [
+          "route_x_m",
+          "route_y_m",
+          "altitude_m",
+          "horizontal_speed_mps",
+          "vertical_speed_mps",
+          "battery_percent",
+          "motor_temperature_c",
+          "satellite_count",
+          "signal_percent",
+          "flags",
+          "warning_code"
+        ],
+        "old_read_after_additive_change": true
+      }
+    },
+    {
+      "candidate": "postgres_partitioned_rows",
+      "measurement_scope": {
+        "flights_actual": 1000,
+        "samples_per_flight": 6000,
+        "frames_actual": 6000000,
+        "benchmark_frames_projected": 600000000,
+        "projection_method": "measured bytes per row multiplied linearly; timings are not claimed at projected scale"
+      },
+      "ingest": {
+        "flights_ms": 4.36,
+        "samples_ms": 38061.74,
+        "samples_per_second": 157639
+      },
+      "storage": {
+        "samples_bytes_actual": 1417805824,
+        "flights_bytes_actual": 221184,
+        "bytes_per_sample_actual": 236.30097066666667,
+        "samples_bytes_projected_100k": 141780582400
+      },
+      "retrieval": {
+        "first_application_read_ms": 21.16,
+        "warm_replay_median_ms": 9.96,
+        "replay_points": 1000,
+        "replay_json_bytes": 263145,
+        "window_ms": 2.79,
+        "window_points": 1501,
+        "full_export_ms": 16.73,
+        "full_export_rows": 6000,
+        "full_export_queries": 7,
+        "full_export_json_bytes": 1506647,
+        "operating_system_cache_was_not_dropped": true
+      },
+      "deletion": {
+        "single_flight_ms": 72.16,
+        "single_flight_deleted": 1,
+        "organization_id": 100,
+        "organization_flights_before": 9,
+        "organization_flights_deleted": 9,
+        "organization_ms": 745.11
+      },
+      "replay_summary_matches_full": true
+    }
+  ]
+}

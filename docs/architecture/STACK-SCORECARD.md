@@ -1,7 +1,7 @@
 # Provisional stack scorecard
 
-Status: proposed; suitable for Phase 0 proofs, not yet a production commitment
-Last updated: 2026-07-12
+Status: proposed stack with accepted telemetry layout
+Last updated: 2026-07-16
 
 ## Recommendation
 
@@ -40,7 +40,7 @@ Provisional supporting choices:
 | Tests | Vitest, API integration tests, Playwright, and containerized dependency tests | Recommended |
 | Local environment | Native Node tooling plus Docker Compose dependencies | Recommended |
 | Deployment | OCI containers with managed PostgreSQL and object storage | Recommended; provider undecided |
-| Telemetry layout | Benchmark relational, time-series, and columnar candidates | Deliberately undecided under D-008 |
+| Telemetry layout | Versioned per-flight columnar objects with PostgreSQL metadata | Accepted under D-008; production codec still must pass reference tests |
 | DJI parser/runtime | Evaluate in P0-03 | Deliberately undecided under D-009 |
 
 ## Why this direction
@@ -99,7 +99,7 @@ Next.js with a hosted PostgreSQL/auth/storage platform and provider-native funct
 | Early operating cost | 5 | 4 | 4 | 3 | 4 |
 | **Provisional weighted total** | **100** | **90.4** | **77.0** | **80.8** | **73.2** |
 
-These scores compare architecture shapes, not named hosting vendors. Telemetry scores reflect the ability to benchmark several storage layouts, not proof that any layout has passed D-008. If the telemetry benchmark or parser spike contradicts an assumption, affected cells become `U` and the total is recalculated.
+These scores compare architecture shapes, not named hosting vendors. D-008's full-profile benchmark now accepts versioned per-flight columnar objects with PostgreSQL metadata; provider-inclusive latency and deletion remain later provider gates. If later parser or provider evidence crosses D-008's explicit thresholds, affected cells become `U` and the total is recalculated.
 
 ## Candidate analysis
 
@@ -262,7 +262,7 @@ Proof obligations:
 - Object-storage vendor.
 - Transactional email provider.
 - Map tile and geocoding provider.
-- Telemetry storage encoding and partitioning.
+- Exact production telemetry container codec behind D-008's accepted object layout.
 - DJI parser library and encrypted-key strategy.
 - Final authentication provider.
 - Billing provider.

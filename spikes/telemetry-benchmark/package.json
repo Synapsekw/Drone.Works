@@ -1,0 +1,17 @@
+{
+  "name": "@droneworks/telemetry-benchmark",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "test": "node --test",
+    "benchmark:smoke": "node scripts/run-benchmark.mjs --profile smoke",
+    "benchmark": "node scripts/run-benchmark.mjs --profile benchmark"
+  },
+  "dependencies": {
+    "pg": "8.16.3"
+  }
+}

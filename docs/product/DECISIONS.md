@@ -165,20 +165,24 @@ The UI must explain blocking reasons rather than displaying a single ambiguous b
 
 ## D-008 — Telemetry persistence and delivery
 
-Status: proposed
-Date: 2026-07-12
+Status: accepted
+Date: 2026-07-16
 
 ### Context
 
 Telemetry is high-volume time-series data. Monthly relational partitions and a target of roughly 1,000 returned points were suggested, but actual scale and access patterns are unproven.
 
-### Proposed decision
+### Decision
 
-Benchmark representative fixtures before selecting relational partitions, a time-series extension, or object-backed columnar storage. Default API responses are downsampled and extrema-preserving; full retrieval is bounded and paginated or streamed.
+Store each immutable flight revision's full normalized telemetry as one organization-owned, versioned, compressed columnar object behind the S3-compatible adapter. PostgreSQL stores ownership, revision and object identity, digest, codec/capability version, sample count, time bounds, and material summary statistics. Default replay derives at most roughly 1,000 points while retaining endpoints, material minima/maxima, warnings, and explicit gaps. Full retrieval is authorization-checked and bounded to at most 2,000 points per cursor page or an equivalent bounded stream.
+
+Do not store Phase 1 telemetry as one PostgreSQL row per sample and do not require a time-series extension. The executable benchmark physically materialized 100,000 objects and 600 million 5 Hz frames across 100 organizations. It measured 2.872 GB of objects plus 32.1 MB of metadata, 2.87 ms warm local replay, six bounded pages for a full flight, 1.95 ms single-flight deletion, and 59.21 ms to remove 999 objects. The like-for-like partitioned-row cohort occupied 236.3 bytes per frame, projecting to 141.781 GB before database headroom, backup, WAL, or replicas. Both candidates preserved replay summaries and demonstrated deletion; the object candidate also proved additive codec evolution. Provider latency and provider-side deletion verification remain separate P0-07/D-002 obligations. See [`../research/TELEMETRY-BENCHMARK.md`](../research/TELEMETRY-BENCHMARK.md).
+
+The disposable benchmark codec proves the layout contract but is not itself an automatic production-format commitment. A production codec must remain versioned and deterministic, expose the same capability/gap semantics, keep old objects readable, and pass the retained generator and reference tests.
 
 ### Reconsideration trigger
 
-Accept a storage design only after measuring import, replay, export, deletion, and cost on a dataset representing at least 100,000 flights.
+Rebenchmark chunked columnar objects and a managed time-series extension if p95 objects exceed 2 MiB or 50,000 samples, provider-inclusive p95 replay exceeds 500 ms, decoded worker memory exceeds 25 MiB, encoded density exceeds 50 bytes per frame, telemetry requests/egress exceed 20% of the beta budget, deletion of 1,000 objects exceeds 30 seconds, old codecs become unreadable, or sample-level cross-flight analytics enters accepted product scope.
 
 ## D-009 — Parser isolation
 

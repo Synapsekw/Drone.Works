@@ -1,12 +1,12 @@
 ---
 type: north-star
 status: active
-last-updated: 2026-07-16-1607
+last-updated: 2026-07-16-1622
 tags: [project/drone-works, north-star]
 related:
   - "[[project-history]]"
   - "[[memory]]"
-  - "[[2026-07-16-1607-authentication-boundary]]"
+  - "[[2026-07-16-1622-deployment-stack-acceptance]]"
 ---
 
 # Drone.Works — North Star
@@ -31,12 +31,12 @@ Drone.Works is an explainable operational record for small professional drone te
 
 ## Now
 
-- **Phase:** Phase 0; P0-06 is complete, D-008 telemetry and D-013 authentication are accepted, and P0-05's local relational proof remains complete. P0-07 provider, recovery, deployment, and cost acceptance is now the critical path.
-- **Branch:** source commit `8bb0880` is local on `main`, which is thirty-four commits ahead of `origin/main` before this vault-only closeout commit; nothing was pushed. An unrelated `.obsidian/app.json` change remains unstaged and untouched.
-- **Completed evidence:** Better Auth is selected behind a provider-neutral adapter while canonical memberships and RLS remain authoritative. Provider active-organization and owner-role claims are discarded, cross-organization resources stay hidden, and revoked sessions fail immediately. Prior atomic outbox, D-008 telemetry, and P0-05 isolation evidence remains passing.
-- **Verification baseline:** 34 native PostgreSQL/pg-boss integration tests, five telemetry tests, and 78 parser/containment tests pass with zero skips/failures across the current checkpoints. No Docker or persistent database service was used; auth claim rejection, revocation, pooled RLS, jobs, deletion, syntax, Git whitespace, and privacy patterns pass.
-- **Blocking evidence:** D-002 still needs provider-side URL/object deletion plus cached-secret/log/backup deletion and verification. D-011's auth and job obligations are locally complete; production archive container, maximum backup retention, restore/rollback proof, deployment/observability/cost acceptance, and D-012 terms remain open.
-- **Next technical action:** continue P0-07 with a production-shaped S3-compatible lifecycle proof, deployment environments/secrets/migrations/observability, backup restore/rollback responsibilities, and current development/beta/benchmark cost envelope; then accept or reject D-011.
+- **Phase:** Phase 0; P0-07 is complete and D-002, D-008, D-011, D-013, and D-014 are accepted. P0-08 threat/privacy closure and P0-09 implementation backlog are the remaining local critical path.
+- **Branch:** source commit `1ae513f` is local on `main`, which is thirty-six commits ahead of `origin/main` before this vault-only closeout commit; nothing was pushed. An unrelated `.obsidian/app.json` change remains unstaged and untouched.
+- **Completed evidence:** the accepted stack now covers auth, atomic jobs, versioned object lifecycle, AWS UAE deployment, environments, security boundaries, migration/rollback, 35-day backup retention, restore/deletion replay, observability, and cost alerts. Live S3/restore checks are explicit hosted-data gates rather than claimed Phase 0 cloud execution.
+- **Verification baseline:** 34 native PostgreSQL/pg-boss, five telemetry, 78 parser/containment, and three object lifecycle tests pass with zero skips/failures. No Docker, persistent database, cloud credential, paid resource, or customer data was used; syntax, whitespace, and privacy patterns pass.
+- **Blocking evidence:** no local P0-07 architecture blocker remains. D-012 production DJI terms/consent/managed-secret gates and broader representative-fixture authorization remain external; the provider stays disabled. Live AWS S3 and restore drills block hosted customer data in Phase 1A.
+- **Next technical action:** complete P0-08 threat/privacy flows and security checklist, then P0-09's ordered walking-skeleton backlog and final Phase 0 gate reconciliation.
 - **Next external decision:** decide whether the remaining fixtures may use DJI processing; production terms, notice/consent, managed-secret, retention, and deletion gates remain separate under D-012.
 - **Parallel follow-up:** carry D-008's provider-inclusive latency/deletion thresholds into P0-07 object-storage evaluation and the P0-08 threat model.
 - **Privacy:** raw fixtures remain ignored and local. No raw values, coordinates, identifiers, keychain feature points, credentials, or generated parser artifacts belong in this vault.
@@ -45,14 +45,14 @@ Drone.Works is an explainable operational record for small professional drone te
 
 | Workstream | State | Evidence or blocker |
 |---|---|---|
-| P0-01 constraints and scorecard | Evidence drafted | Quality attributes and stack scorecard exist; final component choices remain proposed. |
+| P0-01 constraints and scorecard | Complete | Accepted planning assumptions, weighted quality attributes, disqualifiers, profiles, component ownership, and cost thresholds are recorded; external-spend assumptions have reconsideration gates. |
 | P0-02 fixture policy and inventory | Local research gate satisfied | Policy, manifest, three private v14 logs, and one controlled truncation exist. |
 | P0-03 parser/key feasibility | Core proof complete; external gates remain | Native containment, truncation, private intermediate, representative measurements, hosted reproducibility, strict audit, evidence upload, and attestations pass; broader fixtures and production D-012 gates remain open. |
 | P0-04 canonical model | Core proof complete | Generic schema/validator, ownership/lifecycle, canonical-v1 adapter, provenance, asset evidence, capabilities, override survival, exact-normalized fingerprint, totals, deletion/restoration, and zero-flight transitions pass. |
-| P0-05 organization isolation | Local relational proof complete; non-relational provider/operations evidence remains | Twenty-three-table forced RLS, composite ownership, pooled context, role-scoped `/api/v1/`, deterministic exports, derived maintenance, reversible requests, grace-bound organization and flight deletion, exclusive/shared raw-source handling, independently owned organization receipt, redacted flight action, retry idempotency, explicit migration elevation, independent migration audit, and declared contract preservation/expansion/tightening pass; real provider plus cache/log/backup deletion verification remain open. |
+| P0-05 organization isolation | Complete for Phase 0 | Twenty-three-table forced RLS, pooled context, API/jobs/exports/deletion, auth-claim rejection, object version purge, and backup/log/emergency boundaries support accepted D-002; live AWS conformance and restore are safe Phase 1A hosted-data gates. |
 | P0-06 telemetry benchmark | Complete | Full 100,000-flight/600-million-frame object profile, six-million-row comparison, downsampling, bounded delivery, deletion, additive evolution, retained results, and cost sensitivity pass; D-008 is accepted. |
-| P0-07 runtime/deployment selection | Active | Better Auth behind an app-owned authorization boundary is accepted; transactional outbox, deduplicated dispatch, worker lease recovery, cancellation, and queue-age evidence pass. Provider, environments, recovery, observability, and cost acceptance remain. |
-| P0-08 threat model | Not started | Parser/key boundaries provide initial inputs. |
+| P0-07 runtime/deployment selection | Complete | D-011/D-013/D-014 accept the modular TypeScript stack, Better Auth boundary, outbox/pg-boss, S3 lifecycle, AWS UAE environments, recovery/rollback, observability, and cost envelope. |
+| P0-08 threat model | Next | Accepted system, security, parser, key, object, and recovery boundaries provide complete inputs. |
 | P0-09 Phase 1A backlog | Not started | Final Phase 0 synthesis. |
 
 ## Entry points

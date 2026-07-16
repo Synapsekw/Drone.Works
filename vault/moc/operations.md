@@ -16,6 +16,9 @@ Current repository and research procedures:
 - [Fixture manifest workflow](../../fixtures/README.md)
 - [Parser isolation spike](../../spikes/dji-parser/README.md)
 - [Internal reproducible parser build](../../spikes/dji-parser/internal-build/README.md)
+- [Environment and deployment policy](../../docs/operations/ENVIRONMENTS.md)
+- [Recovery, backup, deletion replay, and rollback](../../docs/operations/RECOVERY.md)
+- [Development, beta, and benchmark cost envelope](../../docs/operations/COST-MODEL.md)
 
 ## Project-memory commands
 
@@ -24,4 +27,4 @@ scripts/vault-context.sh
 node scripts/vault/verify.mjs
 ```
 
-Deployment, backups, restore, environment ownership, monitoring, and incident runbooks remain Phase 0 deliverables rather than accepted procedures.
+The Phase 0 operating baseline is accepted. Live AWS object conformance and a generated-data restore/deletion-replay drill remain Phase 1A gates before hosted customer data.

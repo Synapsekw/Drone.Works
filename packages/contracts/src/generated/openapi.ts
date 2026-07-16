@@ -158,6 +158,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/organizations/{organization_id}/imports/{import_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get import processing status */
+        get: operations["getImportStatus"];
+        put?: never;
+        post?: never;
+        /** Cancel pending import processing */
+        delete: operations["cancelImport"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -268,6 +286,18 @@ export interface components {
             object_version_id: string | null;
             state: "declared" | "completed";
             content_sha256: string;
+        };
+        /** ImportPath */
+        "def-17": {
+            organization_id: string;
+            import_id: string;
+        };
+        /** ImportStatus */
+        "def-18": {
+            import_id: string;
+            state: "uploaded" | "queued" | "detecting" | "parsing" | "normalizing" | "awaiting_review" | "completed" | "failed" | "cancelled" | "skipped_duplicate";
+            /** Format: date-time */
+            updated_at: string;
         };
     };
     responses: never;
@@ -910,6 +940,130 @@ export interface operations {
                 };
             };
             /** @description The upload could not be completed. */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        type: string;
+                        title: string;
+                        status: number;
+                        detail: string;
+                        instance: string;
+                        correlation_id: string;
+                        errors?: components["schemas"]["def-0"][];
+                    };
+                };
+            };
+        };
+    };
+    getImportStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                organization_id: string;
+                import_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The current organization-owned import state. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        import_id: string;
+                        state: "uploaded" | "queued" | "detecting" | "parsing" | "normalizing" | "awaiting_review" | "completed" | "failed" | "cancelled" | "skipped_duplicate";
+                        /** Format: date-time */
+                        updated_at: string;
+                    };
+                };
+            };
+            /** @description The import was denied or could not be changed. */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        type: string;
+                        title: string;
+                        status: number;
+                        detail: string;
+                        instance: string;
+                        correlation_id: string;
+                        errors?: components["schemas"]["def-0"][];
+                    };
+                };
+            };
+            /** @description The import operation could not be completed. */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        type: string;
+                        title: string;
+                        status: number;
+                        detail: string;
+                        instance: string;
+                        correlation_id: string;
+                        errors?: components["schemas"]["def-0"][];
+                    };
+                };
+            };
+        };
+    };
+    cancelImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                organization_id: string;
+                import_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The pending import was cancelled. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        import_id: string;
+                        state: "uploaded" | "queued" | "detecting" | "parsing" | "normalizing" | "awaiting_review" | "completed" | "failed" | "cancelled" | "skipped_duplicate";
+                        /** Format: date-time */
+                        updated_at: string;
+                    };
+                };
+            };
+            /** @description The import was denied or could not be changed. */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        type: string;
+                        title: string;
+                        status: number;
+                        detail: string;
+                        instance: string;
+                        correlation_id: string;
+                        errors?: components["schemas"]["def-0"][];
+                    };
+                };
+            };
+            /** @description The import operation could not be completed. */
             "5XX": {
                 headers: {
                     [name: string]: unknown;

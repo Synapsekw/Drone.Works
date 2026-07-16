@@ -70,6 +70,8 @@ interface UploadRow {
   readonly media_type: string;
   readonly original_filename: string;
   readonly raw_source_id: string | null;
+  readonly state: ImportState;
+  readonly updated_at: Date;
   readonly uploaded_by_user_id: string;
 }
 
@@ -93,6 +95,59 @@ export class RawUploadConflictError extends Error {
     super(message);
     this.name = 'RawUploadConflictError';
   }
+}
+
+export class ImportCancellationConflictError extends Error {
+  readonly statusCode = 409;
+
+  constructor() {
+    super(
+      'The import has already been dispatched and cannot be cancelled here.',
+    );
+    this.name = 'ImportCancellationConflictError';
+  }
+}
+
+export const importStates = [
+  'uploaded',
+  'queued',
+  'detecting',
+  'parsing',
+  'normalizing',
+  'awaiting_review',
+  'completed',
+  'failed',
+  'cancelled',
+  'skipped_duplicate',
+] as const;
+
+export type ImportState = (typeof importStates)[number];
+
+export interface ImportStatus {
+  readonly importId: string;
+  readonly state: ImportState;
+  readonly updatedAt: Date;
+}
+
+export interface ImportJobTarget {
+  readonly importId: string;
+  readonly rawSourceId: string;
+  readonly state: 'queued';
+}
+
+function stableUuid(namespace: string, ...values: string[]): string {
+  const bytes = createHash('sha256')
+    .update([namespace, ...values].join('\0'))
+    .digest()
+    .subarray(0, 16);
+  bytes[6] = ((bytes[6] ?? 0) & 0x0f) | 0x50;
+  bytes[8] = ((bytes[8] ?? 0) & 0x3f) | 0x80;
+  const hex = bytes.toString('hex');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+function importOutboxId(organizationId: string, importId: string): string {
+  return stableUuid('droneworks-import-outbox-v1', organizationId, importId);
 }
 
 function requestDigest(value: unknown): string {
@@ -143,6 +198,8 @@ async function uploadRow(
     `SELECT item.client_file_id,
             item.original_filename,
             item.raw_source_id,
+            item.state,
+            item.updated_at,
             batch.uploaded_by_user_id,
             declaration.response_body->>'content_sha256' AS content_sha256,
             (declaration.response_body->>'byte_size')::integer AS byte_size,
@@ -428,10 +485,15 @@ export class RawUploadRepository {
         await transaction.query(
           `UPDATE droneworks.import_items
               SET raw_source_id = $3,
+                  state = 'queued',
                   updated_at = now()
             WHERE organization_id = $1
               AND id = $2`,
           [transaction.organizationId, uploadId, rawSourceId],
+        );
+        await transaction.query(
+          `SELECT droneworks_jobs.enqueue_import($1, $2, now())`,
+          [importOutboxId(transaction.organizationId, uploadId), uploadId],
         );
         const responseBody: CompletionBody = {
           content_sha256: row.content_sha256,
@@ -487,6 +549,122 @@ export class RawUploadRepository {
           [transaction.organizationId, objectVersionId],
         );
         return result.rowCount === 1;
+      },
+    );
+  }
+}
+
+export class ImportProcessingRepository {
+  readonly #pool: OrganizationPool;
+
+  constructor(pool: OrganizationPool) {
+    this.#pool = pool;
+  }
+
+  async getStatus(
+    identity: AppIdentity,
+    organizationId: string,
+    importId: string,
+  ): Promise<ImportStatus> {
+    return withOrganizationTransaction(
+      this.#pool,
+      organizationId,
+      async (transaction) => {
+        const role = await currentRole(transaction, identity.userId);
+        const row = await uploadRow(transaction, importId);
+        if (!canUseUpload(role, identity.userId, row.uploaded_by_user_id)) {
+          throw new OrganizationAccessDeniedError();
+        }
+        return {
+          importId,
+          state: row.state,
+          updatedAt: row.updated_at,
+        };
+      },
+    );
+  }
+
+  async cancel(
+    identity: AppIdentity,
+    organizationId: string,
+    importId: string,
+  ): Promise<ImportStatus> {
+    return withOrganizationTransaction(
+      this.#pool,
+      organizationId,
+      async (transaction) => {
+        const role = await currentRole(transaction, identity.userId);
+        const row = await uploadRow(transaction, importId);
+        if (!canUseUpload(role, identity.userId, row.uploaded_by_user_id)) {
+          throw new OrganizationAccessDeniedError();
+        }
+        if (row.state === 'cancelled') {
+          return { importId, state: row.state, updatedAt: row.updated_at };
+        }
+        if (row.state !== 'uploaded' && row.state !== 'queued') {
+          throw new ImportCancellationConflictError();
+        }
+        if (row.state === 'queued') {
+          const cancelled = await transaction.query<{
+            readonly cancelled: boolean;
+          }>(`SELECT droneworks_jobs.cancel_import($1) AS cancelled`, [
+            importId,
+          ]);
+          if (!cancelled.rows[0]?.cancelled) {
+            throw new ImportCancellationConflictError();
+          }
+        }
+        const updated = await transaction.query<{
+          readonly updated_at: Date;
+        }>(
+          `UPDATE droneworks.import_items
+              SET state = 'cancelled',
+                  updated_at = now()
+            WHERE organization_id = $1
+              AND id = $2
+          RETURNING updated_at`,
+          [transaction.organizationId, importId],
+        );
+        await writeAudit(
+          transaction,
+          identity.userId,
+          'raw_upload.cancelled',
+          importId,
+        );
+        return {
+          importId,
+          state: 'cancelled',
+          updatedAt: updated.rows[0]?.updated_at ?? new Date(),
+        };
+      },
+    );
+  }
+
+  async loadForJob(
+    organizationId: string,
+    importId: string,
+  ): Promise<ImportJobTarget | null> {
+    return withOrganizationTransaction(
+      this.#pool,
+      organizationId,
+      async (transaction) => {
+        const result = await transaction.query<{
+          readonly raw_source_id: string | null;
+          readonly state: ImportState;
+        }>(
+          `SELECT raw_source_id, state
+             FROM droneworks.import_items
+            WHERE organization_id = $1
+              AND id = $2`,
+          [transaction.organizationId, importId],
+        );
+        const row = result.rows[0];
+        if (!row || row.state !== 'queued' || !row.raw_source_id) return null;
+        return {
+          importId,
+          rawSourceId: row.raw_source_id,
+          state: 'queued',
+        };
       },
     );
   }

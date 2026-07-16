@@ -8,6 +8,7 @@ import { promisify } from 'node:util';
 import pg from 'pg';
 
 import {
+  applyReviewedJobsMigration,
   applyReviewedMigrations,
   IsolationContractError,
   withOrganizationTransaction,
@@ -147,6 +148,30 @@ try {
     throw error;
   } finally {
     await migrationClient.end();
+  }
+
+  const jobsMigrationClient = new Client({
+    host: socketDirectory,
+    port,
+    database: 'postgres',
+    user: 'droneworks_queue',
+    application_name: 'droneworks-reviewed-jobs-migration',
+  });
+  await jobsMigrationClient.connect();
+  try {
+    await applyReviewedJobsMigration(
+      jobsMigrationClient,
+      new Date('2026-07-16T00:00:00.000Z'),
+    );
+    const replay = await applyReviewedJobsMigration(
+      jobsMigrationClient,
+      new Date('2026-07-16T00:00:00.000Z'),
+    );
+    if (replay.status !== 'already_applied') {
+      throw new Error('Reviewed jobs migration replay was not a no-op.');
+    }
+  } finally {
+    await jobsMigrationClient.end();
   }
 
   const appPool = new Pool({

@@ -147,6 +147,36 @@ export const rawUploadSchema = Type.Object(
   { $id: 'RawUpload', additionalProperties: false },
 );
 
+export const importPathSchema = Type.Object(
+  {
+    organization_id: uuidStringSchema,
+    import_id: uuidStringSchema,
+  },
+  { $id: 'ImportPath', additionalProperties: false },
+);
+
+export const importStateSchema = Type.Union([
+  Type.Literal('uploaded'),
+  Type.Literal('queued'),
+  Type.Literal('detecting'),
+  Type.Literal('parsing'),
+  Type.Literal('normalizing'),
+  Type.Literal('awaiting_review'),
+  Type.Literal('completed'),
+  Type.Literal('failed'),
+  Type.Literal('cancelled'),
+  Type.Literal('skipped_duplicate'),
+]);
+
+export const importStatusSchema = Type.Object(
+  {
+    import_id: uuidStringSchema,
+    state: importStateSchema,
+    updated_at: Type.String({ format: 'date-time' }),
+  },
+  { $id: 'ImportStatus', additionalProperties: false },
+);
+
 export const problemErrorSchema = Type.Object(
   {
     pointer: Type.String(),
@@ -179,3 +209,4 @@ export type PutMembershipBody = Static<typeof putMembershipBodySchema>;
 export type RawUploadPath = Static<typeof rawUploadPathSchema>;
 export type DeclareRawUploadBody = Static<typeof declareRawUploadBodySchema>;
 export type CompleteRawUploadBody = Static<typeof completeRawUploadBodySchema>;
+export type ImportPath = Static<typeof importPathSchema>;

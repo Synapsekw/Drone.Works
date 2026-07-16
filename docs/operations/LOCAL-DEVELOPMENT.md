@@ -73,8 +73,9 @@ record is generated and safe to delete.
 
    The final line prints the local web address. The port is chosen automatically
    so it does not collide with another project. Startup applies the same
-   checksum-pinned migration used by the database tests, creates two generated
-   organizations, and enables the server-owned Alpha/Beta persona control. The
+   checksum-pinned customer and jobs migrations used by the database tests,
+   creates two generated organizations, and enables the server-owned Alpha/Beta
+   persona control. The
    persona control is not a login and exists only in this local process.
 
 2. In the same or another Terminal window, check web, API, worker, object,
@@ -97,11 +98,13 @@ record is generated and safe to delete.
 
 - `web`: the current browser shell;
 - `api`: the versioned `/api/v1/health` contract;
-- `worker`: the future background-work boundary;
+- `dispatcher`: leases payload-free outbox rows and sends stable pg-boss jobs;
+- `worker`: the future parser/background-work boundary;
 - `objects`: a loopback placeholder for future versioned file storage;
 - `email`: a loopback placeholder that never sends a message;
-- `PostgreSQL`: a disposable native database with the reviewed A04 schema,
-  migration ledger, and generated Alpha/Beta organization records.
+- `PostgreSQL`: a disposable native database with the reviewed customer and jobs
+  schemas, their separate migration ledgers, and generated Alpha/Beta
+  organization records.
 
 The API receives only an opaque token issued for a named server-owned persona.
 It resolves the generated user ID on the server, then reloads the current
@@ -115,6 +118,22 @@ pooled-connection gate against another disposable native cluster with:
 ```sh
 corepack pnpm test:authorization
 ```
+
+Run the complete A07 atomic dispatch, retry, cancellation, tenant-swap, metrics,
+and pooled-context gate with:
+
+```sh
+corepack pnpm test:jobs
+```
+
+The test creates its own socket-only PostgreSQL cluster and loopback object
+service. A growing pending count or oldest-pending age means the dispatcher is
+not completing leases; repeated retry or dead-letter growth means the worker or
+its dependency is failing. Stop claiming new work, preserve the payload-free
+aggregate counts, and inspect error names and deployment/migration health—never
+copy durable job payloads, filenames, hashes, object keys, or customer content
+into incident logs. Restarting is safe: expired dispatcher leases are reclaimed,
+and stable queue IDs suppress a duplicate after a post-send crash.
 
 The production database schema, row-level organization isolation, and A05
 app-owned authorization boundary are now present locally. The generated

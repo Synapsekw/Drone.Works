@@ -71,3 +71,30 @@ export function readApplicationDatabaseEnvironment(
 
   return candidate;
 }
+
+export const jobsDatabaseEnvironmentSchema = Type.Object(
+  {
+    PGDATABASE: Type.String({ minLength: 1 }),
+    PGHOST: Type.String({ minLength: 1 }),
+    PGPORT: Type.Integer({ minimum: 1, maximum: 65_535 }),
+  },
+  { additionalProperties: false },
+);
+
+export type JobsDatabaseEnvironment = Static<
+  typeof jobsDatabaseEnvironmentSchema
+>;
+
+export function readJobsDatabaseEnvironment(
+  source: NodeJS.ProcessEnv,
+): JobsDatabaseEnvironment {
+  const candidate = {
+    PGDATABASE: source.PGDATABASE ?? 'droneworks',
+    PGHOST: source.PGHOST ?? '127.0.0.1',
+    PGPORT: Number(source.PGPORT ?? '5432'),
+  };
+  if (!Value.Check(jobsDatabaseEnvironmentSchema, candidate)) {
+    throw new Error('Invalid jobs database configuration.');
+  }
+  return candidate;
+}

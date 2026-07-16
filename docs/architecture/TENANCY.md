@@ -17,8 +17,11 @@ fourteen customer tables required before authentication and upload integration,
 rather than copying the complete twenty-three-table Phase 0 spike. The reviewed
 SQL, exact SHA-256, deterministic isolation-contract digest, migration runner,
 independently owned ledger, and organization-required pooled transaction are
-production-named code. Queue and dispatcher roles exist but have no direct
-customer access; A07 must add their narrow outbox/pg-boss functions explicitly.
+production-named code. A07 adds a second checksum-pinned migration owned by the
+queue role: its payload-free outbox and pg-boss tables remain outside the
+customer schema. The application receives only enqueue/cancel functions and the
+dispatcher only lease/complete/release/aggregate-metrics functions; neither role
+has direct outbox or customer-table access.
 
 The A04 suite creates a fresh socket-only PostgreSQL 18 cluster, applies the
 privileged role/ledger bootstrap, migrates through the non-inheriting runner,
@@ -63,16 +66,17 @@ The full canonical schema still validates provenance, effective facts, sample co
 
 ## Roles and RLS
 
-The migration defines six deliberately separate roles:
+The reviewed database boundary defines deliberately separate roles:
 
-| Role | Use | Relevant properties |
-|---|---|---|
-| `droneworks_migrator` | Owns the schema and tables | `NOLOGIN`, `NOINHERIT`, non-superuser, `NOBYPASSRLS` |
-| `droneworks_migration_runner` | Applies checksum-pinned reviewed migrations | login, `NOINHERIT`, non-superuser, `NOBYPASSRLS`; may explicitly `SET ROLE` only to `droneworks_migrator` |
-| `droneworks_migration_auditor` | Owns the operational migration ledger and its narrow functions | `NOLOGIN`, `NOINHERIT`, non-superuser, `NOBYPASSRLS`; no membership granted to the runner or schema owner |
-| `droneworks_app` | Ordinary repository, job, and export access | login, `NOINHERIT`, non-owner, non-superuser, `NOBYPASSRLS` |
-| `droneworks_queue` | Owns only the pg-boss infrastructure schema | login, `NOINHERIT`, non-superuser, `NOBYPASSRLS`; no customer-table grants |
-| `droneworks_deletion_worker` | Executes only the reviewed permanent-organization-deletion function and reads its receipt | login, `NOINHERIT`, non-owner, non-superuser, `NOBYPASSRLS`; no direct customer or receipt-table grants |
+| Role                           | Use                                                                                       | Relevant properties                                                                                                    |
+| ------------------------------ | ----------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `droneworks_migrator`          | Owns the schema and tables                                                                | `NOLOGIN`, `NOINHERIT`, non-superuser, `NOBYPASSRLS`                                                                   |
+| `droneworks_migration_runner`  | Applies checksum-pinned reviewed migrations                                               | login, `NOINHERIT`, non-superuser, `NOBYPASSRLS`; may explicitly `SET ROLE` only to `droneworks_migrator`              |
+| `droneworks_migration_auditor` | Owns the operational migration ledger and its narrow functions                            | `NOLOGIN`, `NOINHERIT`, non-superuser, `NOBYPASSRLS`; no membership granted to the runner or schema owner              |
+| `droneworks_app`               | Ordinary repository, job, and export access                                               | login, `NOINHERIT`, non-owner, non-superuser, `NOBYPASSRLS`                                                            |
+| `droneworks_queue`             | Owns the outbox and pg-boss infrastructure schema                                         | login, `NOINHERIT`, non-superuser, `NOBYPASSRLS`; no customer-table grants                                             |
+| `droneworks_dispatcher`        | Leases outbox references and reports aggregate metrics                                    | login, `NOINHERIT`, non-owner, non-superuser, `NOBYPASSRLS`; function execution only, no direct outbox/customer grants |
+| `droneworks_deletion_worker`   | Executes only the reviewed permanent-organization-deletion function and reads its receipt | login, `NOINHERIT`, non-owner, non-superuser, `NOBYPASSRLS`; no direct customer or receipt-table grants                |
 
 Every customer-owned table enables RLS and uses `FORCE ROW LEVEL SECURITY`, including the organization root. One policy permits a row only when its organization matches the transaction's `app.organization_id`; missing or empty context resolves to no organization and therefore no rows. The same expression is used for `USING` and `WITH CHECK`, so writes cannot move or create rows outside the selected organization.
 
@@ -104,6 +108,15 @@ The third argument to `set_config` makes the setting local to the transaction. T
 Repository methods do not accept an optional organization filter. They can run only inside `withOrganization()`, which rejects missing/invalid context before acquiring a client. Background job enqueue and execution require an exact versioned organization/domain reference: flight refresh uses `{ schemaVersion, organizationId, flightId }`, while complete export uses `{ schemaVersion, organizationId, exportRequestId }`. An ID alone, a manifest, or additional private material is invalid. The queue role owns only pg-boss infrastructure, while the worker resolves domain rows through the ordinary RLS application pool. The organization passed here must already have been authorized by the application membership/role layer.
 
 Domain transactions do not insert directly into pg-boss or grant the request role queue-table access. Export creation calls one security-definer enqueue function inside the same transaction, producing a payload-free outbox reference owned by the infrastructure role. A separate non-superuser dispatcher can only claim leases, complete/release claims, and read aggregate age/count metrics; neither it nor the app can select the outbox table. The dispatcher converts each allowlisted row to the strict public job-reference shape and derives a stable UUID from organization plus outbox identity. If it crashes after pg-boss accepts the job but before completion, the lease expires, another dispatcher submits the same UUID, and pg-boss retains exactly one durable job. Stale claim tokens cannot complete a reclaimed row.
+
+The Phase 1A import path applies that boundary directly: immutable upload
+completion updates the forced-RLS import item and calls the narrow enqueue
+function in one transaction. Its durable payload is exactly a version,
+organization ID, and import item ID. Execution validates the shape before using
+the ordinary application pool to reload the queued item under transaction-local
+RLS; a missing organization field or an Alpha item paired with Beta never
+reaches the handler. API cancellation succeeds only while the outbox row is
+pending, avoiding a send/cancel race once a dispatcher holds a lease.
 
 Permanent deletion uses a separate one-connection deletion pool and the same transaction-local setting, applied inside reviewed security-definer functions before any customer lookup or delete. Organization deletion locks and matches the current `pending_deletion` timestamp, enforces the 30-day grace boundary, deletes every child table in explicit dependency order, deletes the root, and appends the operational receipt atomically. Flight deletion locks and matches the soft-deletion timestamp, applies the same grace boundary, removes canonical payload and telemetry, and deletes only raw sources with no other flight reference. `COMMIT` clears context before that backend is reused. Ordinary app, queue, and deletion-worker SQL cannot directly delete these roots; only the narrow functions are executable by the deletion worker.
 

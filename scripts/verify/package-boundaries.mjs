@@ -6,12 +6,14 @@ const webRoot = join(root, 'apps', 'web');
 const productionRoots = ['apps', 'packages'].map((path) => join(root, path));
 const requiredPackages = [
   'apps/api',
+  'apps/dispatcher',
   'apps/web',
   'apps/worker',
   'packages/config',
   'packages/contracts',
   'packages/database',
   'packages/domain',
+  'packages/jobs',
   'packages/telemetry',
   'packages/testing',
 ];
@@ -47,7 +49,12 @@ for (const file of await sourceFiles(webRoot)) {
 
 for (const productionRoot of productionRoots) {
   for (const file of await sourceFiles(productionRoot)) {
-    if (file.startsWith(join(root, 'packages', 'database'))) continue;
+    if (
+      file.startsWith(join(root, 'packages', 'database')) ||
+      file.startsWith(join(root, 'packages', 'jobs'))
+    ) {
+      continue;
+    }
     const contents = await readFile(file, 'utf8');
     if (/from ['"]pg['"]|require\(['"]pg['"]\)/.test(contents)) {
       throw new Error(

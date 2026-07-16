@@ -4,6 +4,7 @@ import {
 } from '@drone-works/config';
 import {
   createApplicationPool,
+  ImportProcessingRepository,
   OrganizationAuthorizationRepository,
   RawUploadRepository,
 } from '@drone-works/database';
@@ -28,6 +29,7 @@ if (!objectInternalUrl) {
 const { app } = await buildApi({
   environment,
   identitySource,
+  imports: new ImportProcessingRepository(pool),
   organizations: new OrganizationAuthorizationRepository(pool),
   objectStore: new LoopbackImmutableObjectStore(objectInternalUrl),
   uploads: new RawUploadRepository(pool),

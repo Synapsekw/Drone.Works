@@ -8,6 +8,7 @@ import { promisify } from 'node:util';
 import pg from 'pg';
 
 import {
+  applyReviewedJobsMigration,
   applyReviewedMigrations,
   withOrganizationTransaction,
 } from '../dist/index.js';
@@ -126,6 +127,23 @@ export async function startDisposablePostgres(options = {}) {
       );
     } finally {
       await migration.end();
+    }
+
+    const jobsMigration = new Client({
+      host: socketDirectory,
+      port,
+      database: 'postgres',
+      user: 'droneworks_queue',
+      application_name: 'droneworks-reviewed-jobs-migration',
+    });
+    await jobsMigration.connect();
+    try {
+      await applyReviewedJobsMigration(
+        jobsMigration,
+        new Date('2026-07-16T00:00:00.000Z'),
+      );
+    } finally {
+      await jobsMigration.end();
     }
 
     const appPool = new Pool({

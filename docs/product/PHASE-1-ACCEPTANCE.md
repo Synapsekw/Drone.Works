@@ -62,6 +62,18 @@ And a client-supplied object key or different bytes at the derived key is reject
 And a Beta member requesting Alpha's exact upload identifier receives no metadata or object URL
 ```
 
+### Scenario: Upload completion dispatches exactly once
+
+```gherkin
+Given an authorized Alpha member has completed an immutable upload
+When the completion transaction commits
+Then the Alpha import is queued with exactly one durable processing reference
+And retrying dispatch after a post-send failure retains one queue job
+And a Beta member cannot observe or execute the Alpha import by exact identifier
+And cancelling before dispatch makes the work unclaimable
+And cancelling after dispatch has begun returns a conflict
+```
+
 ### Scenario: A known aircraft is matched by serial
 
 ```gherkin

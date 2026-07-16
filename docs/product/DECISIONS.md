@@ -294,6 +294,32 @@ Use D-008 versioned per-flight columnar telemetry and the D-009 native Rust pars
 - P0-07 proves auth claim rejection/revocation, atomic outbox dispatch, worker lease recovery/cancellation, and the versioned-object lifecycle contract.
 - `SYSTEM.md`, `SECURITY-BOUNDARIES.md`, and the operations package assign environment, recovery, rollback, observability, deletion, and cost responsibilities.
 
+### Phase 1A A07 evidence — 2026-07-16
+
+Upload completion now changes the organization-owned import item to `queued`
+and calls one narrow security-definer enqueue function inside the same forced-RLS
+transaction. The resulting outbox row contains only organization, allowlisted
+job type/version, and import identifiers. It lives with pg-boss in the separately
+owned `droneworks_jobs` schema; the application and dispatcher have no direct
+table grants, and the queue owner has no customer-table grants.
+
+The dispatcher can only lease, complete, release, and read payload-free aggregate
+outbox metrics. It derives one stable pg-boss UUID from organization plus outbox
+identity, so an expired post-send lease resubmits the same job rather than making
+a duplicate. Workers validate the exact `{ schemaVersion, organizationId,
+importItemId }` shape before reloading the item through the ordinary application
+pool and forced RLS. Missing organization context and an Alpha item paired with
+Beta both stop before the domain handler.
+
+The versioned API exposes authorized status and pending cancellation. A leased
+or dispatched reference returns conflict rather than racing queue delivery; a
+successfully cancelled reference is never claimable. The native A07 suite also
+proves atomic rollback after outbox insertion, stale-token rejection, retry with
+backoff, abandoned-worker supervision, dead-letter counts, redacted queue
+metrics, membership/role denial, and context clearing on one reused backend.
+This gate adds no parsing, Better Auth, AWS/RDS, uploads beyond A06, or customer
+fixtures.
+
 ## D-012 — DJI keychain trust boundary
 
 Status: accepted

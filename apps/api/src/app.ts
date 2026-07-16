@@ -20,6 +20,8 @@ import {
   healthQuerySchema,
   healthResponseSchema,
   idempotencyHeadersSchema,
+  importPathSchema,
+  importStatusSchema,
   membershipListSchema,
   membershipPathSchema,
   membershipSchema,
@@ -35,6 +37,7 @@ import {
 } from '@drone-works/contracts/server';
 import type { ServiceEnvironment } from '@drone-works/config';
 import {
+  type ImportProcessingRepository,
   LastOwnerError,
   OrganizationAccessDeniedError,
   type RawUploadRepository,
@@ -52,6 +55,10 @@ import {
   registerOrganizationRoutes,
   type OrganizationRouteDependencies,
 } from './organization-routes.js';
+import {
+  registerImportRoutes,
+  type ImportRouteDependencies,
+} from './import-routes.js';
 import type { ImmutableObjectStore } from './loopback-object-store.js';
 import {
   registerRawUploadRoutes,
@@ -61,8 +68,10 @@ import {
 const correlationIdPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 
 export const documentedApiRoutes = new Set([
+  'DELETE /api/v1/organizations/:organization_id/imports/:import_id',
   'DELETE /api/v1/organizations/:organization_id/memberships/:user_id',
   'GET /api/v1/health',
+  'GET /api/v1/organizations/:organization_id/imports/:import_id',
   'GET /api/v1/organizations/:organization_id/memberships',
   'POST /api/v1/organizations',
   'PUT /api/v1/organizations/:organization_id/memberships/:user_id',
@@ -133,6 +142,15 @@ const unavailableUploads: RawUploadRouteDependencies['uploads'] = {
   },
 };
 
+const unavailableImports: ImportRouteDependencies['imports'] = {
+  async cancel() {
+    throw new RawUploadServiceUnavailableError();
+  },
+  async getStatus() {
+    throw new RawUploadServiceUnavailableError();
+  },
+};
+
 const unavailableObjectStore: ImmutableObjectStore = {
   async deleteExact() {
     throw new RawUploadServiceUnavailableError();
@@ -184,6 +202,7 @@ function problem(
 export interface BuildApiOptions {
   readonly environment?: ServiceEnvironment;
   readonly identitySource?: IdentitySource;
+  readonly imports?: Pick<ImportProcessingRepository, 'cancel' | 'getStatus'>;
   readonly organizations?: OrganizationRouteDependencies['organizations'];
   readonly objectStore?: ImmutableObjectStore;
   readonly uploads?: Pick<
@@ -253,6 +272,8 @@ export async function buildApi(options: BuildApiOptions = {}) {
   app.addSchema(rawUploadContentSchema);
   app.addSchema(completeRawUploadBodySchema);
   app.addSchema(rawUploadSchema);
+  app.addSchema(importPathSchema);
+  app.addSchema(importStatusSchema);
 
   app.addHook('onSend', async (request, reply, payload) => {
     reply.header('x-correlation-id', request.id);
@@ -306,6 +327,10 @@ export async function buildApi(options: BuildApiOptions = {}) {
     identitySource,
     objectStore: options.objectStore ?? unavailableObjectStore,
     uploads: options.uploads ?? unavailableUploads,
+  });
+  registerImportRoutes(app, {
+    identitySource,
+    imports: options.imports ?? unavailableImports,
   });
 
   if (identitySource instanceof GeneratedPersonaIdentitySource) {

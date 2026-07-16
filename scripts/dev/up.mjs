@@ -32,6 +32,7 @@ try {
 const postgresBin = await findPostgresBin();
 const ports = {
   api: await findAvailablePort(),
+  dispatcher: await findAvailablePort(),
   email: await findAvailablePort(),
   objects: await findAvailablePort(),
   postgres: await findAvailablePort(),
@@ -155,6 +156,18 @@ try {
   );
   await execFileAsync(
     process.execPath,
+    [join(repositoryRoot, 'packages/database/scripts/migrate-jobs.mjs')],
+    {
+      cwd: repositoryRoot,
+      env: {
+        ...process.env,
+        ...databaseEnvironment,
+        PGUSER: 'droneworks_queue',
+      },
+    },
+  );
+  await execFileAsync(
+    process.execPath,
     [join(repositoryRoot, 'packages/database/scripts/seed-local.mjs')],
     {
       cwd: repositoryRoot,
@@ -190,6 +203,17 @@ try {
     },
   );
   spawnService(
+    'dispatcher',
+    process.execPath,
+    [join(repositoryRoot, 'apps/dispatcher/dist/server.js')],
+    {
+      ...databaseEnvironment,
+      DRONE_WORKS_ENV: 'local',
+      HOST: '127.0.0.1',
+      PORT: String(ports.dispatcher),
+    },
+  );
+  spawnService(
     'worker',
     process.execPath,
     [join(repositoryRoot, 'apps/worker/dist/server.js')],
@@ -217,6 +241,7 @@ try {
     generated_personas: ['alpha_owner', 'beta_owner'],
     endpoints: {
       api: `${apiUrl}/api/v1/health`,
+      dispatcher: `http://127.0.0.1:${ports.dispatcher}/health`,
       email: `http://127.0.0.1:${ports.email}/health`,
       objects: `http://127.0.0.1:${ports.objects}/health`,
       web: `http://127.0.0.1:${ports.web}`,
@@ -240,6 +265,7 @@ try {
 
   await Promise.all([
     waitForHttp(state.endpoints.api, 'api'),
+    waitForHttp(state.endpoints.dispatcher, 'dispatcher'),
     waitForHttp(state.endpoints.worker, 'worker'),
     waitForHttp(state.endpoints.objects, 'objects'),
     waitForHttp(state.endpoints.email, 'email'),

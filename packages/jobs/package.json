@@ -1,5 +1,5 @@
 {
-  "name": "@drone-works/database",
+  "name": "@drone-works/jobs",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -11,18 +11,16 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "migrate": "corepack pnpm run build && node scripts/migrate.mjs",
-    "migrate:jobs": "corepack pnpm run build && node scripts/migrate-jobs.mjs",
-    "test:database": "corepack pnpm run build && node scripts/run-tests.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "pg": "8.16.3"
+    "@drone-works/database": "workspace:*",
+    "pg": "8.16.3",
+    "pg-boss": "12.26.0"
   },
   "devDependencies": {
     "@types/node": "catalog:",
     "@types/pg": "8.15.5",
-    "typescript": "catalog:",
-    "vitest": "catalog:"
+    "typescript": "catalog:"
   }
 }

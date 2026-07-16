@@ -109,41 +109,73 @@ if (
 ) {
   throw new Error('The local raw-upload completion did not pass.');
 }
+const importStatusResponse = await fetch(
+  new URL(
+    `/api/v1/organizations/${state.alpha_organization_id}/imports/${declaration.upload_id}`,
+    state.endpoints.api,
+  ),
+  {
+    headers: {
+      'x-drone-works-local-persona-token': persona.token,
+    },
+  },
+);
+const importStatus = await importStatusResponse.json();
+if (
+  !importStatusResponse.ok ||
+  importStatus.import_id !== declaration.upload_id ||
+  importStatus.state !== 'queued'
+) {
+  throw new Error('The local import-status path did not pass.');
+}
 
-const [api, worker, objects, email, , proxiedApi] = await Promise.all([
-  waitForHttp(state.endpoints.api, 'api', 5_000),
-  waitForHttp(state.endpoints.worker, 'worker', 5_000),
-  waitForHttp(state.endpoints.objects, 'objects', 5_000),
-  waitForHttp(state.endpoints.email, 'email', 5_000),
-  waitForPage(state.endpoints.web, 'Local foundation', 5_000),
-  waitForHttp(`${state.endpoints.web}/api/v1/health`, 'api', 5_000),
-]);
+const [api, dispatcher, worker, objects, email, , proxiedApi] =
+  await Promise.all([
+    waitForHttp(state.endpoints.api, 'api', 5_000),
+    waitForHttp(state.endpoints.dispatcher, 'dispatcher', 5_000),
+    waitForHttp(state.endpoints.worker, 'worker', 5_000),
+    waitForHttp(state.endpoints.objects, 'objects', 5_000),
+    waitForHttp(state.endpoints.email, 'email', 5_000),
+    waitForPage(state.endpoints.web, 'Local foundation', 5_000),
+    waitForHttp(`${state.endpoints.web}/api/v1/health`, 'api', 5_000),
+  ]);
 
 if (proxiedApi.version !== 'v1') {
   throw new Error('The web API proxy did not return the v1 contract.');
 }
 
-const { stdout } = await execFileAsync(join(state.postgres.bin, 'psql'), [
-  '--host',
-  state.postgres.socket,
-  '--port',
-  String(state.postgres.port),
-  '--username',
-  state.postgres.user,
-  '--dbname',
-  state.postgres.database,
-  '--tuples-only',
-  '--no-align',
-  '--command',
-  `SELECT
-     (SELECT count(*) FROM droneworks.organizations)::text || ':' ||
-     (SELECT count(*) FROM droneworks_ops.migration_runs)::text;`,
-]);
+let databaseProof = '';
+for (let attempt = 0; attempt < 50; attempt += 1) {
+  const { stdout } = await execFileAsync(join(state.postgres.bin, 'psql'), [
+    '--host',
+    state.postgres.socket,
+    '--port',
+    String(state.postgres.port),
+    '--username',
+    state.postgres.user,
+    '--dbname',
+    state.postgres.database,
+    '--tuples-only',
+    '--no-align',
+    '--command',
+    `SELECT
+       (SELECT count(*) FROM droneworks.organizations)::text || ':' ||
+       (SELECT count(*) FROM droneworks_ops.migration_runs)::text || ':' ||
+       (SELECT count(*) FROM droneworks_jobs.reviewed_migration_runs)::text || ':' ||
+       (SELECT count(*) FROM droneworks_jobs.outbox
+         WHERE state = 'dispatched')::text;`,
+  ]);
+  databaseProof = stdout.trim();
+  if (databaseProof === `${state.generated_organizations}:1:1:1`) break;
+  await new Promise((resolve) => setTimeout(resolve, 100));
+}
 
-if (stdout.trim() !== `${state.generated_organizations}:1`) {
-  throw new Error('The migrated local PostgreSQL seed or ledger is missing.');
+if (databaseProof !== `${state.generated_organizations}:1:1:1`) {
+  throw new Error(
+    'The migrated PostgreSQL or durable dispatch proof is missing.',
+  );
 }
 
 process.stdout.write(
-  `Local smoke passed: ${[api.service, worker.service, objects.service, email.service].join(', ')}, generated identity/authorization, immutable upload, and web/postgres.\n`,
+  `Local smoke passed: ${[api.service, dispatcher.service, worker.service, objects.service, email.service].join(', ')}, generated identity/authorization, immutable upload/dispatch, and web/postgres.\n`,
 );

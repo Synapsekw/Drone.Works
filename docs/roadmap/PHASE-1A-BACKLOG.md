@@ -267,6 +267,15 @@ and object version inventory begin.
 
 ### A07 — Dispatch and observe processing atomically
 
+**Status:** Complete (2026-07-16). Evidence: upload completion and one
+payload-free outbox reference commit in the same forced-RLS transaction; the
+separately owned jobs schema leases that reference to a non-customer dispatcher,
+which derives one stable pg-boss UUID. `pnpm test:jobs` proves rollback,
+post-send deduplication, stale-token denial, lease and worker recovery, safe
+pending cancellation, retry/backoff, dead-letter and redacted aggregate metrics,
+strict contextless/wrong-organization rejection, and one-backend context clearing
+against disposable native PostgreSQL.
+
 **Outcome:** Completing an upload atomically creates one durable organization-
 scoped processing job whose status is observable and retry-safe.
 

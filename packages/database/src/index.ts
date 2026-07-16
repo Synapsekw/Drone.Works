@@ -29,6 +29,11 @@ export {
   type ReviewedMigration,
 } from './migrations.js';
 export {
+  applyReviewedJobsMigration,
+  JobsMigrationIntegrityError,
+  type JobsMigrationResult,
+} from './jobs-migrations.js';
+export {
   OrganizationContextError,
   requireOrganizationId,
   withOrganizationTransaction,
@@ -37,10 +42,16 @@ export {
 } from './organization-transaction.js';
 export {
   IdempotencyConflictError,
+  ImportCancellationConflictError,
+  ImportProcessingRepository,
+  importStates,
   RawUploadConflictError,
   RawUploadRepository,
   type CompleteRawUploadInput,
   type DeclareRawUploadInput,
+  type ImportJobTarget,
+  type ImportState,
+  type ImportStatus,
   type RawUploadDescriptor,
   type RawUploadRecord,
 } from './raw-upload.js';

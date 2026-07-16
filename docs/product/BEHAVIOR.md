@@ -152,6 +152,13 @@ An imported identifier results in one of four visible outcomes:
   is rejected.
 - Every declaration, byte write, completion, and status read rechecks current
   organization membership. No public object URL is returned.
+- Upload completion moves the import to `queued` only in the same transaction
+  that creates its payload-free durable processing reference. The private queue
+  payload contains only a schema version, organization ID, and import item ID.
+- Owners and admins, or the pilot who uploaded the item, may read its current
+  processing state. They may cancel it while its durable reference is still
+  pending; once dispatch has begun, cancellation returns a conflict instead of
+  racing a worker. Cross-organization exact identifiers disclose no status.
 
 - A batch upload creates one batch and one import item per file.
 - Each file shows independent progress and outcome.

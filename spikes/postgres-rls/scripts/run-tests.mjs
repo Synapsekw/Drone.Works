@@ -90,14 +90,13 @@ try {
   });
   await bootstrapClient.connect();
   let isolationContractDigest;
-  let reviewedMigration;
+  let reviewedMigrations;
   try {
     const migration = await readFile(new URL("../sql/001_isolation.sql", import.meta.url), "utf8");
     const seed = await readFile(new URL("../sql/002_seed.sql", import.meta.url), "utf8");
     await bootstrapClient.query(migration);
-    await bootstrapClient.query(seed);
     const contractBefore = await readCustomerIsolationContract(bootstrapClient);
-    [reviewedMigration] = await loadReviewedMigrations();
+    reviewedMigrations = await loadReviewedMigrations();
 
     const migrationClient = new Client({
       host: socketDirectory,
@@ -108,13 +107,15 @@ try {
     });
     await migrationClient.connect();
     try {
-      const result = await applyReviewedMigration(
-        migrationClient,
-        reviewedMigration,
-        { appliedAt: new Date("2026-07-16T00:00:00Z") },
-      );
-      if (result.status !== "applied") {
-        throw new Error(`expected reviewed migration to apply, got ${result.status}`);
+      for (const reviewedMigration of reviewedMigrations) {
+        const result = await applyReviewedMigration(
+          migrationClient,
+          reviewedMigration,
+          { appliedAt: new Date("2026-07-16T00:00:00Z") },
+        );
+        if (result.status !== "applied") {
+          throw new Error(`expected reviewed migration to apply, got ${result.status}`);
+        }
       }
     } finally {
       await migrationClient.end();
@@ -126,6 +127,7 @@ try {
     if (beforeDigest !== isolationContractDigest) {
       throw new Error("reviewed migration changed the customer isolation contract");
     }
+    await bootstrapClient.query(seed);
   } finally {
     await bootstrapClient.end();
   }
@@ -139,8 +141,8 @@ try {
     DRONEWORKS_PG_QUEUE_USER: "droneworks_queue",
     DRONEWORKS_PG_QUEUE_SCHEMA: "droneworks_jobs",
     DRONEWORKS_PG_MIGRATION_USER: "droneworks_migration_runner",
-    DRONEWORKS_PG_REVIEWED_MIGRATION_ID: reviewedMigration.id,
-    DRONEWORKS_PG_REVIEWED_MIGRATION_SHA256: reviewedMigration.sha256,
+    DRONEWORKS_PG_REVIEWED_MIGRATION_ID: reviewedMigrations[0].id,
+    DRONEWORKS_PG_REVIEWED_MIGRATION_SHA256: reviewedMigrations[0].sha256,
     DRONEWORKS_PG_ISOLATION_CONTRACT_SHA256: isolationContractDigest,
   });
 } catch (error) {

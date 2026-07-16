@@ -13,6 +13,8 @@ function requireDate(value, field) {
 }
 
 async function recordAuditEvent(client, input) {
+  const resourceType = requireId(input.resourceType ?? "flight", "resourceType");
+  const resourceId = requireId(input.resourceId ?? input.flightId, "resourceId");
   await client.query(
     `INSERT INTO droneworks.audit_events (
        organization_id,
@@ -27,16 +29,17 @@ async function recordAuditEvent(client, input) {
        droneworks.current_organization_id(),
        $1,
        $2,
-       'flight',
        $3,
        $4,
        $5,
-       $6
+       $6,
+       $7
      )`,
     [
       requireId(input.userId, "userId"),
       input.action,
-      requireId(input.flightId, "flightId"),
+      resourceType,
+      resourceId,
       input.changedFields,
       input.metadata,
       requireDate(input.now, "now").toISOString(),
@@ -601,6 +604,326 @@ export function createRepositories(client) {
           ORDER BY occurred_at, action, resource_id`,
       );
       return result.rows;
+    },
+
+    async listMembersForManager(userId) {
+      requireId(userId, "userId");
+      const result = await client.query(
+        `SELECT target.user_id, target.role
+           FROM droneworks.memberships AS actor
+           JOIN droneworks.memberships AS target
+             ON target.organization_id = actor.organization_id
+          WHERE actor.user_id = $1
+            AND actor.role IN ('owner', 'admin')
+          ORDER BY target.user_id`,
+        [userId],
+      );
+      return result.rows.length === 0 ? null : result.rows;
+    },
+
+    async putMemberForManager({ userId, targetUserId, role, now }) {
+      requireId(userId, "userId");
+      requireId(targetUserId, "targetUserId");
+      if (!["admin", "pilot", "viewer"].includes(role)) {
+        throw new TypeError("role must be admin, pilot, or viewer");
+      }
+      const actor = await client.query(
+        `SELECT role
+           FROM droneworks.memberships
+          WHERE user_id = $1
+            AND role IN ('owner', 'admin')
+          FOR UPDATE`,
+        [userId],
+      );
+      if (actor.rowCount === 0) {
+        return null;
+      }
+      const target = await client.query(
+        `SELECT role
+           FROM droneworks.memberships
+          WHERE user_id = $1
+          FOR UPDATE`,
+        [targetUserId],
+      );
+      const previousRole = target.rows[0]?.role;
+      if (previousRole === "owner") {
+        return null;
+      }
+      const saved = await client.query(
+        `INSERT INTO droneworks.memberships (
+           organization_id,
+           user_id,
+           role
+         ) VALUES (
+           droneworks.current_organization_id(),
+           $1,
+           $2
+         )
+         ON CONFLICT (organization_id, user_id)
+         DO UPDATE SET role = EXCLUDED.role
+         WHERE memberships.role <> 'owner'
+         RETURNING organization_id, user_id, role`,
+        [targetUserId, role],
+      );
+      const member = saved.rows[0] ?? null;
+      if (member === null) {
+        return null;
+      }
+      if (previousRole !== role) {
+        await recordAuditEvent(client, {
+          userId,
+          action: previousRole === undefined
+            ? "membership.added"
+            : "membership.role_updated",
+          resourceType: "membership",
+          resourceId: targetUserId,
+          changedFields: ["role"],
+          metadata: {},
+          now,
+        });
+      }
+      return {
+        kind: previousRole === undefined ? "created" : "saved",
+        member,
+      };
+    },
+
+    async deleteMemberForManager({ userId, targetUserId, now }) {
+      requireId(userId, "userId");
+      requireId(targetUserId, "targetUserId");
+      const deleted = await client.query(
+        `DELETE FROM droneworks.memberships AS target
+          USING droneworks.memberships AS actor
+          WHERE actor.organization_id = target.organization_id
+            AND actor.user_id = $1
+            AND actor.role IN ('owner', 'admin')
+            AND target.user_id = $2
+            AND target.role <> 'owner'
+        RETURNING target.organization_id, target.user_id, target.role`,
+        [userId, targetUserId],
+      );
+      const member = deleted.rows[0] ?? null;
+      if (member !== null) {
+        await recordAuditEvent(client, {
+          userId,
+          action: "membership.removed",
+          resourceType: "membership",
+          resourceId: targetUserId,
+          changedFields: ["role"],
+          metadata: {},
+          now,
+        });
+      }
+      return member;
+    },
+
+    async updateOrganizationSettingsForManager({ userId, settings, now }) {
+      requireId(userId, "userId");
+      if (settings === null || typeof settings !== "object") {
+        throw new TypeError("settings must be an object");
+      }
+      const current = await client.query(
+        `SELECT organization.id,
+                organization.name,
+                organization.default_timezone,
+                organization.unit_preference,
+                organization.pilot_raw_download_enabled,
+                organization.pilot_export_enabled
+           FROM droneworks.memberships AS actor
+           JOIN droneworks.organizations AS organization
+             ON organization.id = actor.organization_id
+          WHERE actor.user_id = $1
+            AND actor.role IN ('owner', 'admin')
+          FOR UPDATE OF actor, organization`,
+        [userId],
+      );
+      const previous = current.rows[0];
+      if (previous === undefined) {
+        return null;
+      }
+      const requested = {
+        name: settings.name ?? previous.name,
+        default_timezone: settings.defaultTimezone ?? previous.default_timezone,
+        unit_preference: settings.unitPreference ?? previous.unit_preference,
+        pilot_raw_download_enabled:
+          settings.pilotRawDownloadEnabled ?? previous.pilot_raw_download_enabled,
+        pilot_export_enabled:
+          settings.pilotExportEnabled ?? previous.pilot_export_enabled,
+      };
+      const changedFields = Object.keys(requested).filter(
+        (field) => requested[field] !== previous[field],
+      );
+      if (changedFields.length === 0) {
+        return previous;
+      }
+      const updated = await client.query(
+        `UPDATE droneworks.organizations
+            SET name = $1,
+                default_timezone = $2,
+                unit_preference = $3,
+                pilot_raw_download_enabled = $4,
+                pilot_export_enabled = $5
+          WHERE id = $6
+        RETURNING id,
+                  name,
+                  default_timezone,
+                  unit_preference,
+                  pilot_raw_download_enabled,
+                  pilot_export_enabled`,
+        [
+          requested.name,
+          requested.default_timezone,
+          requested.unit_preference,
+          requested.pilot_raw_download_enabled,
+          requested.pilot_export_enabled,
+          previous.id,
+        ],
+      );
+      await recordAuditEvent(client, {
+        userId,
+        action: "organization.settings_updated",
+        resourceType: "organization",
+        resourceId: previous.id,
+        changedFields,
+        metadata: {},
+        now,
+      });
+      return updated.rows[0];
+    },
+
+    async transferOrganizationOwnership({ userId, newOwnerUserId, now }) {
+      requireId(userId, "userId");
+      requireId(newOwnerUserId, "newOwnerUserId");
+      const memberships = await client.query(
+        `SELECT user_id, role, organization_id
+           FROM droneworks.memberships
+          WHERE user_id IN ($1, $2)
+          ORDER BY user_id
+          FOR UPDATE`,
+        [userId, newOwnerUserId],
+      );
+      const actor = memberships.rows.find((member) => member.user_id === userId);
+      const target = memberships.rows.find(
+        (member) => member.user_id === newOwnerUserId,
+      );
+      if (actor?.role !== "owner" || target === undefined) {
+        return null;
+      }
+      if (userId === newOwnerUserId) {
+        return {
+          organization_id: actor.organization_id,
+          previous_owner_user_id: userId,
+          new_owner_user_id: userId,
+        };
+      }
+      await client.query(
+        `UPDATE droneworks.memberships
+            SET role = 'admin'
+          WHERE user_id = $1
+            AND role = 'owner'`,
+        [userId],
+      );
+      const promoted = await client.query(
+        `UPDATE droneworks.memberships
+            SET role = 'owner'
+          WHERE user_id = $1
+            AND role <> 'owner'
+        RETURNING organization_id`,
+        [newOwnerUserId],
+      );
+      if (promoted.rowCount !== 1) {
+        throw new Error("ownership transfer target could not be promoted");
+      }
+      await recordAuditEvent(client, {
+        userId,
+        action: "organization.ownership_transferred",
+        resourceType: "organization",
+        resourceId: actor.organization_id,
+        changedFields: ["owner_user_id"],
+        metadata: {
+          previous_owner_user_id: userId,
+          new_owner_user_id: newOwnerUserId,
+        },
+        now,
+      });
+      return {
+        organization_id: actor.organization_id,
+        previous_owner_user_id: userId,
+        new_owner_user_id: newOwnerUserId,
+      };
+    },
+
+    async requestOrganizationDeletionForOwner({ userId, now }) {
+      requireId(userId, "userId");
+      const requestedAt = requireDate(now, "now").toISOString();
+      const current = await client.query(
+        `SELECT organization.id,
+                organization.state,
+                organization.deletion_requested_at
+           FROM droneworks.memberships AS actor
+           JOIN droneworks.organizations AS organization
+             ON organization.id = actor.organization_id
+          WHERE actor.user_id = $1
+            AND actor.role = 'owner'
+          FOR UPDATE OF actor, organization`,
+        [userId],
+      );
+      const organization = current.rows[0];
+      if (organization === undefined) {
+        return null;
+      }
+      if (organization.state === "pending_deletion") {
+        return organization;
+      }
+      const updated = await client.query(
+        `UPDATE droneworks.organizations
+            SET state = 'pending_deletion',
+                deletion_requested_at = $2
+          WHERE id = $1
+        RETURNING id, state, deletion_requested_at`,
+        [organization.id, requestedAt],
+      );
+      await recordAuditEvent(client, {
+        userId,
+        action: "organization.deletion_requested",
+        resourceType: "organization",
+        resourceId: organization.id,
+        changedFields: ["state", "deletion_requested_at"],
+        metadata: {},
+        now,
+      });
+      return updated.rows[0];
+    },
+
+    async cancelOrganizationDeletionForOwner({ userId, now }) {
+      requireId(userId, "userId");
+      const cancelled = await client.query(
+        `UPDATE droneworks.organizations AS organization
+            SET state = 'active',
+                deletion_requested_at = NULL
+           FROM droneworks.memberships AS actor
+          WHERE actor.organization_id = organization.id
+            AND actor.user_id = $1
+            AND actor.role = 'owner'
+            AND organization.state = 'pending_deletion'
+        RETURNING organization.id,
+                  organization.state,
+                  organization.deletion_requested_at`,
+        [userId],
+      );
+      const organization = cancelled.rows[0] ?? null;
+      if (organization !== null) {
+        await recordAuditEvent(client, {
+          userId,
+          action: "organization.deletion_cancelled",
+          resourceType: "organization",
+          resourceId: organization.id,
+          changedFields: ["state", "deletion_requested_at"],
+          metadata: {},
+          now,
+        });
+      }
+      return organization;
     },
 
     async findDownloadableObject({ userId, resourceType, resourceId, now }) {

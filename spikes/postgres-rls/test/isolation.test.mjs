@@ -90,6 +90,8 @@ const sessions = new Map([
   ["session-alpha-pilot", "user-alpha-pilot"],
   ["session-alpha-other-pilot", "user-alpha-other-pilot"],
   ["session-alpha-viewer", "user-alpha-viewer"],
+  ["session-alpha-new-member", "user-alpha-new-member"],
+  ["session-beta-owner", "user-beta-owner"],
   ["session-beta-admin", "user-beta"],
   ["session-beta-pilot", "user-beta-pilot"],
   ["session-beta-viewer", "user-beta-viewer"],
@@ -296,7 +298,8 @@ test("reviewed migrations use narrow explicit elevation and an independent audit
     /role "droneworks_migrator" is not permitted to log in/,
   );
 
-  const [reviewedMigration] = await loadReviewedMigrations();
+  const reviewedMigrations = await loadReviewedMigrations();
+  const [reviewedMigration] = reviewedMigrations;
   assert.equal(reviewedMigration.id, process.env.DRONEWORKS_PG_REVIEWED_MIGRATION_ID);
   assert.equal(
     reviewedMigration.sha256,
@@ -304,16 +307,18 @@ test("reviewed migrations use narrow explicit elevation and an independent audit
   );
   const replayClient = await migrationPool.connect();
   try {
-    const replay = await applyReviewedMigration(
-      replayClient,
-      reviewedMigration,
-      { appliedAt: new Date("2026-07-16T00:01:00Z") },
-    );
-    assert.deepEqual(replay, {
-      status: "already_applied",
-      migrationId: reviewedMigration.id,
-      sha256: reviewedMigration.sha256,
-    });
+    for (const migration of reviewedMigrations) {
+      const replay = await applyReviewedMigration(
+        replayClient,
+        migration,
+        { appliedAt: new Date("2026-07-16T00:01:00Z") },
+      );
+      assert.deepEqual(replay, {
+        status: "already_applied",
+        migrationId: migration.id,
+        sha256: migration.sha256,
+      });
+    }
 
     await assert.rejects(
       applyReviewedMigration(replayClient, {
@@ -335,25 +340,29 @@ test("reviewed migrations use narrow explicit elevation and an independent audit
     replayClient.release();
   }
 
-  const ledger = await migrationPool.query(
-    `SELECT migration_id,
-            sha256,
-            applied_at,
-            applied_by,
-            application_name
-       FROM droneworks_ops.find_migration($1)`,
-    [reviewedMigration.id],
-  );
-  assert.deepEqual(ledger.rows.map((row) => ({
+  const ledger = [];
+  for (const migration of reviewedMigrations) {
+    const result = await migrationPool.query(
+      `SELECT migration_id,
+              sha256,
+              applied_at,
+              applied_by,
+              application_name
+         FROM droneworks_ops.find_migration($1)`,
+      [migration.id],
+    );
+    ledger.push(...result.rows);
+  }
+  assert.deepEqual(ledger.map((row) => ({
     ...row,
     applied_at: row.applied_at.toISOString(),
-  })), [{
-    migration_id: reviewedMigration.id,
-    sha256: reviewedMigration.sha256,
+  })), reviewedMigrations.map((migration) => ({
+    migration_id: migration.id,
+    sha256: migration.sha256,
     applied_at: "2026-07-16T00:00:00.000Z",
     applied_by: "droneworks_migration_runner",
     application_name: "droneworks-reviewed-migration",
-  }]);
+  })));
 
   const operationalBoundary = await bootstrapPool.query(
     `SELECT table_owner.rolname AS ledger_owner,
@@ -1416,5 +1425,365 @@ test("flight mutations enforce the role matrix, grace window, audit redaction, a
     audit_count: 0,
     idempotency_count: 0,
     assignment_override_count: 0,
+  });
+});
+
+test("organization member and settings operations enforce manager scope and preserve history", async () => {
+  const membersPath = "/api/v1/organizations/org-alpha/members";
+  for (const session of ["session-alpha-owner", "session-alpha-admin"]) {
+    const listed = await apiRequest(membersPath, session);
+    assert.equal(listed.status, 200);
+    assert.equal(listed.body.data.some(
+      (member) => member.user_id === "user-alpha-owner" && member.role === "owner",
+    ), true);
+  }
+  for (const session of [
+    "session-alpha-pilot",
+    "session-alpha-viewer",
+    "session-beta-admin",
+  ]) {
+    const denied = await apiRequest(membersPath, session);
+    assert.equal(denied.status, 404);
+    assert.deepEqual(denied.body, hiddenResourceProblem);
+  }
+  const crossOrganizationMember = await apiRequest(
+    `${membersPath}/user-beta`,
+    "session-alpha-owner",
+    { method: "DELETE" },
+  );
+  assert.equal(crossOrganizationMember.status, 404);
+  assert.deepEqual(crossOrganizationMember.body, hiddenResourceProblem);
+
+  const invalidOwnerRole = await apiRequest(
+    `${membersPath}/user-alpha-new-member`,
+    "session-alpha-owner",
+    {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ role: "owner" }),
+    },
+  );
+  assert.equal(invalidOwnerRole.status, 400);
+  assert.deepEqual(invalidOwnerRole.body.errors, [{
+    field: "role",
+    detail: "must be admin, pilot, or viewer",
+  }]);
+
+  for (const session of [
+    "session-alpha-pilot",
+    "session-alpha-viewer",
+    "session-beta-admin",
+  ]) {
+    const denied = await apiRequest(
+      `${membersPath}/user-alpha-denied-member`,
+      session,
+      {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ role: "viewer" }),
+      },
+    );
+    assert.equal(denied.status, 404);
+    assert.deepEqual(denied.body, hiddenResourceProblem);
+  }
+
+  const created = await apiRequest(
+    `${membersPath}/user-alpha-new-member`,
+    "session-alpha-admin",
+    {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ role: "viewer" }),
+    },
+  );
+  assert.equal(created.status, 201);
+  assert.deepEqual(created.body.data, {
+    organization_id: "org-alpha",
+    user_id: "user-alpha-new-member",
+    role: "viewer",
+  });
+  const replayed = await apiRequest(
+    `${membersPath}/user-alpha-new-member`,
+    "session-alpha-admin",
+    {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ role: "viewer" }),
+    },
+  );
+  assert.equal(replayed.status, 200);
+  assert.deepEqual(replayed.body, created.body);
+  const promoted = await apiRequest(
+    `${membersPath}/user-alpha-new-member`,
+    "session-alpha-owner",
+    {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ role: "pilot" }),
+    },
+  );
+  assert.equal(promoted.status, 200);
+  assert.equal(promoted.body.data.role, "pilot");
+
+  const protectedOwner = await apiRequest(
+    `${membersPath}/user-alpha-owner`,
+    "session-alpha-admin",
+    {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ role: "viewer" }),
+    },
+  );
+  assert.equal(protectedOwner.status, 404);
+  assert.deepEqual(protectedOwner.body, hiddenResourceProblem);
+
+  const settingsPath = "/api/v1/organizations/org-alpha/settings";
+  const invalidSettings = await apiRequest(settingsPath, "session-alpha-admin", {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ default_timezone: "Not/A-Timezone" }),
+  });
+  assert.equal(invalidSettings.status, 400);
+  assert.deepEqual(invalidSettings.body.errors, [{
+    field: "default_timezone",
+    detail: "must be an IANA timezone",
+  }]);
+  for (const session of [
+    "session-alpha-pilot",
+    "session-alpha-viewer",
+    "session-beta-admin",
+  ]) {
+    const denied = await apiRequest(settingsPath, session, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ unit_preference: "imperial" }),
+    });
+    assert.equal(denied.status, 404);
+    assert.deepEqual(denied.body, hiddenResourceProblem);
+  }
+  const adminSettings = await apiRequest(settingsPath, "session-alpha-admin", {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      name: "Alpha Operations",
+      unit_preference: "imperial",
+      pilot_export_enabled: false,
+    }),
+  });
+  assert.equal(adminSettings.status, 200);
+  assert.deepEqual(adminSettings.body.data, {
+    id: "org-alpha",
+    name: "Alpha Operations",
+    default_timezone: "Asia/Dubai",
+    unit_preference: "imperial",
+    pilot_raw_download_enabled: true,
+    pilot_export_enabled: false,
+  });
+  const ownerSettings = await apiRequest(settingsPath, "session-alpha-owner", {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      default_timezone: "Europe/London",
+      pilot_raw_download_enabled: false,
+    }),
+  });
+  assert.equal(ownerSettings.status, 200);
+  assert.equal(ownerSettings.body.data.default_timezone, "Europe/London");
+  assert.equal(ownerSettings.body.data.pilot_raw_download_enabled, false);
+
+  const removedNewMember = await apiRequest(
+    `${membersPath}/user-alpha-new-member`,
+    "session-alpha-admin",
+    { method: "DELETE" },
+  );
+  assert.equal(removedNewMember.status, 204);
+  const removedHistoricalPilot = await apiRequest(
+    `${membersPath}/user-alpha-other-pilot`,
+    "session-alpha-owner",
+    { method: "DELETE" },
+  );
+  assert.equal(removedHistoricalPilot.status, 204);
+  const historicalPilot = await bootstrapPool.query(
+    `SELECT id, membership_user_id
+       FROM droneworks.pilot_profiles
+      WHERE organization_id = 'org-alpha'
+        AND id = 'pilot-alpha-other'`,
+  );
+  assert.deepEqual(historicalPilot.rows, [{
+    id: "pilot-alpha-other",
+    membership_user_id: null,
+  }]);
+  const removedIdentity = await apiRequest(membersPath, "session-alpha-new-member");
+  assert.equal(removedIdentity.status, 404);
+  assert.deepEqual(removedIdentity.body, hiddenResourceProblem);
+});
+
+test("ownership transfer and deletion requests are owner-only and organization-isolated", async () => {
+  const transferPath = "/api/v1/organizations/org-alpha/ownership-transfers";
+  for (const session of [
+    "session-alpha-admin",
+    "session-alpha-pilot",
+    "session-alpha-viewer",
+    "session-beta-owner",
+  ]) {
+    const denied = await apiRequest(transferPath, session, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ new_owner_user_id: "user-alpha" }),
+    });
+    assert.equal(denied.status, 404);
+    assert.deepEqual(denied.body, hiddenResourceProblem);
+  }
+  const crossOrganizationTarget = await apiRequest(
+    transferPath,
+    "session-alpha-owner",
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ new_owner_user_id: "user-beta" }),
+    },
+  );
+  assert.equal(crossOrganizationTarget.status, 404);
+  assert.deepEqual(crossOrganizationTarget.body, hiddenResourceProblem);
+
+  const transferred = await apiRequest(transferPath, "session-alpha-owner", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ new_owner_user_id: "user-alpha" }),
+  });
+  assert.equal(transferred.status, 200);
+  assert.deepEqual(transferred.body.data, {
+    organization_id: "org-alpha",
+    previous_owner_user_id: "user-alpha-owner",
+    new_owner_user_id: "user-alpha",
+  });
+  const ownership = await bootstrapPool.query(
+    `SELECT user_id, role
+       FROM droneworks.memberships
+      WHERE organization_id = 'org-alpha'
+        AND user_id IN ('user-alpha-owner', 'user-alpha')
+      ORDER BY user_id`,
+  );
+  assert.deepEqual(ownership.rows, [{
+    user_id: "user-alpha",
+    role: "owner",
+  }, {
+    user_id: "user-alpha-owner",
+    role: "admin",
+  }]);
+  const ownerInvariant = await bootstrapPool.query(
+    `SELECT count(*) FILTER (WHERE membership.role = 'owner')::integer AS owner_count,
+            pg_get_indexdef(index.oid) AS index_definition
+       FROM droneworks.memberships AS membership
+       JOIN pg_class AS index ON index.relname = 'memberships_one_owner_idx'
+      WHERE membership.organization_id = 'org-alpha'
+      GROUP BY index.oid`,
+  );
+  assert.equal(ownerInvariant.rows[0].owner_count, 1);
+  assert.match(
+    ownerInvariant.rows[0].index_definition,
+    /CREATE UNIQUE INDEX .* WHERE \(role = 'owner'::text\)/,
+  );
+
+  const deletionPath = "/api/v1/organizations/org-alpha/deletion-request";
+  for (const session of [
+    "session-alpha-owner",
+    "session-alpha-pilot",
+    "session-alpha-viewer",
+    "session-beta-owner",
+  ]) {
+    const denied = await apiRequest(deletionPath, session, { method: "POST" });
+    assert.equal(denied.status, 404);
+    assert.deepEqual(denied.body, hiddenResourceProblem);
+  }
+  const requested = await apiRequest(deletionPath, "session-alpha-admin", {
+    method: "POST",
+  });
+  assert.equal(requested.status, 202);
+  assert.deepEqual(requested.body.data, {
+    id: "org-alpha",
+    state: "pending_deletion",
+    deletion_requested_at: "2026-07-15T12:00:00.000Z",
+  });
+  const replayedRequest = await apiRequest(deletionPath, "session-alpha-admin", {
+    method: "POST",
+  });
+  assert.equal(replayedRequest.status, 202);
+  assert.deepEqual(replayedRequest.body, requested.body);
+
+  const formerOwnerCancel = await apiRequest(deletionPath, "session-alpha-owner", {
+    method: "DELETE",
+  });
+  assert.equal(formerOwnerCancel.status, 404);
+  assert.deepEqual(formerOwnerCancel.body, hiddenResourceProblem);
+  const cancelled = await apiRequest(deletionPath, "session-alpha-admin", {
+    method: "DELETE",
+  });
+  assert.equal(cancelled.status, 200);
+  assert.deepEqual(cancelled.body.data, {
+    id: "org-alpha",
+    state: "active",
+    deletion_requested_at: null,
+  });
+
+  const administrationEvents = await withOrganization(
+    applicationPool,
+    "org-alpha",
+    async (repositories) => (await repositories.listAuditEvents()).filter(
+      (event) => event.resource_type !== "flight",
+    ),
+  );
+  const actionCounts = Object.groupBy(
+    administrationEvents,
+    (event) => event.action,
+  );
+  assert.deepEqual(
+    Object.fromEntries(
+      Object.entries(actionCounts).map(([action, events]) => [action, events.length]),
+    ),
+    {
+      "membership.added": 1,
+      "membership.removed": 2,
+      "membership.role_updated": 1,
+      "organization.deletion_cancelled": 1,
+      "organization.deletion_requested": 1,
+      "organization.ownership_transferred": 1,
+      "organization.settings_updated": 2,
+    },
+  );
+  assert.equal(administrationEvents.every(
+    (event) => event.changed_fields.length > 0,
+  ), true);
+  const serializedAudit = JSON.stringify(administrationEvents);
+  assert.equal(serializedAudit.includes("Alpha Operations"), false);
+  assert.equal(serializedAudit.includes("Europe/London"), false);
+
+  const beta = await bootstrapPool.query(
+    `SELECT name,
+            default_timezone,
+            unit_preference,
+            state,
+            deletion_requested_at
+       FROM droneworks.organizations
+      WHERE id = 'org-beta'`,
+  );
+  assert.deepEqual(beta.rows, [{
+    name: "Beta",
+    default_timezone: "UTC",
+    unit_preference: "imperial",
+    state: "active",
+    deletion_requested_at: null,
+  }]);
+  const contextless = await applicationPool.query(
+    `SELECT current_setting('app.organization_id', true) AS organization_id,
+            (SELECT count(*)::integer FROM droneworks.organizations) AS organization_count,
+            (SELECT count(*)::integer FROM droneworks.memberships) AS membership_count,
+            (SELECT count(*)::integer FROM droneworks.audit_events) AS audit_count`,
+  );
+  assert.deepEqual(contextless.rows[0], {
+    organization_id: "",
+    organization_count: 0,
+    membership_count: 0,
+    audit_count: 0,
   });
 });

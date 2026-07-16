@@ -54,7 +54,7 @@ The candidate deployment path has no login for the customer-schema owner. A non-
 
 The operational ledger lives outside the customer schema and is owned by a separate no-login audit role. The runner has execute access only to security-definer read/append functions and has no direct table privileges. The migrator cannot read or rewrite the ledger, and the runner cannot assume the audit owner. Application and queue roles cannot assume the migrator or access the operational schema. This is operational metadata only: migration IDs and digests must never contain organization or customer payload.
 
-The runner snapshots a deterministic customer-isolation contract before and after each proof migration. The contract covers every customer table's owner, grants, RLS and `FORCE RLS` flags, and policy expressions. The first follow-up migration adds only an audit lookup index and must leave that contract digest unchanged. In this candidate model, routine privileged maintenance must ship as a reviewed migration; there is no separate standing ad-hoc DML role. Production credential delivery, CI identity, externally retained database audit logs, and emergency procedure remain deployment/operations decisions rather than authority granted to ordinary processes.
+The runner snapshots a deterministic customer-isolation contract before and after the reviewed migration set. The contract covers every customer table's owner, grants, RLS and `FORCE RLS` flags, and policy expressions. The first follow-up adds only an audit lookup index; the next adds organization settings/deletion state, the single-owner index, and historical pilot unlink behavior. Both are checksum-pinned, ledger-recorded, and leave the isolation-contract digest unchanged. In this candidate model, routine privileged maintenance must ship as a reviewed migration; there is no separate standing ad-hoc DML role. Production credential delivery, CI identity, externally retained database audit logs, and emergency procedure remain deployment/operations decisions rather than authority granted to ordinary processes.
 
 ## Pooled-connection contract
 
@@ -87,6 +87,7 @@ The integration suite currently proves, with synthetic Alpha and Beta records:
 - fail-closed job lookup, durable payload validation before enqueue and execution, and real queue retry isolation;
 - versioned HTTP flight reads and download issuance with membership, role, pilot ownership, and organization-policy checks;
 - versioned flight creation and mutation with idempotency, audit redaction, reversible deletion, role checks, and uniform IDOR denial;
+- versioned organization administration with owner/admin member and settings operations, owner-only ownership transfer and deletion requests, historical pilot retention, and uniform IDOR denial;
 - imported pilot/aircraft assignments retained as a separate baseline while an organization-owned override row supplies the effective reassignment;
 - organization-derived raw-source/export keys, bounded link lifetime, uniform denial, and membership-revocation checks; and
 - forced RLS behavior for the table owner, alongside explicit superuser bypass evidence.
@@ -115,6 +116,10 @@ The mutation slice requires complete manual-flight timing, timezone, duration, a
 
 Owner/admin may edit notes, reassign assets, delete, and restore; pilots may edit notes only while the flight is assigned to their linked pilot profile; viewers cannot mutate. Reassignment is constrained to organization-visible pilot and aircraft rows. Soft deletion preserves the prior active/review state and excludes the flight from lists and derived totals. Restore succeeds only when fewer than 30 days have elapsed. Every successful mutation writes an organization-owned audit event with actor, action, time, resource, and changed field names; note content and other customer payload are not copied into audit metadata.
 
+The administration slice exposes manager-only membership listing and idempotent `PUT`/delete operations plus partial organization-settings updates. Owner/admin identities may manage non-owner memberships and settings; pilots, viewers, missing members, and cross-organization identities receive the same not-found response. The ordinary member endpoint cannot grant, demote, or remove an owner. Removing a linked member clears only the pilot profile's login link and preserves the historical pilot and flights.
+
+Ownership transfer is a separate owner-only transaction: it locks both memberships, demotes the current owner, promotes an existing organization member, and relies on a partial unique index to prevent two owners. Organization deletion is likewise owner-only and records a reversible `pending_deletion` request timestamp; cancellation restores `active` state. Repeated equivalent requests do not create duplicate audit events. Administration audits retain action/resource/changed-field information but omit organization setting values.
+
 ## Object and download boundary
 
 Object paths are derived only after an organization-owned database row is authorized. The executable shape is:
@@ -130,7 +135,7 @@ The authorization query holds a row lock on the membership and artifact until si
 
 ## Remaining P0-05 proof obligations
 
-- Extend the API role matrix across tags/batteries, member management, organization settings/ownership, upload/import actions, and complete organization export.
+- Extend the API role matrix across tags/batteries, upload/import actions, complete organization export, and permanent organization deletion.
 - Exercise worker termination, cancellation, queue-age observability, and idempotent domain mutation under retry before accepting pg-boss.
 - Exercise object-key derivation, URL expiry, membership revocation, and deletion against real object-storage artifacts rather than the signer adapter alone.
 - Extend isolation tests across imports, overrides, audit events, cached organization-linked secrets, and deletion paths as those schemas become executable.

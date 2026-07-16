@@ -165,7 +165,8 @@ CREATE TABLE droneworks.pilot_profiles (
   FOREIGN KEY (organization_id)
     REFERENCES droneworks.organizations (id)
     ON DELETE CASCADE,
-  FOREIGN KEY (organization_id, membership_user_id)
+  CONSTRAINT pilot_profiles_membership_fkey
+    FOREIGN KEY (organization_id, membership_user_id)
     REFERENCES droneworks.memberships (organization_id, user_id)
 );
 

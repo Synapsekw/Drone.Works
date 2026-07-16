@@ -1,11 +1,13 @@
 INSERT INTO droneworks.organizations (
   id,
   name,
+  default_timezone,
+  unit_preference,
   pilot_raw_download_enabled,
   pilot_export_enabled
 ) VALUES
-  ('org-alpha', 'Alpha', true, true),
-  ('org-beta', 'Beta', false, false);
+  ('org-alpha', 'Alpha', 'Asia/Dubai', 'metric', true, true),
+  ('org-beta', 'Beta', 'UTC', 'imperial', false, false);
 
 INSERT INTO droneworks.memberships (organization_id, user_id, role) VALUES
   ('org-alpha', 'user-alpha-owner', 'owner'),
@@ -14,6 +16,7 @@ INSERT INTO droneworks.memberships (organization_id, user_id, role) VALUES
   ('org-alpha', 'user-alpha-other-pilot', 'pilot'),
   ('org-alpha', 'user-alpha-former', 'admin'),
   ('org-alpha', 'user-alpha-viewer', 'viewer'),
+  ('org-beta', 'user-beta-owner', 'owner'),
   ('org-beta', 'user-beta', 'admin'),
   ('org-beta', 'user-beta-pilot', 'pilot'),
   ('org-beta', 'user-beta-viewer', 'viewer');

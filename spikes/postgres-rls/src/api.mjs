@@ -179,6 +179,98 @@ function assignmentInput(body) {
   });
 }
 
+function memberRoleInput(body) {
+  const input = requireObject(body);
+  const errors = validateKeys(input, ["role"]);
+  if (!["admin", "pilot", "viewer"].includes(input.role)) {
+    errors.push({ field: "role", detail: "must be admin, pilot, or viewer" });
+  }
+  if (errors.length > 0) {
+    throw new ValidationError(errors);
+  }
+  return input.role;
+}
+
+function organizationSettingsInput(body) {
+  const input = requireObject(body);
+  const fields = [
+    "name",
+    "default_timezone",
+    "unit_preference",
+    "pilot_raw_download_enabled",
+    "pilot_export_enabled",
+  ];
+  const errors = validateKeys(input, fields, []);
+  if (Object.keys(input).length === 0) {
+    errors.push({ field: "body", detail: "must include at least one setting" });
+  }
+  if (Object.hasOwn(input, "name")
+      && (typeof input.name !== "string"
+        || input.name.trim().length === 0
+        || input.name.length > 200)) {
+    errors.push({ field: "name", detail: "must be a non-empty string of at most 200 characters" });
+  }
+  if (Object.hasOwn(input, "default_timezone")) {
+    if (typeof input.default_timezone !== "string"
+        || input.default_timezone.length === 0) {
+      errors.push({ field: "default_timezone", detail: "must be an IANA timezone" });
+    } else {
+      try {
+        new Intl.DateTimeFormat("en", { timeZone: input.default_timezone });
+      } catch {
+        errors.push({ field: "default_timezone", detail: "must be an IANA timezone" });
+      }
+    }
+  }
+  if (Object.hasOwn(input, "unit_preference")
+      && !["metric", "imperial"].includes(input.unit_preference)) {
+    errors.push({ field: "unit_preference", detail: "must be metric or imperial" });
+  }
+  for (const field of [
+    "pilot_raw_download_enabled",
+    "pilot_export_enabled",
+  ]) {
+    if (Object.hasOwn(input, field) && typeof input[field] !== "boolean") {
+      errors.push({ field, detail: "must be a boolean" });
+    }
+  }
+  if (errors.length > 0) {
+    throw new ValidationError(errors);
+  }
+  const settings = {};
+  if (Object.hasOwn(input, "name")) {
+    settings.name = input.name.trim();
+  }
+  if (Object.hasOwn(input, "default_timezone")) {
+    settings.defaultTimezone = input.default_timezone;
+  }
+  if (Object.hasOwn(input, "unit_preference")) {
+    settings.unitPreference = input.unit_preference;
+  }
+  if (Object.hasOwn(input, "pilot_raw_download_enabled")) {
+    settings.pilotRawDownloadEnabled = input.pilot_raw_download_enabled;
+  }
+  if (Object.hasOwn(input, "pilot_export_enabled")) {
+    settings.pilotExportEnabled = input.pilot_export_enabled;
+  }
+  return Object.freeze(settings);
+}
+
+function ownershipTransferInput(body) {
+  const input = requireObject(body);
+  const errors = validateKeys(input, ["new_owner_user_id"]);
+  if (!validIdentifier(input.new_owner_user_id)) {
+    errors.push({
+      field: "new_owner_user_id",
+      detail: "must be a non-empty opaque identifier",
+    });
+  }
+  if (errors.length > 0) {
+    throw new ValidationError(errors);
+  }
+  return input.new_owner_user_id;
+}
+
 function requestHash(input) {
   return createHash("sha256").update(JSON.stringify({
     pilot_profile_id: input.pilotProfileId,
@@ -424,6 +516,181 @@ export function createApiServer({
           return;
         }
         sendJson(response, 200, { data: flight });
+        return;
+      }
+
+      const membersRoute = request.method === "GET"
+        ? matchRoute(
+          url.pathname,
+          /^\/api\/v1\/organizations\/([^/]+)\/members$/,
+        )
+        : null;
+      if (membersRoute !== null) {
+        const [organizationId] = membersRoute;
+        const members = await withOrganization(
+          pool,
+          organizationId,
+          (repositories) => repositories.listMembersForManager(identity.userId),
+        );
+        if (members === null) {
+          sendProblem(response, HIDDEN_RESOURCE_PROBLEM);
+          return;
+        }
+        sendJson(response, 200, { data: members });
+        return;
+      }
+
+      const putMemberRoute = request.method === "PUT"
+        ? matchRoute(
+          url.pathname,
+          /^\/api\/v1\/organizations\/([^/]+)\/members\/([^/]+)$/,
+        )
+        : null;
+      if (putMemberRoute !== null) {
+        const [organizationId, targetUserId] = putMemberRoute;
+        const role = memberRoleInput(await readJsonBody(request));
+        const result = await withOrganization(
+          pool,
+          organizationId,
+          (repositories) => repositories.putMemberForManager({
+            userId: identity.userId,
+            targetUserId,
+            role,
+            now: now(),
+          }),
+        );
+        if (result === null) {
+          sendProblem(response, HIDDEN_RESOURCE_PROBLEM);
+          return;
+        }
+        sendJson(response, result.kind === "created" ? 201 : 200, {
+          data: result.member,
+        });
+        return;
+      }
+
+      const deleteMemberRoute = request.method === "DELETE"
+        ? matchRoute(
+          url.pathname,
+          /^\/api\/v1\/organizations\/([^/]+)\/members\/([^/]+)$/,
+        )
+        : null;
+      if (deleteMemberRoute !== null) {
+        const [organizationId, targetUserId] = deleteMemberRoute;
+        const member = await withOrganization(
+          pool,
+          organizationId,
+          (repositories) => repositories.deleteMemberForManager({
+            userId: identity.userId,
+            targetUserId,
+            now: now(),
+          }),
+        );
+        if (member === null) {
+          sendProblem(response, HIDDEN_RESOURCE_PROBLEM);
+          return;
+        }
+        sendEmpty(response, 204);
+        return;
+      }
+
+      const settingsRoute = request.method === "PATCH"
+        ? matchRoute(
+          url.pathname,
+          /^\/api\/v1\/organizations\/([^/]+)\/settings$/,
+        )
+        : null;
+      if (settingsRoute !== null) {
+        const [organizationId] = settingsRoute;
+        const settings = organizationSettingsInput(await readJsonBody(request));
+        const organization = await withOrganization(
+          pool,
+          organizationId,
+          (repositories) => repositories.updateOrganizationSettingsForManager({
+            userId: identity.userId,
+            settings,
+            now: now(),
+          }),
+        );
+        if (organization === null) {
+          sendProblem(response, HIDDEN_RESOURCE_PROBLEM);
+          return;
+        }
+        sendJson(response, 200, { data: organization });
+        return;
+      }
+
+      const ownershipTransferRoute = request.method === "POST"
+        ? matchRoute(
+          url.pathname,
+          /^\/api\/v1\/organizations\/([^/]+)\/ownership-transfers$/,
+        )
+        : null;
+      if (ownershipTransferRoute !== null) {
+        const [organizationId] = ownershipTransferRoute;
+        const newOwnerUserId = ownershipTransferInput(await readJsonBody(request));
+        const transfer = await withOrganization(
+          pool,
+          organizationId,
+          (repositories) => repositories.transferOrganizationOwnership({
+            userId: identity.userId,
+            newOwnerUserId,
+            now: now(),
+          }),
+        );
+        if (transfer === null) {
+          sendProblem(response, HIDDEN_RESOURCE_PROBLEM);
+          return;
+        }
+        sendJson(response, 200, { data: transfer });
+        return;
+      }
+
+      const requestDeletionRoute = request.method === "POST"
+        ? matchRoute(
+          url.pathname,
+          /^\/api\/v1\/organizations\/([^/]+)\/deletion-request$/,
+        )
+        : null;
+      if (requestDeletionRoute !== null) {
+        const [organizationId] = requestDeletionRoute;
+        const organization = await withOrganization(
+          pool,
+          organizationId,
+          (repositories) => repositories.requestOrganizationDeletionForOwner({
+            userId: identity.userId,
+            now: now(),
+          }),
+        );
+        if (organization === null) {
+          sendProblem(response, HIDDEN_RESOURCE_PROBLEM);
+          return;
+        }
+        sendJson(response, 202, { data: organization });
+        return;
+      }
+
+      const cancelDeletionRoute = request.method === "DELETE"
+        ? matchRoute(
+          url.pathname,
+          /^\/api\/v1\/organizations\/([^/]+)\/deletion-request$/,
+        )
+        : null;
+      if (cancelDeletionRoute !== null) {
+        const [organizationId] = cancelDeletionRoute;
+        const organization = await withOrganization(
+          pool,
+          organizationId,
+          (repositories) => repositories.cancelOrganizationDeletionForOwner({
+            userId: identity.userId,
+            now: now(),
+          }),
+        );
+        if (organization === null) {
+          sendProblem(response, HIDDEN_RESOURCE_PROBLEM);
+          return;
+        }
+        sendJson(response, 200, { data: organization });
         return;
       }
 

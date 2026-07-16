@@ -3,14 +3,24 @@ import { readFile } from "node:fs/promises";
 
 const MIGRATION_LOCK_NAME = "droneworks:reviewed-migrations";
 const MIGRATOR_ROLE = "droneworks_migrator";
-const REVIEWED_MIGRATIONS = Object.freeze([Object.freeze({
-  id: "002_audit_event_resource_index",
-  sha256: "fb500ee71794b8c0fd9f7a0746396275b6c070b29f49b22921300ea80dcbaef5",
-  url: new URL(
-    "../sql/migrations/002_audit_event_resource_index.sql",
-    import.meta.url,
-  ),
-})]);
+const REVIEWED_MIGRATIONS = Object.freeze([
+  Object.freeze({
+    id: "002_audit_event_resource_index",
+    sha256: "fb500ee71794b8c0fd9f7a0746396275b6c070b29f49b22921300ea80dcbaef5",
+    url: new URL(
+      "../sql/migrations/002_audit_event_resource_index.sql",
+      import.meta.url,
+    ),
+  }),
+  Object.freeze({
+    id: "003_organization_administration",
+    sha256: "38b8dc1212c55b98a019331df940a751674f1600372376c12149c31cbe86feaf",
+    url: new URL(
+      "../sql/migrations/003_organization_administration.sql",
+      import.meta.url,
+    ),
+  }),
+]);
 
 function sha256(value) {
   return createHash("sha256").update(value).digest("hex");

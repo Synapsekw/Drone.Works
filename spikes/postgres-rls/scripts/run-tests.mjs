@@ -4,6 +4,12 @@ import { tmpdir, userInfo } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import pg from "pg";
+import {
+  applyReviewedMigration,
+  isolationContractSha256,
+  loadReviewedMigrations,
+  readCustomerIsolationContract,
+} from "../src/migrations.mjs";
 
 const execFileAsync = promisify(execFile);
 const { Client } = pg;
@@ -83,11 +89,43 @@ try {
     user: bootstrapUser,
   });
   await bootstrapClient.connect();
+  let isolationContractDigest;
+  let reviewedMigration;
   try {
     const migration = await readFile(new URL("../sql/001_isolation.sql", import.meta.url), "utf8");
     const seed = await readFile(new URL("../sql/002_seed.sql", import.meta.url), "utf8");
     await bootstrapClient.query(migration);
     await bootstrapClient.query(seed);
+    const contractBefore = await readCustomerIsolationContract(bootstrapClient);
+    [reviewedMigration] = await loadReviewedMigrations();
+
+    const migrationClient = new Client({
+      host: socketDirectory,
+      port: Number(port),
+      database: "postgres",
+      user: "droneworks_migration_runner",
+      application_name: "droneworks-reviewed-migration",
+    });
+    await migrationClient.connect();
+    try {
+      const result = await applyReviewedMigration(
+        migrationClient,
+        reviewedMigration,
+        { appliedAt: new Date("2026-07-16T00:00:00Z") },
+      );
+      if (result.status !== "applied") {
+        throw new Error(`expected reviewed migration to apply, got ${result.status}`);
+      }
+    } finally {
+      await migrationClient.end();
+    }
+
+    const contractAfter = await readCustomerIsolationContract(bootstrapClient);
+    const beforeDigest = isolationContractSha256(contractBefore);
+    isolationContractDigest = isolationContractSha256(contractAfter);
+    if (beforeDigest !== isolationContractDigest) {
+      throw new Error("reviewed migration changed the customer isolation contract");
+    }
   } finally {
     await bootstrapClient.end();
   }
@@ -100,6 +138,10 @@ try {
     DRONEWORKS_PG_BOOTSTRAP_USER: bootstrapUser,
     DRONEWORKS_PG_QUEUE_USER: "droneworks_queue",
     DRONEWORKS_PG_QUEUE_SCHEMA: "droneworks_jobs",
+    DRONEWORKS_PG_MIGRATION_USER: "droneworks_migration_runner",
+    DRONEWORKS_PG_REVIEWED_MIGRATION_ID: reviewedMigration.id,
+    DRONEWORKS_PG_REVIEWED_MIGRATION_SHA256: reviewedMigration.sha256,
+    DRONEWORKS_PG_ISOLATION_CONTRACT_SHA256: isolationContractDigest,
   });
 } catch (error) {
   if (serverStarted) {

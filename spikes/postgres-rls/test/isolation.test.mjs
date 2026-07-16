@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { after, before, test } from "node:test";
 import pg from "pg";
 import { PgBoss } from "pg-boss";
@@ -15,16 +16,33 @@ import {
   processNextFlightRefresh,
 } from "../src/jobs.mjs";
 import {
+  applyReviewedMigration,
+  isolationContractSha256,
+  loadReviewedMigrations,
+  MigrationConflictError,
+  MigrationIntegrityError,
+  readCustomerIsolationContract,
+} from "../src/migrations.mjs";
+import {
   loadFlightForJob,
   withOrganization,
 } from "../src/repositories.mjs";
 
-const { Pool } = pg;
+const { Client, Pool } = pg;
 
 const applicationPool = new Pool({ max: 1 });
 const bootstrapPool = new Pool({
   max: 1,
   user: process.env.DRONEWORKS_PG_BOOTSTRAP_USER,
+});
+const migrationPool = new Pool({
+  max: 1,
+  user: process.env.DRONEWORKS_PG_MIGRATION_USER,
+  application_name: "droneworks-reviewed-migration",
+});
+const queueAccessPool = new Pool({
+  max: 1,
+  user: process.env.DRONEWORKS_PG_QUEUE_USER,
 });
 const queueBoss = new PgBoss({
   host: process.env.PGHOST,
@@ -139,6 +157,8 @@ after(async () => {
   await queueBoss.stop({ graceful: false });
   await applicationPool.end();
   await bootstrapPool.end();
+  await migrationPool.end();
+  await queueAccessPool.end();
 });
 
 test("ordinary connections are non-owner, non-superuser, and unable to bypass RLS", async () => {
@@ -178,6 +198,207 @@ test("ordinary connections are non-owner, non-superuser, and unable to bypass RL
     assert.equal(table.relrowsecurity, true);
     assert.equal(table.relforcerowsecurity, true);
   }
+});
+
+test("reviewed migrations use narrow explicit elevation and an independent audit ledger", async () => {
+  const roles = await bootstrapPool.query(
+    `SELECT rolname,
+            rolsuper,
+            rolcreaterole,
+            rolcreatedb,
+            rolcanlogin,
+            rolinherit,
+            rolbypassrls
+       FROM pg_roles
+      WHERE rolname IN (
+        'droneworks_migrator',
+        'droneworks_migration_auditor',
+        'droneworks_migration_runner'
+      )
+      ORDER BY rolname`,
+  );
+  assert.deepEqual(roles.rows, [{
+    rolname: "droneworks_migration_auditor",
+    rolsuper: false,
+    rolcreaterole: false,
+    rolcreatedb: false,
+    rolcanlogin: false,
+    rolinherit: false,
+    rolbypassrls: false,
+  }, {
+    rolname: "droneworks_migration_runner",
+    rolsuper: false,
+    rolcreaterole: false,
+    rolcreatedb: false,
+    rolcanlogin: true,
+    rolinherit: false,
+    rolbypassrls: false,
+  }, {
+    rolname: "droneworks_migrator",
+    rolsuper: false,
+    rolcreaterole: false,
+    rolcreatedb: false,
+    rolcanlogin: false,
+    rolinherit: false,
+    rolbypassrls: false,
+  }]);
+
+  const memberships = await bootstrapPool.query(
+    `SELECT member.rolname AS member,
+            granted.rolname AS granted_role,
+            membership.inherit_option,
+            membership.set_option
+       FROM pg_auth_members AS membership
+       JOIN pg_roles AS member ON member.oid = membership.member
+       JOIN pg_roles AS granted ON granted.oid = membership.roleid
+      WHERE granted.rolname IN (
+        'droneworks_migrator',
+        'droneworks_migration_auditor'
+      )
+      ORDER BY member.rolname, granted.rolname`,
+  );
+  assert.deepEqual(memberships.rows, [{
+    member: "droneworks_migration_runner",
+    granted_role: "droneworks_migrator",
+    inherit_option: false,
+    set_option: true,
+  }]);
+
+  for (const ordinaryPool of [applicationPool, queueAccessPool]) {
+    await assert.rejects(
+      ordinaryPool.query("SET ROLE droneworks_migrator"),
+      (error) => error.code === "42501",
+    );
+  }
+  await assert.rejects(
+    migrationPool.query("SELECT count(*) FROM droneworks.canonical_flights"),
+    (error) => error.code === "42501",
+  );
+  await assert.rejects(
+    migrationPool.query("SET ROLE droneworks_migration_auditor"),
+    (error) => error.code === "42501",
+  );
+  await assert.rejects(
+    applicationPool.query(
+      "SELECT * FROM droneworks_ops.find_migration('002_audit_event_resource_index')",
+    ),
+    (error) => error.code === "42501",
+  );
+
+  const noLoginOwner = new Client({
+    host: process.env.PGHOST,
+    port: Number(process.env.PGPORT),
+    database: process.env.PGDATABASE,
+    user: "droneworks_migrator",
+  });
+  await assert.rejects(
+    noLoginOwner.connect(),
+    /role "droneworks_migrator" is not permitted to log in/,
+  );
+
+  const [reviewedMigration] = await loadReviewedMigrations();
+  assert.equal(reviewedMigration.id, process.env.DRONEWORKS_PG_REVIEWED_MIGRATION_ID);
+  assert.equal(
+    reviewedMigration.sha256,
+    process.env.DRONEWORKS_PG_REVIEWED_MIGRATION_SHA256,
+  );
+  const replayClient = await migrationPool.connect();
+  try {
+    const replay = await applyReviewedMigration(
+      replayClient,
+      reviewedMigration,
+      { appliedAt: new Date("2026-07-16T00:01:00Z") },
+    );
+    assert.deepEqual(replay, {
+      status: "already_applied",
+      migrationId: reviewedMigration.id,
+      sha256: reviewedMigration.sha256,
+    });
+
+    await assert.rejects(
+      applyReviewedMigration(replayClient, {
+        ...reviewedMigration,
+        sql: `${reviewedMigration.sql}\n-- unreviewed change\n`,
+      }),
+      MigrationIntegrityError,
+    );
+    const conflictingSql = `${reviewedMigration.sql}\n-- separately reviewed replacement\n`;
+    await assert.rejects(
+      applyReviewedMigration(replayClient, {
+        id: reviewedMigration.id,
+        sql: conflictingSql,
+        sha256: createHash("sha256").update(conflictingSql).digest("hex"),
+      }),
+      MigrationConflictError,
+    );
+  } finally {
+    replayClient.release();
+  }
+
+  const ledger = await migrationPool.query(
+    `SELECT migration_id,
+            sha256,
+            applied_at,
+            applied_by,
+            application_name
+       FROM droneworks_ops.find_migration($1)`,
+    [reviewedMigration.id],
+  );
+  assert.deepEqual(ledger.rows.map((row) => ({
+    ...row,
+    applied_at: row.applied_at.toISOString(),
+  })), [{
+    migration_id: reviewedMigration.id,
+    sha256: reviewedMigration.sha256,
+    applied_at: "2026-07-16T00:00:00.000Z",
+    applied_by: "droneworks_migration_runner",
+    application_name: "droneworks-reviewed-migration",
+  }]);
+
+  const operationalBoundary = await bootstrapPool.query(
+    `SELECT table_owner.rolname AS ledger_owner,
+            has_table_privilege(
+              'droneworks_migration_runner',
+              'droneworks_ops.migration_runs',
+              'SELECT,INSERT,UPDATE,DELETE'
+            ) AS runner_reads_or_writes_ledger,
+            has_table_privilege(
+              'droneworks_migrator',
+              'droneworks_ops.migration_runs',
+              'SELECT,INSERT,UPDATE,DELETE'
+            ) AS migrator_reads_or_writes_ledger,
+            has_function_privilege(
+              'droneworks_migration_runner',
+              'droneworks_ops.find_migration(text)',
+              'EXECUTE'
+            ) AS runner_executes_ledger_reader
+       FROM pg_class AS ledger
+       JOIN pg_namespace AS namespace ON namespace.oid = ledger.relnamespace
+       JOIN pg_roles AS table_owner ON table_owner.oid = ledger.relowner
+      WHERE namespace.nspname = 'droneworks_ops'
+        AND ledger.relname = 'migration_runs'`,
+  );
+  assert.deepEqual(operationalBoundary.rows[0], {
+    ledger_owner: "droneworks_migration_auditor",
+    runner_reads_or_writes_ledger: false,
+    migrator_reads_or_writes_ledger: false,
+    runner_executes_ledger_reader: true,
+  });
+
+  const index = await bootstrapPool.query(
+    `SELECT indexname
+       FROM pg_indexes
+      WHERE schemaname = 'droneworks'
+        AND indexname = 'audit_events_resource_occurred_idx'`,
+  );
+  assert.deepEqual(index.rows, [{
+    indexname: "audit_events_resource_occurred_idx",
+  }]);
+  const finalContract = await readCustomerIsolationContract(bootstrapPool);
+  assert.equal(
+    isolationContractSha256(finalContract),
+    process.env.DRONEWORKS_PG_ISOLATION_CONTRACT_SHA256,
+  );
 });
 
 test("queue ownership is limited to infrastructure and cannot read customer tables", async () => {

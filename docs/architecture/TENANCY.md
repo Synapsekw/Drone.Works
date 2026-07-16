@@ -34,17 +34,27 @@ The full canonical schema still validates provenance, effective facts, sample co
 
 ## Roles and RLS
 
-The migration defines three deliberately separate roles:
+The migration defines five deliberately separate roles:
 
 | Role | Use | Relevant properties |
 |---|---|---|
 | `droneworks_migrator` | Owns the schema and tables | `NOLOGIN`, `NOINHERIT`, non-superuser, `NOBYPASSRLS` |
+| `droneworks_migration_runner` | Applies checksum-pinned reviewed migrations | login, `NOINHERIT`, non-superuser, `NOBYPASSRLS`; may explicitly `SET ROLE` only to `droneworks_migrator` |
+| `droneworks_migration_auditor` | Owns the operational migration ledger and its narrow functions | `NOLOGIN`, `NOINHERIT`, non-superuser, `NOBYPASSRLS`; no membership granted to the runner or schema owner |
 | `droneworks_app` | Ordinary repository, job, and export access | login, `NOINHERIT`, non-owner, non-superuser, `NOBYPASSRLS` |
 | `droneworks_queue` | Owns only the pg-boss infrastructure schema | login, `NOINHERIT`, non-superuser, `NOBYPASSRLS`; no customer-table grants |
 
 Every customer-owned table enables RLS and uses `FORCE ROW LEVEL SECURITY`, including the organization root. One policy permits a row only when its organization matches the transaction's `app.organization_id`; missing or empty context resolves to no organization and therefore no rows. The same expression is used for `USING` and `WITH CHECK`, so writes cannot move or create rows outside the selected organization.
 
-The bootstrap superuser exists only inside the temporary test cluster to create roles, apply the migration, seed synthetic evidence, and assert the explicit bypass case. It is not an ordinary application or proposed production maintenance path.
+The bootstrap superuser exists only inside the temporary test cluster to create roles, apply the baseline, seed synthetic evidence, and assert the explicit bypass case. It is not an ordinary application or proposed production maintenance path.
+
+## Privileged migration boundary
+
+The candidate deployment path has no login for the customer-schema owner. A non-inheriting migration runner can assume that owner only inside the transaction that applies an exact repository migration whose SHA-256 digest is pinned in code. A transaction advisory lock serializes migration attempts. The same transaction records the migration ID, digest, time, session identity, and application name; equivalent replay is a no-op, changed bytes fail checksum validation, and reuse of an applied ID with another reviewed digest fails as a conflict.
+
+The operational ledger lives outside the customer schema and is owned by a separate no-login audit role. The runner has execute access only to security-definer read/append functions and has no direct table privileges. The migrator cannot read or rewrite the ledger, and the runner cannot assume the audit owner. Application and queue roles cannot assume the migrator or access the operational schema. This is operational metadata only: migration IDs and digests must never contain organization or customer payload.
+
+The runner snapshots a deterministic customer-isolation contract before and after each proof migration. The contract covers every customer table's owner, grants, RLS and `FORCE RLS` flags, and policy expressions. The first follow-up migration adds only an audit lookup index and must leave that contract digest unchanged. In this candidate model, routine privileged maintenance must ship as a reviewed migration; there is no separate standing ad-hoc DML role. Production credential delivery, CI identity, externally retained database audit logs, and emergency procedure remain deployment/operations decisions rather than authority granted to ordinary processes.
 
 ## Pooled-connection contract
 
@@ -68,6 +78,7 @@ Repository methods do not accept an optional organization filter. They can run o
 The integration suite currently proves, with synthetic Alpha and Beta records:
 
 - ordinary-role attributes and table ownership;
+- explicit reviewed-migration elevation, independent ledger ownership, checksum/replay controls, and unchanged isolation-contract digest;
 - RLS enabled and forced on all fourteen tables;
 - missing-context read and write denial;
 - direct-ID, join, aggregate, export, and mutation isolation;
@@ -122,8 +133,6 @@ The authorization query holds a row lock on the membership and artifact until si
 - Extend the API role matrix across tags/batteries, member management, organization settings/ownership, upload/import actions, and complete organization export.
 - Exercise worker termination, cancellation, queue-age observability, and idempotent domain mutation under retry before accepting pg-boss.
 - Exercise object-key derivation, URL expiry, membership revocation, and deletion against real object-storage artifacts rather than the signer adapter alone.
-- Define explicit, narrow, observable production migration and maintenance access without giving ordinary processes bypass privileges.
-- Confirm a reviewed migration tool preserves policies, grants, ownership, and forced RLS.
 - Extend isolation tests across imports, overrides, audit events, cached organization-linked secrets, and deletion paths as those schemas become executable.
 
-D-002 remains proposed until the non-relational and privileged-access obligations above are closed.
+D-002 remains proposed until the remaining API/resource, non-relational, and deletion obligations above are closed. Production credentials, external audit retention, and emergency operations remain P0-07 deployment proof obligations.

@@ -25,11 +25,16 @@ npm ci --ignore-scripts
 npm test
 ```
 
-The test runner creates a fresh temporary cluster with local socket-only trust authentication, applies the reviewed SQL, seeds synthetic Alpha/Beta data, runs the integration suite, stops the server, and removes the cluster. PostgreSQL may require the command to run outside a restrictive outer sandbox because it allocates local shared memory.
+The test runner creates a fresh temporary cluster with local socket-only trust authentication, applies the bootstrap-reviewed baseline, seeds synthetic Alpha/Beta data, then applies a checksum-pinned follow-up migration through the non-inheriting migration login. It runs the integration suite, stops the server, and removes the cluster. PostgreSQL may require the command to run outside a restrictive outer sandbox because it allocates local shared memory.
 
 The tests prove:
 
 - the ordinary application connection is neither owner, superuser, nor `BYPASSRLS`;
+- application and queue identities cannot assume the no-login migration owner;
+- the migration login has no inherited customer access and may explicitly assume only the schema owner for reviewed SQL;
+- a separate no-login audit owner protects the append-only migration ledger from both the runner and schema owner;
+- exact checksums, migration-ID conflicts, equivalent replay, serialized application, and recorded session identity are enforced;
+- a reviewed index migration leaves the digest of customer-table owners, grants, policies, RLS, and `FORCE RLS` unchanged;
 - all fourteen customer-owned tables enable and force row-level security;
 - absent organization context returns no rows and rejects writes;
 - Alpha/Beta direct-ID reads, joins, aggregates, exports, and mutations remain isolated;
@@ -57,4 +62,4 @@ The queue proof uses pg-boss's real PostgreSQL persistence and retry state, whil
 
 The API proof uses Node's loopback HTTP server and an injected synthetic session-identity adapter so authorization remains independent of the unresolved web-session provider and Fastify shortlist. It emits snake-case JSON success documents and RFC 9457 problem details. The download proof still uses an injected deterministic signer rather than a storage vendor.
 
-The spike does not yet prove the complete API administration/resource matrix, real provider-side URL expiry and object deletion, Drizzle migration generation, privileged maintenance observability, permanent deletion, organization deletion, or queue behavior under worker termination. Those remain P0-05 follow-ups documented in [`../../docs/architecture/TENANCY.md`](../../docs/architecture/TENANCY.md).
+The spike does not yet prove the complete API administration/resource matrix, real provider-side URL expiry and object deletion, Drizzle generation, production credential delivery and external audit retention, permanent deletion, organization deletion, or queue behavior under worker termination. Those remain P0-05/P0-07 follow-ups documented in [`../../docs/architecture/TENANCY.md`](../../docs/architecture/TENANCY.md).

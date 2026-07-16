@@ -58,7 +58,9 @@ The mutation follow-up proves idempotent manual creation, owner/admin reassignme
 
 The reassignment proof also preserves the current imported pilot and aircraft as a separate baseline while storing the active user correction in an organization-owned override row. A future processing revision can update the imported baseline without erasing the effective correction.
 
-This evidence does not yet accept D-002. The remaining API administration and resource matrix, provider-side signed-URL expiry and object deletion, privileged maintenance observability, the remaining customer-owned resource types, and permanent deletion paths remain open. See `../architecture/TENANCY.md`.
+The privileged-access follow-up adds a non-inheriting migration login that may explicitly assume only the no-login customer-schema owner. Repository migrations are checksum-pinned, serialized, replay-safe, and recorded through narrow security-definer functions in an operational ledger owned by a separate no-login audit role. The runner, schema owner, application, and queue roles have no direct ledger-table privileges; ordinary roles cannot assume migration authority. A reviewed index migration leaves a deterministic digest of customer-table ownership, grants, policies, RLS, and `FORCE RLS` unchanged. This is Phase 0 mechanism evidence, not a selection of production credential delivery, CI, or emergency-access providers.
+
+This evidence does not yet accept D-002. The remaining API administration and resource matrix, provider-side signed-URL expiry and object deletion, the remaining customer-owned resource types, and permanent deletion paths remain open. Production credential delivery, externally retained audit logs, and emergency operations remain P0-07 concerns. See `../architecture/TENANCY.md`.
 
 ## D-003 — Canonical normalized flight model
 

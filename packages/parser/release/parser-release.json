@@ -11,9 +11,7 @@
   },
   "linux_artifact": {
     "target": "x86_64-unknown-linux-gnu",
-    "sha256": "22ea490fb456b080fe50ea1bb25369be68fe318495cb55ed7652a32794ab689a",
-    "provenance_attestation": "https://github.com/Synapsekw/Drone.Works/attestations/35405520",
-    "sbom_attestation": "https://github.com/Synapsekw/Drone.Works/attestations/35405526"
+    "sha256": "492a5a3b57988e2216449800fc57ab1a6e8eca1657f409cc365020ea147fd718"
   },
   "oci": {
     "base": "gcr.io/distroless/cc-debian13:nonroot@sha256:d97bc0a941b8d4be647dc0ee75b264ddbb772f1ac5ba690a4309c00723b23775",

@@ -12,12 +12,24 @@ const extensions = new Set([
   '.yaml',
   '.yml',
 ]);
+const reviewedKeychainProtocolFiles = new Set([
+  'packages/parser/src/keychain.ts',
+  'packages/parser/test/keychain.test.mjs',
+]);
 const forbidden = [
-  ['/Users' + '/', 'machine-specific absolute path'],
-  ['DJIFlight' + 'Record_', 'private fixture filename'],
-  ['keychains' + 'Array', 'private keychain material'],
-  ['aes' + 'Ciphertext', 'private ciphertext material'],
-  ['dotenv' + '/config', 'implicit repository-root secret loading'],
+  ['/Users' + '/', 'machine-specific absolute path', new Set()],
+  ['DJIFlight' + 'Record_', 'private fixture filename', new Set()],
+  [
+    'keychains' + 'Array',
+    'private keychain material',
+    reviewedKeychainProtocolFiles,
+  ],
+  [
+    'aes' + 'Ciphertext',
+    'private ciphertext material',
+    reviewedKeychainProtocolFiles,
+  ],
+  ['dotenv' + '/config', 'implicit repository-root secret loading', new Set()],
 ];
 
 async function files(directory) {
@@ -35,9 +47,10 @@ async function files(directory) {
 for (const directory of roots) {
   for (const file of await files(directory)) {
     const contents = await readFile(file, 'utf8');
-    for (const [pattern, description] of forbidden) {
-      if (contents.includes(pattern)) {
-        throw new Error(`${description} found in ${relative(root, file)}.`);
+    const repositoryPath = relative(root, file);
+    for (const [pattern, description, allowedFiles] of forbidden) {
+      if (contents.includes(pattern) && !allowedFiles.has(repositoryPath)) {
+        throw new Error(`${description} found in ${repositoryPath}.`);
       }
     }
   }

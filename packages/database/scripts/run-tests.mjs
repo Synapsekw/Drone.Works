@@ -202,9 +202,9 @@ try {
     DRONEWORKS_PG_MIGRATION_USER: 'droneworks_migration_runner',
     DRONEWORKS_PG_QUEUE_USER: 'droneworks_queue',
     DRONEWORKS_PG_DISPATCHER_USER: 'droneworks_dispatcher',
-    DRONEWORKS_PG_MIGRATION_ID: migrationResults[0].migrationId,
-    DRONEWORKS_PG_MIGRATION_SHA256: migrationResults[0].sha256,
-    DRONEWORKS_PG_ISOLATION_SHA256: migrationResults[0].isolationSha256,
+    DRONEWORKS_PG_MIGRATION_ID: migrationResults.at(-1).migrationId,
+    DRONEWORKS_PG_MIGRATION_SHA256: migrationResults.at(-1).sha256,
+    DRONEWORKS_PG_ISOLATION_SHA256: migrationResults.at(-1).isolationSha256,
   });
 } catch (error) {
   if (serverStarted) {

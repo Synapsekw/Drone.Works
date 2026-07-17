@@ -34,6 +34,16 @@ export {
   type JobsMigrationResult,
 } from './jobs-migrations.js';
 export {
+  Aes256GcmKeychainCipher,
+  KeychainCacheIntegrityError,
+  PostgresKeychainStore,
+  type ManagedKeyProvider,
+  type StoredKeychainAuthorization,
+  type StoredKeychainContext,
+  type StoredKeychainPoint,
+  type StoredKeychainResponse,
+} from './keychain-store.js';
+export {
   OrganizationContextError,
   requireOrganizationId,
   withOrganizationTransaction,

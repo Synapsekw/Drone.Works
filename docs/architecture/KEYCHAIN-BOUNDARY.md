@@ -1,13 +1,23 @@
 # DJI keychain trust boundary
 
-Status: accepted boundary; production provider disabled pending enablement gates
-Last updated: 2026-07-16
+Status: accepted Phase 1A v14 boundary; explicitly gated at runtime
+Last updated: 2026-07-17
 
 ## Decision summary
 
 DJI API credentials and network access belong to a trusted keychain broker, never to the parser process. Parsing remains in a no-network, resource-limited child. The broker separately enforces authorization to decode a log and authorization to transmit a keychain request to DJI.
 
-A production-shaped DJI provider adapter is wired only into an explicit Phase 0 one-shot runner, not an application or worker runtime. The runner defaults to no-network dry-run mode, requires an individually authorized fixture plus `--allow-dji-request` for live mode, reads a temporary ignored development credential only in the broker, and destroys its encrypted in-memory cache before exit. After explicit owner and host approval, the runner fetched and validated one keychain response for the first fixture and decoded it in a fresh no-network child without placing the credential or keychain in serialized output.
+The production package now contains the provider-neutral broker, exact DJI adapter,
+PostgreSQL authorization/cache store, managed-key-provider seam, and worker startup
+interlock. Provider use is off by default. Enabling it requires an explicit flag,
+a managed credential reference, a managed encryption-key reference/version, and
+versioned notice/terms references; raw credential or encryption-key values are
+rejected. Missing or invalid enabled configuration stops worker startup.
+
+The Phase 0 one-shot runner remains the controlled fixture-evidence path. After
+explicit owner approval, a newer DJI Fly v14 fixture fetched one validated
+keychain response and decoded in a fresh no-network native child without placing
+the credential, request, response, or keychain in serialized output.
 
 ## Trust flow
 
@@ -109,7 +119,7 @@ No personal developer API key may become an undocumented production dependency.
 
 ## Cache model
 
-Phase 1 should store one encrypted keychain entry per organization-owned raw source and parser/key-format context. Do not share physical keychain entries across organizations initially, even when raw hashes match.
+Phase 1 stores one encrypted keychain entry per organization-owned raw source and parser/key-format context. Physical keychain entries are not shared across organizations, even when raw hashes match.
 
 Required metadata:
 
@@ -126,7 +136,12 @@ Required metadata:
 
 Plaintext keychains are encrypted with authenticated encryption. Additional authenticated data binds ciphertext to organization, source, parser, and log version so entries cannot be swapped between contexts.
 
-The spike uses AES-256-GCM with an injected in-memory 32-byte key. Production must use envelope encryption backed by a managed KMS/HSM or equivalent secret-management boundary. JavaScript buffer zeroing is best-effort and does not guarantee that all runtime copies disappear from memory.
+The production store uses AES-256-GCM through an injected managed-key provider.
+It persists only a managed key reference/version, nonce, authentication tag, and
+ciphertext, with authenticated context binding. The worker configuration accepts
+only managed references; the deployed provider must resolve them through KMS/HSM
+or an equivalent secret-management boundary. JavaScript buffer zeroing remains
+best-effort and does not guarantee that all runtime copies disappear from memory.
 
 ## Deletion and revocation
 
@@ -176,22 +191,38 @@ Nine broker/cache tests prove:
 
 Five parser IPC tests additionally prove private request serialization, invalid-request rejection, absence of key material from arguments/environment/result output, validation before child spawn, and bounded sensitive input.
 
+The production packages add 20 parser/broker tests and seven native PostgreSQL
+integration tests. They cover exact v14 support classification, composed
+request/broker/decode execution, enablement interlocks, current-authorization
+cache reads, AES-GCM integrity, Alpha/Beta exact-ID denial, forced RLS, pooled
+context clearing, offline cache use with external access disabled, revocation,
+source deletion, and payload-redacted audits.
+
 Twelve provider scenarios prove exact endpoint allowlisting, HTTPS enforcement, the external-network kill switch, pre-credential request validation, runtime credential delivery, request shape, redirect rejection, authentication and rate-limit classification, response-size and JSON validation, end-to-end timeout, and credential redaction. Controlled-runner and wire-identifier tests additionally prove default dry-run behavior, authorization rejection before parsing, broker-to-child secret isolation, cache destruction, credential-file parsing, offline follow-up authorization, and the finite DJI feature-point allowlist. The integration scenarios use a local mock server and never resolve or contact a DJI host.
 
-The real first fixture produced one bounded request containing one group and nine allowlisted feature points. DJI returned one validated group with nine feature points; the broker serialized only counts and sizes. A 128 MB V8 old-space run failed cleanly as `parser_memory_limit`; at 256 MB, the valid fixture decoded 27,228 frames with monotonic time, bounded coordinates and battery values, and the expected location, battery, signal, and attitude capabilities. Observed child RSS was approximately 411–413 MB, showing that V8 old-space and total process memory require separate limits.
+The newly approved DJI Fly v14 fixture produced one bounded request containing one
+group and ten allowlisted feature points. DJI returned one validated group with
+ten feature points; the broker serialized only counts and sizes. The rebuilt
+native child decoded 5,049 samples with monotonic time, bounded coordinates and
+battery values, and all seven canonical telemetry capabilities. Two fresh
+private-intermediate operations matched exactly, and canonical-v1 produced one
+eligible revision candidate.
 
 One subsequent provider call drove three offline decodes with the same ephemeral keychain in fresh children: valid, controlled truncation, then valid again. The derivative failed independently and the later valid source reproduced 27,228 frames, proving recovery. The hardened native artifact now reports `truncated_records` from structural and declared-duration evidence. No derivative request or metadata was sent to DJI.
 
 ## Production enablement gates
 
 - [x] Repository owner confirms authority to accept the DJI API agreement for Drone.Works.
-- [ ] A Drone.Works Open API application/key exists in an accepted secret store. A temporary ignored development key exists but is not a production secret-store decision.
-- [ ] Qualified review accepts the intended commercial use and current DJI terms.
-- [ ] User notice and consent wording is approved and versioned.
-- [ ] The exact endpoint, redirect policy, request fields, retention, and regional processing are documented.
+- [ ] A hosted Drone.Works Open API credential is placed in the deployment's accepted secret store. The application accepts only a managed reference; A14/A15 own the hosted instance and conformance proof.
+- [x] Repository owner review accepts the intended commercial evaluation/use and the current terms-review reference for the narrow v14 path.
+- [x] User notice and consent wording is approved and versioned in [`../product/DJI-KEYCHAIN-NOTICE.md`](../product/DJI-KEYCHAIN-NOTICE.md).
+- [x] The exact endpoint, redirect policy, request fields, retention, and processing disclosure are documented.
 - [x] Private request/keychain IPC is implemented and tested.
 - [x] The real provider adapter passes mock-server tests without contacting DJI.
-- [ ] Cache schema, KMS strategy, RLS, backup, rotation, and deletion behavior are accepted.
-- [ ] The three local fixtures receive explicit authorization for the real request. The first fixture is authorized; the other two and the derivative remain unauthorized.
+- [x] Cache schema, managed-key strategy, forced RLS, rotation references, revocation, and deletion behavior are accepted and locally tested. Hosted backup/KMS conformance remains an A15 deployment gate.
+- [x] The three raw local fixtures have explicit authorization for a controlled real request. The derivative remains local-only and is never transmitted.
 
-Until every applicable production gate passes, `DisabledKeychainProvider` remains the only permitted application/worker provider. The explicit one-shot research runner is the sole narrow exception: one fixture, one process, no durable keychain, exact endpoint, fail-closed manifest authorization, and sanitized output.
+In local development the application/worker provider remains disabled unless the
+complete explicit configuration is present. Hosted enablement additionally
+requires the A14/A15 secret-store and managed-key deployment proof; the worker
+fails startup rather than falling back to a raw credential or unencrypted cache.

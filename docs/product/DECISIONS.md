@@ -401,6 +401,30 @@ redaction evidence pass. Acceptance does not enable the production provider.
 `DisabledKeychainProvider` remains mandatory until every applicable enablement
 gate passes; A09 owns the stop/go decision for the walking skeleton.
 
+### Phase 1A A09 evidence — 2026-07-17
+
+The repository owner confirmed authority and approved the current terms-review,
+versioned notice/consent, controlled fixture processing, and provider use for the
+narrow v14 path. The accepted public matrix enables only DJI Fly / DJI TXT v14;
+other DJI applications and versions remain disabled until independently tested.
+
+The production seam now uses a trusted provider adapter with exact endpoint and
+redirect interlocks, runtime credential references, bounded payload validation,
+separate store-derived authorization decisions, and an organization/source/
+parser/version-scoped PostgreSQL cache encrypted with AES-256-GCM through an
+injected managed-key provider. Forced RLS, current membership, retained-source
+checks, pooled-connection context clearing, revocation, source/organization
+deletion, and payload-redacted audit metadata remain authoritative. Keychain
+request construction and decode each run in a fresh no-network parser child.
+
+A newly approved DJI Fly v14 fixture produced one bounded request and response,
+decoded 5,049 samples in the rebuilt native child, reproduced the same private
+intermediate digest in two fresh operations, and produced one eligible canonical
+revision candidate. Ordinary output contained only sanitized structural and
+process evidence. Hosted Linux reproducibility and release-digest pinning remain
+the final A09 promotion check; no AWS resource is required or provisioned by this
+decision.
+
 ## D-013 — Self-hosted authentication with an app-owned authorization boundary
 
 Status: accepted

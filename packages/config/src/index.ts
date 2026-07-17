@@ -41,6 +41,73 @@ export function readServiceEnvironment(
   return candidate;
 }
 
+export const djiKeychainEnvironmentSchema = Type.Union([
+  Type.Object(
+    {
+      ENABLED: Type.Literal(false),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      ENABLED: Type.Literal(true),
+      KMS_KEY_REFERENCE: Type.String({
+        minLength: 1,
+        maxLength: 200,
+        pattern: '^kms://[a-zA-Z0-9][a-zA-Z0-9._:@/-]{0,193}$',
+      }),
+      KMS_KEY_VERSION: Type.String({
+        minLength: 1,
+        maxLength: 200,
+        pattern: '^[a-zA-Z0-9][a-zA-Z0-9._:@/-]{0,199}$',
+      }),
+      NOTICE_VERSION: Type.String({
+        minLength: 1,
+        maxLength: 200,
+        pattern: '^[a-zA-Z0-9][a-zA-Z0-9._:@/-]{0,199}$',
+      }),
+      SECRET_REFERENCE: Type.String({
+        minLength: 1,
+        maxLength: 200,
+        pattern: '^secret://[a-zA-Z0-9][a-zA-Z0-9._:@/-]{0,190}$',
+      }),
+      TERMS_VERSION: Type.String({
+        minLength: 1,
+        maxLength: 200,
+        pattern: '^[a-zA-Z0-9][a-zA-Z0-9._:@/-]{0,199}$',
+      }),
+    },
+    { additionalProperties: false },
+  ),
+]);
+
+export type DjiKeychainEnvironment = Static<
+  typeof djiKeychainEnvironmentSchema
+>;
+
+export function readDjiKeychainEnvironment(
+  source: NodeJS.ProcessEnv,
+): DjiKeychainEnvironment {
+  const enabledFlag = source.DRONE_WORKS_DJI_PROVIDER_ENABLED ?? 'false';
+  if (!['false', 'true'].includes(enabledFlag)) {
+    throw new Error('Invalid DJI keychain provider configuration.');
+  }
+  if (enabledFlag === 'false') return { ENABLED: false };
+
+  const candidate = {
+    ENABLED: true as const,
+    KMS_KEY_REFERENCE: source.DRONE_WORKS_DJI_KMS_KEY_REFERENCE,
+    KMS_KEY_VERSION: source.DRONE_WORKS_DJI_KMS_KEY_VERSION,
+    NOTICE_VERSION: source.DRONE_WORKS_DJI_NOTICE_VERSION,
+    SECRET_REFERENCE: source.DRONE_WORKS_DJI_SECRET_REFERENCE,
+    TERMS_VERSION: source.DRONE_WORKS_DJI_TERMS_VERSION,
+  };
+  if (!Value.Check(djiKeychainEnvironmentSchema, candidate)) {
+    throw new Error('Invalid DJI keychain provider configuration.');
+  }
+  return candidate;
+}
+
 export const applicationDatabaseEnvironmentSchema = Type.Object(
   {
     PGDATABASE: Type.String({ minLength: 1 }),

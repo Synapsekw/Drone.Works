@@ -1,8 +1,12 @@
 import { createServer } from 'node:http';
 
-import { readServiceEnvironment } from '@drone-works/config';
+import {
+  readDjiKeychainEnvironment,
+  readServiceEnvironment,
+} from '@drone-works/config';
 
 const environment = readServiceEnvironment(process.env);
+readDjiKeychainEnvironment(process.env);
 const server = createServer((request, response) => {
   if (request.method === 'GET' && request.url === '/health') {
     response.writeHead(200, { 'content-type': 'application/json' });

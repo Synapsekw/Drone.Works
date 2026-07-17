@@ -151,6 +151,18 @@ And it is not reported as corrupt or unsupported
 And other imports continue
 ```
 
+### Scenario: Encrypted DJI processing requires versioned consent
+
+```gherkin
+Given a supported encrypted DJI log has no authorized cached keychain
+When the uploader declines the versioned external-processing notice
+Then no keychain request is constructed or sent to DJI
+And the import reports that external key processing is not authorized
+When the uploader later approves the current notice and terms-review versions
+Then processing may contact only the approved DJI endpoint
+And the audit record contains identifiers and changed field names but no request, response, key, feature-point, or flight payload
+```
+
 ## 4. Duplicate behavior
 
 ### Scenario: Exact file re-upload is idempotent

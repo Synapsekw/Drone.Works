@@ -1,6 +1,6 @@
 # DJI parser evaluation
 
-Status: Phase 0 technical selection complete; production provider and broader fixture gates remain
+Status: A09 narrow v14 path complete locally; hosted Linux release pin pending
 Candidate: pinned `dji-log-parser@0.5.7` behind a minimal Rust CLI
 Last updated: 2026-07-15
 
@@ -21,13 +21,16 @@ The candidate is selected for the narrow Phase 1A architecture:
 - The hardened native artifact classifies the derivative as `truncated_records` from structural and declared-duration evidence, with zero stderr.
 - The minimal native CLI matches the JS/WASM result at 27,228 frames and uses approximately 70 MB peak RSS instead of 410 MB.
 - The versioned private intermediate is deterministic, source-hash bound, and validated before normalization, which unlocks the P0-04 normalizer slice.
-- The first private canonical-v1 normalization succeeds on the authorized result while ordinary output retains only flight/sample counts, eligible-fingerprint count, and capability names.
+- Private canonical-v1 normalization succeeds on both evaluated authorized results while ordinary output retains only flight/sample counts, eligible-fingerprint count, and capability names.
 - D-009 now selects the native CLI inside the existing Linux hard-container boundary; JS/WASM remains a research comparator.
 - The official DJI comparator documents v13 only, so it does not currently displace the candidate for these v14 fixtures.
 
-Phase 0 accepts the native parser/runtime for the narrow walking-skeleton architecture. This does not authorize production DJI access or a broad support matrix: A09 still requires the complete D-012 enablement path for one encrypted variant or an authorized unencrypted supported variant.
+The repository owner approved the D-012 terms-review, versioned notice/consent,
+provider use, and fixture processing for the narrow encrypted path. A09 therefore
+enables only the DJI Fly / DJI TXT v14 row in the public matrix. This is not a
+broad DJI support claim; other application/version combinations remain disabled.
 
-The local prefix/details probe is reproducible through [`../../spikes/dji-parser/`](../../spikes/dji-parser/). The first authorized fixture now has sanitized frame-validity, capability, duration, output-volume, memory, recovery, canonical-normalization, and hosted Linux release evidence; broader fixture coverage remains open.
+The local prefix/details probe is reproducible through [`../../spikes/dji-parser/`](../../spikes/dji-parser/). The newer DJI Fly fixture now has fresh sanitized request/response, native decode, deterministic private-intermediate, and canonical-normalization evidence. Hosted Linux evidence for the A09 CLI revision remains the final promotion check.
 
 A trusted keychain broker, encrypted cache, private parser/keychain IPC, disabled-by-default provider adapter, and explicit one-shot research runner are implemented. After explicit authorization, the real path fetched one validated keychain response from DJI and decoded only in fresh no-network children. The result contained no credential, request values, keys, IVs, coordinates, or unexpected worker fields.
 
@@ -44,7 +47,11 @@ The detailed [supply-chain review](DJI-PARSER-SUPPLY-CHAIN.md) and [official-lib
 
 Hashes, provenance, privacy categories, and review state are stored in [`../../fixtures/manifest.json`](../../fixtures/manifest.json). Raw and derived bytes remain under ignored `fixtures/local/` paths and are not committed.
 
-External service processing is explicitly authorized for the first fixture based on the repository owner's 2026-07-14 instruction. It remains false for the other two raw fixtures and the derivative. Controlled requests were made only for the authorized parent; the derivative reused the same ephemeral response locally and was never sent to DJI.
+External service processing is explicitly authorized for all three raw fixtures
+based on the repository owner's 2026-07-14 and 2026-07-17 instructions. Controlled
+requests have been made only for the first and third fixtures. The derivative
+remains unauthorized for transmission; its earlier decode reused an ephemeral
+parent response locally and no derivative metadata was sent to DJI.
 
 ## Non-sensitive source observations
 
@@ -179,6 +186,14 @@ Live mode additionally requires `--allow-dji-request`, current `approved_local` 
 
 The first fixture request contains one group, nine allowlisted wire feature points, and 3,825 serialized bytes. DJI returned one validated group with nine feature points and 1,331 serialized bytes. These payloads remained private; ordinary output recorded only their bounded metadata.
 
+The newer DJI Fly fixture request contained one group, ten allowlisted feature
+points, and 4,244 serialized bytes. DJI returned one validated group with ten
+feature points and 1,478 serialized bytes. The rebuilt native child decoded 5,049
+frames, used about 27.7 MB peak RSS, and produced a 2,345,822-byte private
+intermediate. Two fresh intermediate operations had the same digest, and
+canonical-v1 reported one flight, 5,049 telemetry samples, one eligible exact
+normalized fingerprint, and all seven telemetry capabilities.
+
 At the initial 128 MB V8 old-space limit, decode terminated cleanly as `parser_memory_limit`. With 256 MB of V8 old space, the same fixture decoded 27,228 frames. Two successful observations measured approximately 421–528 ms inside `frames()`, 444–549 ms total worker time, 411–413 MB RSS, and 143–176 MB used JavaScript heap. Time was monotonic, coordinates and battery values remained in bounds, and location, battery, signal, and attitude capabilities were present.
 
 One later provider call supplied the same ephemeral keychain to three fresh no-network children. The valid source decoded, the controlled truncated derivative failed, and a later valid child decoded the same 27,228 frames. This proves per-operation failure isolation and recovery without sending derivative metadata to DJI. The JS/WASM child still returns generic `decode_failed`; the selected native artifact now returns `truncated_records` from the combined evidence described below.
@@ -210,6 +225,11 @@ The measured native operation used approximately 197 ms for decoding, 224 ms tot
 The same authorized private result passed the canonical-v1 adapter behind the trusted accessor. Sanitized output reported one flight revision candidate, 27,228 telemetry samples, and all seven namespaced canonical capabilities. The full canonical candidate, source identifiers, fingerprint, and telemetry remained private; because the parser cannot identify an organization-owned pilot or finalize aircraft reconciliation, the candidate correctly remains review-bound rather than inventing assignments. The generic schema, versioned fingerprint, lifecycle proof, architecture mapping, and source-free provenance examples are recorded in [`../architecture/DOMAIN-MODEL.md`](../architecture/DOMAIN-MODEL.md).
 
 The native release-evidence build pins Rust 1.96.1 and cargo-cyclonedx 0.5.9, normalizes local source references to the accepted upstream commit, and emits the binary, CycloneDX 1.5 SBOM, license index/texts, notices, and SHA-256 input/artifact manifests. For the private-intermediate revision, two clean `aarch64-apple-darwin` builds produced 86 byte-identical files. The host-target SBOM and notice set each cover 42 components. A current strict RustSec pass found zero target vulnerabilities and zero target warnings while excluding four vulnerabilities and two warnings that exist only in unrelated packages in the upstream workspace lockfile. The 981,472-byte host executable has SHA-256 `53c6d965031d91f4e34e0245a084b599f55f3efe119e5e143b87e43976b95060`.
+
+For the A09 keychain-request revision, two clean `aarch64-apple-darwin` builds
+again produced 86 byte-identical files and passed all six Rust tests. The
+1,022,992-byte host executable has SHA-256
+`9da2147bd3ead1ba7520d5b463c578dbb8b84581faa4e31dd54b1e521905af06`.
 
 The repository workflow repeats the build twice for `x86_64-unknown-linux-gnu`, compares the entire output tree, denies target vulnerabilities and warnings, uploads the evidence, and requests GitHub binary-provenance and SBOM attestations on non-PR runs. [GitHub Actions run `29398131979`](https://github.com/Synapsekw/Drone.Works/actions/runs/29398131979) passed at commit `6be0f8a`: 78 of 78 build-output files were byte-identical, the 38-component Linux target graph had zero target vulnerabilities and zero target warnings, and the uploaded 591,415-byte evidence archive was retained as artifact `8336052110`. The 1,028,120-byte executable has SHA-256 `22ea490fb456b080fe50ea1bb25369be68fe318495cb55ed7652a32794ab689a`. Independent `gh attestation verify` checks bound both the [binary provenance attestation](https://github.com/Synapsekw/Drone.Works/attestations/35405520) and [CycloneDX SBOM attestation](https://github.com/Synapsekw/Drone.Works/attestations/35405526) to the exact repository workflow, source commit, and artifact digest.
 

@@ -1,13 +1,18 @@
+import { randomBytes } from 'node:crypto';
+
 import pg from 'pg';
 import { afterAll, describe, expect, it } from 'vitest';
 
 import {
   applyReviewedMigration,
   applyReviewedMigrations,
+  Aes256GcmKeychainCipher,
   IsolationContractError,
+  KeychainCacheIntegrityError,
   loadReviewedMigrations,
   MigrationIntegrityError,
   OrganizationContextError,
+  PostgresKeychainStore,
   readCustomerIsolationContract,
   verifyIsolationContract,
   withOrganizationTransaction,
@@ -26,6 +31,8 @@ const customerTables = [
   'import_attempts',
   'import_batches',
   'import_items',
+  'keychain_authorizations',
+  'keychain_cache_entries',
   'memberships',
   'organizations',
   'outbox_events',
@@ -390,6 +397,8 @@ describe('A04 PostgreSQL organization boundary', () => {
           'canonical_flights',
           'import_batches',
           'import_items',
+          'keychain_authorizations',
+          'keychain_cache_entries',
           'memberships',
           'organizations',
           'pilot_profiles',
@@ -412,13 +421,226 @@ describe('A04 PostgreSQL organization boundary', () => {
     );
   });
 
+  it('keeps approved DJI keychains encrypted, organization-scoped, and revocable', async () => {
+    const managedKey = randomBytes(32);
+    const cipher = new Aes256GcmKeychainCipher({
+      activeKeyReference: 'generated-kms-key',
+      activeKeyVersion: 'v1',
+      provider: {
+        async key(reference, version) {
+          expect(reference).toBe('generated-kms-key');
+          expect(version).toBe('v1');
+          return Buffer.from(managedKey);
+        },
+      },
+    });
+    const store = new PostgresKeychainStore({ cipher, pool: appPool });
+    const context = {
+      logVersion: 14,
+      organizationId: alpha.organizationId,
+      parserId: 'dji-log-parser@0.5.7-a09-test',
+      rawSourceId: alpha.rawSourceId,
+    };
+    const keychains = [
+      [
+        {
+          aesIv: randomBytes(16).toString('base64'),
+          aesKey: randomBytes(32).toString('base64'),
+          featurePoint: 'BaseFeature',
+        },
+      ],
+    ];
+    try {
+      await store.authorizeSource(
+        { displayName: 'Generated Owner A', userId: alpha.userId },
+        alpha.organizationId,
+        alpha.rawSourceId,
+        {
+          noticeVersion: 'dji-notice-v1',
+          termsVersion: 'dji-terms-2024-01-25',
+        },
+      );
+      expect(await store.authorization(context)).toEqual({
+        externalServiceProcessingAuthorized: true,
+        keychainUseAuthorized: true,
+        noticeVersion: 'dji-notice-v1',
+        termsVersion: 'dji-terms-2024-01-25',
+      });
+      await store.put(context, keychains, {
+        noticeVersion: 'dji-notice-v1',
+        providerId: 'dji-flight-record-api-v1',
+        termsVersion: 'dji-terms-2024-01-25',
+      });
+      expect(await store.get(context)).toEqual(keychains);
+      await store.setSourceAuthorization(
+        { displayName: 'Generated Owner A', userId: alpha.userId },
+        alpha.organizationId,
+        alpha.rawSourceId,
+        {
+          externalServiceProcessingAuthorized: false,
+          keychainUseAuthorized: true,
+          noticeVersion: 'dji-notice-v1',
+          termsVersion: 'dji-terms-2024-01-25',
+        },
+      );
+      expect(await store.authorization(context)).toMatchObject({
+        externalServiceProcessingAuthorized: false,
+        keychainUseAuthorized: true,
+      });
+      expect(await store.get(context)).toEqual(keychains);
+      await store.authorizeSource(
+        { displayName: 'Generated Owner A', userId: alpha.userId },
+        alpha.organizationId,
+        alpha.rawSourceId,
+        {
+          noticeVersion: 'dji-notice-v1',
+          termsVersion: 'dji-terms-2024-01-25',
+        },
+      );
+
+      const encrypted = await withOrganizationTransaction(
+        appPool,
+        alpha.organizationId,
+        async (transaction) =>
+          transaction.query(
+            `SELECT ciphertext, nonce, authentication_tag, key_reference,
+                    key_version
+               FROM droneworks.keychain_cache_entries
+              WHERE organization_id = $1
+                AND raw_source_id = $2
+                AND parser_id = $3`,
+            [alpha.organizationId, alpha.rawSourceId, context.parserId],
+          ),
+      );
+      expect(encrypted.rows).toHaveLength(1);
+      const serializedEncrypted = JSON.stringify(encrypted.rows[0]);
+      expect(serializedEncrypted).not.toContain(keychains[0][0].aesKey);
+      expect(serializedEncrypted).not.toContain(keychains[0][0].aesIv);
+      expect(encrypted.rows[0]).toMatchObject({
+        key_reference: 'generated-kms-key',
+        key_version: 'v1',
+      });
+
+      const betaExactAlpha = {
+        ...context,
+        organizationId: beta.organizationId,
+      };
+      expect(await store.authorization(betaExactAlpha)).toBeNull();
+      expect(await store.get(betaExactAlpha)).toBeNull();
+
+      await withOrganizationTransaction(
+        appPool,
+        alpha.organizationId,
+        async (transaction) =>
+          transaction.query(
+            `UPDATE droneworks.keychain_cache_entries
+                SET ciphertext = set_byte(
+                  ciphertext,
+                  0,
+                  (get_byte(ciphertext, 0) + 1) % 256
+                )
+              WHERE organization_id = $1
+                AND raw_source_id = $2
+                AND parser_id = $3`,
+            [alpha.organizationId, alpha.rawSourceId, context.parserId],
+          ),
+      );
+      await expect(store.get(context)).rejects.toBeInstanceOf(
+        KeychainCacheIntegrityError,
+      );
+      expect(
+        await store.deleteSource(alpha.organizationId, alpha.rawSourceId),
+      ).toBe(2);
+
+      await store.put(context, keychains, {
+        noticeVersion: 'dji-notice-v1',
+        providerId: 'dji-flight-record-api-v1',
+        termsVersion: 'dji-terms-2024-01-25',
+      });
+      expect(
+        await store.revokeSource(
+          { displayName: 'Generated Owner A', userId: alpha.userId },
+          alpha.organizationId,
+          alpha.rawSourceId,
+        ),
+      ).toBe(1);
+      expect(await store.authorization(context)).toBeNull();
+      expect(await store.get(context)).toBeNull();
+
+      const audit = await withOrganizationTransaction(
+        appPool,
+        alpha.organizationId,
+        async (transaction) =>
+          transaction.query(
+            `SELECT action, changed_fields, metadata
+               FROM droneworks.audit_events
+              WHERE organization_id = $1
+                AND resource_id = $2
+                AND action LIKE 'keychain.%'
+              ORDER BY occurred_at, action`,
+            [alpha.organizationId, alpha.rawSourceId],
+          ),
+      );
+      expect(audit.rows).toEqual([
+        {
+          action: 'keychain.authorization_recorded',
+          changed_fields: [
+            'external_service_processing_authorized',
+            'keychain_use_authorized',
+            'notice_version',
+            'terms_version',
+          ],
+          metadata: { provider: 'dji' },
+        },
+        {
+          action: 'keychain.authorization_recorded',
+          changed_fields: [
+            'external_service_processing_authorized',
+            'keychain_use_authorized',
+            'notice_version',
+            'terms_version',
+          ],
+          metadata: { provider: 'dji' },
+        },
+        {
+          action: 'keychain.authorization_recorded',
+          changed_fields: [
+            'external_service_processing_authorized',
+            'keychain_use_authorized',
+            'notice_version',
+            'terms_version',
+          ],
+          metadata: { provider: 'dji' },
+        },
+        {
+          action: 'keychain.authorization_revoked',
+          changed_fields: [
+            'external_service_processing_authorized',
+            'keychain_use_authorized',
+            'revoked_at',
+          ],
+          metadata: { provider: 'dji' },
+        },
+      ]);
+      expect(JSON.stringify(audit.rows)).not.toContain(keychains[0][0].aesKey);
+
+      const contextless = await appPool.query(
+        `SELECT count(*)::integer AS count
+           FROM droneworks.keychain_cache_entries`,
+      );
+      expect(contextless.rows[0]?.count).toBe(0);
+    } finally {
+      managedKey.fill(0);
+    }
+  });
+
   it('pins migration replay, checksum, ledger, and isolation digest', async () => {
     await useClient(
       process.env.DRONEWORKS_PG_MIGRATION_USER,
       async (client) => {
         const migrations = await loadReviewedMigrations();
-        expect(migrations).toHaveLength(1);
-        expect(migrations[0]).toMatchObject({
+        expect(migrations).toHaveLength(2);
+        expect(migrations.at(-1)).toMatchObject({
           id: process.env.DRONEWORKS_PG_MIGRATION_ID,
           sha256: process.env.DRONEWORKS_PG_MIGRATION_SHA256,
           isolationSha256: process.env.DRONEWORKS_PG_ISOLATION_SHA256,
@@ -428,19 +650,21 @@ describe('A04 PostgreSQL organization boundary', () => {
           client,
           new Date('2026-07-16T00:00:00.000Z'),
         );
-        expect(replay).toEqual([
-          {
-            status: 'already_applied',
-            migrationId: process.env.DRONEWORKS_PG_MIGRATION_ID,
-            sha256: process.env.DRONEWORKS_PG_MIGRATION_SHA256,
-            isolationSha256: process.env.DRONEWORKS_PG_ISOLATION_SHA256,
-          },
-        ]);
+        expect(replay).toHaveLength(2);
+        expect(
+          replay.every((result) => result.status === 'already_applied'),
+        ).toBe(true);
+        expect(replay.at(-1)).toEqual({
+          status: 'already_applied',
+          migrationId: process.env.DRONEWORKS_PG_MIGRATION_ID,
+          sha256: process.env.DRONEWORKS_PG_MIGRATION_SHA256,
+          isolationSha256: process.env.DRONEWORKS_PG_ISOLATION_SHA256,
+        });
 
         await expect(
           applyReviewedMigration(client, {
-            ...migrations[0],
-            sql: `${migrations[0].sql}\n-- changed after review`,
+            ...migrations.at(-1),
+            sql: `${migrations.at(-1).sql}\n-- changed after review`,
           }),
         ).rejects.toBeInstanceOf(MigrationIntegrityError);
       },
@@ -456,7 +680,7 @@ describe('A04 PostgreSQL organization boundary', () => {
             'ALTER TABLE droneworks.organizations NO FORCE ROW LEVEL SECURITY',
           );
           await expect(
-            verifyIsolationContract(client, migrations[0]),
+            verifyIsolationContract(client, migrations.at(-1)),
           ).rejects.toBeInstanceOf(IsolationContractError);
         } finally {
           await client.query('ROLLBACK');

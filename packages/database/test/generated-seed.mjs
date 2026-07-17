@@ -201,4 +201,30 @@ export async function seedOrganization(transaction, seed) {
      ) VALUES ($1, $2, 'canonical-flight.created', 1, 'flight', $3, $4, $4)`,
     [seed.organizationId, seed.outboxId, seed.flightId, now],
   );
+  await transaction.query(
+    `INSERT INTO droneworks.keychain_authorizations (
+       organization_id, raw_source_id, keychain_use_authorized,
+       external_service_processing_authorized, notice_version, terms_version,
+       approved_by_user_id, approved_at
+     ) VALUES ($1, $2, true, true, 'generated-notice-v1',
+               'generated-terms-v1', $3, $4)`,
+    [seed.organizationId, seed.rawSourceId, seed.userId, now],
+  );
+  await transaction.query(
+    `INSERT INTO droneworks.keychain_cache_entries (
+       organization_id, raw_source_id, parser_id, log_version, provider_id,
+       notice_version, terms_version, key_reference, key_version, nonce,
+       authentication_tag, ciphertext, created_at, last_used_at
+     ) VALUES ($1, $2, 'generated-seed-parser', 14, 'generated-provider',
+               'generated-notice-v1', 'generated-terms-v1',
+               'generated-key', 'v1', $3, $4, $5, $6, $6)`,
+    [
+      seed.organizationId,
+      seed.rawSourceId,
+      Buffer.alloc(12, seed.marker === 'a' ? 1 : 2),
+      Buffer.alloc(16, seed.marker === 'a' ? 3 : 4),
+      Buffer.from(`generated-ciphertext-${seed.marker}`),
+      now,
+    ],
+  );
 }

@@ -6,7 +6,7 @@ import type { ClientBase, QueryResultRow } from 'pg';
 const migrationLockName = 'droneworks:reviewed-migrations';
 const migratorRole = 'droneworks_migrator';
 
-const customerTables = Object.freeze([
+const coreCustomerTables = Object.freeze([
   'aircraft',
   'api_idempotency_requests',
   'audit_events',
@@ -22,6 +22,14 @@ const customerTables = Object.freeze([
   'raw_sources',
   'telemetry_objects',
 ]);
+
+const customerTables = Object.freeze(
+  [
+    ...coreCustomerTables,
+    'keychain_authorizations',
+    'keychain_cache_entries',
+  ].sort(),
+);
 
 interface MigrationManifestEntry {
   readonly id: string;
@@ -54,8 +62,19 @@ const manifest: readonly MigrationManifestEntry[] = Object.freeze([
     sha256: '1dcf6c21fe90aaffeeb723de5edf33578f3c62cfc7d698c0364cdb4694b937e2',
     isolationSha256:
       'e1821261adf6d56dc738196ad42f9fc3f6b11e7904bd2546d32005c706753801',
-    expectedTables: customerTables,
+    expectedTables: coreCustomerTables,
     url: new URL('../sql/migrations/001_phase_1a_core.sql', import.meta.url),
+  }),
+  Object.freeze({
+    id: '002_dji_keychain_boundary',
+    sha256: 'c3ce1664ddee4066b59ef5e849da4bb3e050f3d5dee2664bf31fba816925489f',
+    isolationSha256:
+      'ea99e03a1cbe9f2f91e992e9295e7c33fa6103d5a04abe51fd171e00c8c83cc9',
+    expectedTables: customerTables,
+    url: new URL(
+      '../sql/migrations/002_dji_keychain_boundary.sql',
+      import.meta.url,
+    ),
   }),
 ]);
 
@@ -269,6 +288,7 @@ export async function applyReviewedMigration(
   client: Pick<ClientBase, 'query'>,
   migration: ReviewedMigration,
   appliedAt = new Date(),
+  verifyRecordedContract = true,
 ): Promise<MigrationResult> {
   const reviewed = validateMigration(migration);
   if (Number.isNaN(appliedAt.valueOf())) {
@@ -297,7 +317,9 @@ export async function applyReviewedMigration(
       ) {
         throw new MigrationConflictError(reviewed.id);
       }
-      await verifyIsolationContract(client, reviewed);
+      if (verifyRecordedContract) {
+        await verifyIsolationContract(client, reviewed);
+      }
       await client.query('COMMIT');
       return {
         status: 'already_applied',
@@ -344,7 +366,11 @@ export async function applyReviewedMigrations(
   const migrations = await loadReviewedMigrations();
   const results: MigrationResult[] = [];
   for (const migration of migrations) {
-    results.push(await applyReviewedMigration(client, migration, appliedAt));
+    results.push(
+      await applyReviewedMigration(client, migration, appliedAt, false),
+    );
   }
+  const latest = migrations.at(-1);
+  if (latest) await verifyIsolationContract(client, latest);
   return results;
 }

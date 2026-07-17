@@ -133,7 +133,9 @@ An imported identifier results in one of four visible outcomes:
 
 ### Phase 1 sources
 
-- Supported DJI TXT variants are listed by application and format version in product documentation and automated fixtures.
+- Supported DJI TXT variants are listed by application and format version in
+  [`SUPPORTED-FORMATS.md`](SUPPORTED-FORMATS.md) and automated fixtures. The
+  current Phase 1A row is DJI Fly / DJI TXT v14 only.
 - Manual entry requires pilot, aircraft, takeoff time, duration, and either a map location or location text.
 - File types are detected from contents rather than extension alone.
 - Unsupported, encrypted-without-key, corrupt, and truncated files each produce distinguishable user-facing reasons.
@@ -261,6 +263,9 @@ An imported identifier results in one of four visible outcomes:
 - Backups expire deleted customer payload according to a documented maximum backup-retention window.
 - Shared technical caches may survive organization deletion only when they cannot be used to identify the organization, user, flight, location, or uploaded file.
 - Users are informed before an upload causes metadata to be sent to DJI or another external service.
+- Encrypted DJI processing records the accepted notice and terms-review versions.
+  Permission to use a source-scoped cached keychain and permission to contact DJI
+  are enforced separately; declining or revoking either permission fails closed.
 - Raw files and exports are accessed only through short-lived, authorization-checked downloads.
 - All domain mutations create organization-scoped audit events identifying actor, action, time, resource, and changed field names.
 - Audit displays avoid duplicating sensitive coordinates, document content, secrets, and full raw payloads.

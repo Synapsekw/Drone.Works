@@ -9,6 +9,11 @@ import {
   validatePrivateIntermediate,
   type PrivateIntermediateSummary,
 } from './intermediate.js';
+import {
+  PrivateKeychainRequest,
+  validateKeychainRequest,
+  type KeychainRequest,
+} from './keychain.js';
 
 export const defaultParserConstraints = Object.freeze({
   containerUser: '65532:65532',
@@ -199,6 +204,7 @@ export function buildParserCreateArguments(input: {
   readonly constraints?: Partial<ParserConstraints>;
   readonly image: string;
   readonly name: string;
+  readonly operation?: 'decode' | 'keychain_request';
   readonly sourcePath: string;
 }): readonly string[] {
   const constraints = validatedConstraints(input.constraints ?? {});
@@ -235,6 +241,9 @@ export function buildParserCreateArguments(input: {
     '--mount',
     `type=bind,source=${resolve(input.sourcePath)},target=/input/source.bin,readonly`,
     requireImageDigest(input.image),
+    ...(input.operation === 'keychain_request'
+      ? ['/input/source.bin', '--output', 'keychain-request']
+      : []),
   ]);
 }
 
@@ -483,6 +492,145 @@ export class ParserSupervisor {
     } finally {
       execution?.stdout.fill(0);
     }
+  }
+
+  async #executeKeychainRequestCreated(
+    name: string,
+    boundarySummary: ParserBoundarySummary,
+    started: number,
+  ): Promise<ParserFailure | PrivateKeychainRequest> {
+    let execution: OciExecution | null = null;
+    try {
+      const inspection = await this.#runtime.inspect(name);
+      if (validateParserInspection(inspection, this.#constraints).length > 0) {
+        return failed('boundary_violation');
+      }
+      execution = await this.#runtime.start(name, Buffer.alloc(0), {
+        maxOutputBytes: this.#constraints.maxPrivateInputBytes,
+        timeoutMs: this.#constraints.timeoutMs,
+      });
+      const state = await this.#runtime.state(name);
+      const process = processSummary(
+        execution,
+        state,
+        performance.now() - started,
+      );
+      if (execution.stopReason === 'timeout') {
+        return failed('parser_wall_time_limit', boundarySummary, process);
+      }
+      if (execution.stopReason === 'output') {
+        return failed('parser_output_limit', boundarySummary, process);
+      }
+      if (state.OOMKilled === true) {
+        return failed('parser_memory_limit', boundarySummary, process);
+      }
+      if (execution.error || (state.ExitCode ?? execution.exitCode) !== 0) {
+        return failed('parser_runtime_error', boundarySummary, process);
+      }
+      try {
+        const envelope = JSON.parse(
+          execution.stdout.toString('utf8'),
+        ) as unknown;
+        if (
+          !envelope ||
+          typeof envelope !== 'object' ||
+          Array.isArray(envelope)
+        ) {
+          return failed('invalid_worker_output', boundarySummary, process);
+        }
+        const row = envelope as Record<string, unknown>;
+        if (
+          Object.keys(row).sort().join(',') !== 'kind,request,schema_version' ||
+          row.kind !== 'keychain_request' ||
+          row.schema_version !== 1
+        ) {
+          return failed('invalid_worker_output', boundarySummary, process);
+        }
+        const validated = validateKeychainRequest(row.request);
+        if (!validated.valid) {
+          return failed('invalid_worker_output', boundarySummary, process);
+        }
+        return new PrivateKeychainRequest(
+          {
+            department: validated.metadata.department,
+            featurePoints: validated.metadata.featurePoints,
+            groups: validated.metadata.groups,
+            requestVersion: validated.metadata.requestVersion,
+            schemaVersion: 1,
+            serializedBytes: validated.metadata.serializedBytes,
+            sourceHashVerified: true,
+            status: 'keychain_request_ready',
+          },
+          row.request as KeychainRequest,
+        );
+      } catch {
+        return failed('invalid_worker_output', boundarySummary, process);
+      }
+    } finally {
+      execution?.stdout.fill(0);
+    }
+  }
+
+  async buildKeychainRequest(
+    requestedSource: ExactParserSource,
+  ): Promise<ParserFailure | PrivateKeychainRequest> {
+    const source = requireSource(requestedSource);
+    if (source.bytes > this.#constraints.maxSourceBytes) {
+      return failed('source_input_limit');
+    }
+    let trustedSource: { bytes: number; sha256: string };
+    try {
+      trustedSource = await hashSource(
+        source.path,
+        this.#constraints.maxSourceBytes,
+      );
+    } catch (error) {
+      return failed(
+        error instanceof SourceInputLimitError
+          ? 'source_input_limit'
+          : 'source_unavailable',
+      );
+    }
+    if (
+      trustedSource.bytes !== source.bytes ||
+      trustedSource.sha256 !== source.sha256
+    ) {
+      return failed('source_identity_mismatch');
+    }
+
+    const name = `droneworks-parser-request-${randomUUID()}`;
+    const boundarySummary = boundary(this.#constraints);
+    const started = performance.now();
+    let created = false;
+    let result: ParserFailure | PrivateKeychainRequest;
+    try {
+      await this.#runtime.create(
+        buildParserCreateArguments({
+          constraints: this.#constraints,
+          image: this.#image,
+          name,
+          operation: 'keychain_request',
+          sourcePath: source.path,
+        }),
+      );
+      created = true;
+      result = await this.#executeKeychainRequestCreated(
+        name,
+        boundarySummary,
+        started,
+      );
+    } catch {
+      result = failed('parser_runtime_error', created ? boundarySummary : null);
+    }
+    if (created) {
+      try {
+        await this.#runtime.remove(name);
+      } catch {
+        if (result instanceof PrivateKeychainRequest) result.destroy();
+        return failed('parser_cleanup_failed', boundarySummary);
+      }
+    }
+    return result;
   }
 
   async run(

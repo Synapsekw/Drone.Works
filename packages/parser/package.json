@@ -11,7 +11,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "corepack pnpm run build && vitest run test/parser.test.mjs && node scripts/verify-release.mjs",
+    "test": "corepack pnpm run build && vitest run test && node scripts/verify-release.mjs",
     "test:host": "corepack pnpm run test",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },

@@ -30,6 +30,7 @@ enum EnvelopeStatus {
 enum OutputMode {
     Summary,
     Intermediate,
+    KeychainRequest,
 }
 
 #[derive(Deserialize)]
@@ -361,6 +362,9 @@ fn output_mode(arguments: &[String]) -> Option<(String, OutputMode)> {
         [path, flag, value] if flag == "--output" && value == "intermediate" => {
             Some((path.clone(), OutputMode::Intermediate))
         }
+        [path, flag, value] if flag == "--output" && value == "keychain-request" => {
+            Some((path.clone(), OutputMode::KeychainRequest))
+        }
         _ => None,
     }
 }
@@ -555,6 +559,36 @@ fn main() {
     let arguments = env::args().skip(1).collect::<Vec<_>>();
     let (path, output_mode) = output_mode(&arguments).unwrap_or_else(|| fail("invalid_arguments"));
 
+    let read_started = Instant::now();
+    let bytes = fs::read(path).unwrap_or_else(|_| fail("fixture_unavailable"));
+    let read_ms = read_started.elapsed().as_secs_f64() * 1000.0;
+    let source_bytes = bytes.len();
+    let format_version = bytes.get(VERSION_OFFSET).copied().unwrap_or_default();
+    let source_sha256 = format!("{:x}", Sha256::digest(&bytes));
+    let envelope_status = inspect_record_envelopes(&bytes);
+    if envelope_status == EnvelopeStatus::Invalid {
+        fail("decode_failed");
+    }
+
+    let parse_started = Instant::now();
+    let parser = DJILog::from_bytes(bytes).unwrap_or_else(|_| fail("invalid_or_corrupt_prefix"));
+    let parse_ms = parse_started.elapsed().as_secs_f64() * 1000.0;
+
+    if output_mode == OutputMode::KeychainRequest {
+        let request = parser
+            .keychains_request()
+            .unwrap_or_else(|_| fail("invalid_keychain_request"));
+        let output = serde_json::json!({
+            "schema_version": 1,
+            "kind": "keychain_request",
+            "request": request,
+        });
+        serde_json::to_writer(io::stdout(), &output)
+            .unwrap_or_else(|_| fail("serialization_failed"));
+        println!();
+        return;
+    }
+
     let mut input_bytes = Vec::new();
     if io::stdin()
         .take(MAX_INPUT_BYTES + 1)
@@ -573,21 +607,6 @@ fn main() {
         .and_then(|group| group.first())
         .map(|point| point.aes_key.clone())
         .unwrap_or_default();
-
-    let read_started = Instant::now();
-    let bytes = fs::read(path).unwrap_or_else(|_| fail("fixture_unavailable"));
-    let read_ms = read_started.elapsed().as_secs_f64() * 1000.0;
-    let source_bytes = bytes.len();
-    let format_version = bytes.get(VERSION_OFFSET).copied().unwrap_or_default();
-    let source_sha256 = format!("{:x}", Sha256::digest(&bytes));
-    let envelope_status = inspect_record_envelopes(&bytes);
-    if envelope_status == EnvelopeStatus::Invalid {
-        fail("decode_failed");
-    }
-
-    let parse_started = Instant::now();
-    let parser = DJILog::from_bytes(bytes).unwrap_or_else(|_| fail("invalid_or_corrupt_prefix"));
-    let parse_ms = parse_started.elapsed().as_secs_f64() * 1000.0;
 
     // The pinned upstream decoder contains unchecked reads. Convert any panic into a
     // structured child failure; the supervisor still treats the process as untrusted.
@@ -715,6 +734,14 @@ mod tests {
 
     #[test]
     fn parses_explicit_intermediate_output_mode() {
+        assert_eq!(
+            output_mode(&[
+                "fixture.bin".to_string(),
+                "--output".to_string(),
+                "keychain-request".to_string(),
+            ]),
+            Some(("fixture.bin".to_string(), OutputMode::KeychainRequest))
+        );
         assert_eq!(
             output_mode(&[
                 "fixture.bin".to_string(),

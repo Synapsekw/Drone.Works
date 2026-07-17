@@ -51,6 +51,15 @@ export {
   type OrganizationTransaction,
 } from './organization-transaction.js';
 export {
+  FlightNormalizationRepository,
+  type NormalizationMetric,
+  type NormalizationMetricsSink,
+  type NormalizationOutcome,
+  type NormalizationResult,
+  type StoredImmutableObject,
+  type TelemetryObjectStore,
+} from './flight-normalization.js';
+export {
   IdempotencyConflictError,
   ImportCancellationConflictError,
   ImportProcessingRepository,

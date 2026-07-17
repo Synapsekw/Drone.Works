@@ -139,7 +139,19 @@ and pooled-context gate with:
 corepack pnpm test:jobs
 ```
 
-The test creates its own socket-only PostgreSQL cluster and loopback object
+Run the A10 canonical normalization, assignment, exact-duplicate, telemetry
+checksum, object/transaction retry, real job retry, and Alpha/Beta gate with:
+
+```sh
+corepack pnpm test:normalize
+```
+
+This gate uses another disposable native PostgreSQL cluster, the real pg-boss
+queue boundary, generated private intermediate values, and an in-memory
+immutable-object adapter. It uses no Docker, provider request, private fixture,
+or hosted resource.
+
+The A07 test creates its own socket-only PostgreSQL cluster and loopback object
 service. A growing pending count or oldest-pending age means the dispatcher is
 not completing leases; repeated retry or dead-letter growth means the worker or
 its dependency is failing. Stop claiming new work, preserve the payload-free

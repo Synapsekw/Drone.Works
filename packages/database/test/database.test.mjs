@@ -24,6 +24,7 @@ const alpha = generatedOrganizations.alpha;
 const beta = generatedOrganizations.beta;
 const customerTables = [
   'aircraft',
+  'aircraft_identifiers',
   'api_idempotency_requests',
   'audit_events',
   'canonical_flights',
@@ -393,6 +394,7 @@ describe('A04 PostgreSQL organization boundary', () => {
           .map((row) => row.table_name);
         expect(deletes).toEqual([
           'aircraft',
+          'aircraft_identifiers',
           'api_idempotency_requests',
           'canonical_flights',
           'import_batches',
@@ -639,7 +641,7 @@ describe('A04 PostgreSQL organization boundary', () => {
       process.env.DRONEWORKS_PG_MIGRATION_USER,
       async (client) => {
         const migrations = await loadReviewedMigrations();
-        expect(migrations).toHaveLength(2);
+        expect(migrations).toHaveLength(3);
         expect(migrations.at(-1)).toMatchObject({
           id: process.env.DRONEWORKS_PG_MIGRATION_ID,
           sha256: process.env.DRONEWORKS_PG_MIGRATION_SHA256,
@@ -650,7 +652,7 @@ describe('A04 PostgreSQL organization boundary', () => {
           client,
           new Date('2026-07-16T00:00:00.000Z'),
         );
-        expect(replay).toHaveLength(2);
+        expect(replay).toHaveLength(3);
         expect(
           replay.every((result) => result.status === 'already_applied'),
         ).toBe(true);

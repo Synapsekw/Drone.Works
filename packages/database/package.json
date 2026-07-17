@@ -11,12 +11,16 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "build:test-dependencies": "corepack pnpm --filter @drone-works/parser --filter @drone-works/domain --filter @drone-works/telemetry run build",
     "migrate": "corepack pnpm run build && node scripts/migrate.mjs",
     "migrate:jobs": "corepack pnpm run build && node scripts/migrate-jobs.mjs",
-    "test:database": "corepack pnpm run build && node scripts/run-tests.mjs",
+    "test:database": "corepack pnpm run build:test-dependencies && corepack pnpm run build && node scripts/run-tests.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@drone-works/domain": "workspace:*",
+    "@drone-works/parser": "workspace:*",
+    "@drone-works/telemetry": "workspace:*",
     "pg": "8.16.3"
   },
   "devDependencies": {

@@ -4,6 +4,7 @@ export const generatedOrganizations = Object.freeze({
     userId: '00000000-0000-4000-8000-0000000000a2',
     pilotId: '00000000-0000-4000-8000-0000000000a3',
     aircraftId: '00000000-0000-4000-8000-0000000000a4',
+    aircraftIdentifierId: '00000000-0000-4000-8000-0000000000a0',
     rawSourceId: '00000000-0000-4000-8000-0000000000a5',
     rawObjectRevisionId: '00000000-0000-4000-8000-0000000000a6',
     batchId: '00000000-0000-4000-8000-0000000000a7',
@@ -22,6 +23,7 @@ export const generatedOrganizations = Object.freeze({
     userId: '00000000-0000-4000-8000-0000000000b2',
     pilotId: '00000000-0000-4000-8000-0000000000b3',
     aircraftId: '00000000-0000-4000-8000-0000000000b4',
+    aircraftIdentifierId: '00000000-0000-4000-8000-0000000000b0',
     rawSourceId: '00000000-0000-4000-8000-0000000000b5',
     rawObjectRevisionId: '00000000-0000-4000-8000-0000000000b6',
     batchId: '00000000-0000-4000-8000-0000000000b7',
@@ -71,6 +73,22 @@ export async function seedOrganization(transaction, seed) {
       seed.organizationId,
       seed.aircraftId,
       `Generated Aircraft ${seed.marker.toUpperCase()}`,
+      now,
+    ],
+  );
+  await transaction.query(
+    `INSERT INTO droneworks.aircraft_identifiers (
+       organization_id, id, aircraft_id, identifier_type, identifier_value,
+       reliability, provenance, created_at
+     ) VALUES (
+       $1, $2, $3, 'manufacturer_serial', $4, 'stable', $5, $6
+     )`,
+    [
+      seed.organizationId,
+      seed.aircraftIdentifierId,
+      seed.aircraftId,
+      `generated-aircraft-${seed.marker}`,
+      { origin: 'generated' },
       now,
     ],
   );

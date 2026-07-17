@@ -286,6 +286,79 @@ describe.sequential('A06 immutable raw upload', () => {
     expect(betaOrganization.statusCode).toBe(404);
   });
 
+  it('reuses one retained raw source for an exact file re-upload and deletes the redundant object', async () => {
+    const content = Buffer.from('exact-file-reupload');
+    const firstDeclaration = await declare(
+      'alpha_owner',
+      content,
+      'exact-file-first',
+    );
+    const firstUploadId = firstDeclaration.json().upload_id;
+    const firstStored = await putContent('alpha_owner', firstUploadId, content);
+    const firstCompleted = await request('alpha_owner', {
+      method: 'POST',
+      url: `/api/v1/organizations/${alphaOrganizationId}/uploads/${firstUploadId}/completion`,
+      headers: { 'idempotency-key': 'exact-file-first-complete' },
+      payload: { object_version_id: firstStored.json().object_version_id },
+    });
+    expect(firstCompleted.statusCode).toBe(200);
+
+    const secondDeclaration = await declare(
+      'alpha_owner',
+      content,
+      'exact-file-second',
+    );
+    const secondUploadId = secondDeclaration.json().upload_id;
+    const secondStored = await putContent(
+      'alpha_owner',
+      secondUploadId,
+      content,
+    );
+    const secondCompleted = await request('alpha_owner', {
+      method: 'POST',
+      url: `/api/v1/organizations/${alphaOrganizationId}/uploads/${secondUploadId}/completion`,
+      headers: { 'idempotency-key': 'exact-file-second-complete' },
+      payload: { object_version_id: secondStored.json().object_version_id },
+    });
+    expect(secondCompleted.statusCode).toBe(200);
+    expect(secondCompleted.json()).toMatchObject({
+      object_version_id: firstStored.json().object_version_id,
+      raw_source_id: firstUploadId,
+      upload_id: secondUploadId,
+    });
+
+    const secondKey = `organizations/${alphaOrganizationId}/raw-sources/${secondUploadId}/revisions/${secondUploadId}`;
+    const redundantObject = await fetch(
+      `${process.env.OBJECT_INTERNAL_URL}/objects/${encodeURIComponent(secondKey)}?version_id=${secondStored.json().object_version_id}`,
+      { method: 'HEAD' },
+    );
+    expect(redundantObject.status).toBe(404);
+    await withOrganizationTransaction(
+      pool,
+      alphaOrganizationId,
+      async (transaction) => {
+        const sources = await transaction.query(
+          `SELECT count(*)::integer AS count
+             FROM droneworks.raw_sources
+            WHERE content_sha256 = $1`,
+          [sha256(content)],
+        );
+        expect(sources.rows[0].count).toBe(1);
+        const items = await transaction.query(
+          `SELECT id, raw_source_id
+             FROM droneworks.import_items
+            WHERE id = ANY($1::uuid[])
+            ORDER BY id`,
+          [[firstUploadId, secondUploadId]],
+        );
+        expect(items.rows.map((row) => row.raw_source_id)).toEqual([
+          firstUploadId,
+          firstUploadId,
+        ]);
+      },
+    );
+  });
+
   it('deletes the exact unreferenced object when database completion rolls back', async () => {
     const content = Buffer.from('rollback-raw-upload');
     const declaration = await declare('alpha_owner', content, 'rollback');

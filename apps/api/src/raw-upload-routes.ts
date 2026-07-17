@@ -269,15 +269,20 @@ export function registerRawUploadRoutes(
         throw new ObjectStoreVerificationError();
       }
       try {
-        return uploadResponse(
-          await dependencies.uploads.complete(
-            identity,
-            request.params.organization_id,
-            request.params.upload_id,
-            idempotencyKey(request.headers),
-            { objectVersionId: exact.versionId },
-          ),
+        const completed = await dependencies.uploads.complete(
+          identity,
+          request.params.organization_id,
+          request.params.upload_id,
+          idempotencyKey(request.headers),
+          { objectVersionId: exact.versionId },
         );
+        if (completed.objectVersionId !== exact.versionId) {
+          await dependencies.objectStore.deleteExact(
+            declared.objectKey,
+            exact.versionId,
+          );
+        }
+        return uploadResponse(completed);
       } catch (error) {
         const statusCode = (error as { statusCode?: number }).statusCode;
         if (!statusCode || statusCode >= 500) {

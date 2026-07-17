@@ -1,7 +1,7 @@
 # Canonical domain model and provenance proof
 
-Status: accepted Phase 0 proof
-Last updated: 2026-07-15
+Status: accepted model with initial Phase 1A production persistence
+Last updated: 2026-07-17
 
 ## Purpose
 
@@ -222,4 +222,15 @@ Source-free tests currently prove:
 - zero-flight processing completes without a fictional flight and may later produce the first flight on reprocessing;
 - raw intermediate objects, invalid override values, cross-organization overrides, invalid active assignments, and identity-count mismatches fail closed.
 
-P0-04 now has its generic schema, exact-normalized fingerprint, lifecycle-transition proof, provenance model, and representative adapter evidence. P0-05 should translate this ownership and identity contract into database constraints and organization-enforced access; P0-06 should benchmark the versioned telemetry shape. Object-storage and backup deletion still require their later production-shaped proofs.
+P0-04 established the generic schema, exact-normalized fingerprint,
+lifecycle-transition proof, provenance model, and representative adapter
+evidence. A04/A10 now translate the one-flight production slice into
+checksum-pinned PostgreSQL constraints, forced organization isolation,
+organization-scoped stable aircraft identifiers, explicit pilot proposal and
+assignment state, immutable revisions, and versioned telemetry-object metadata.
+The A10 repository validates source identity again, creates an unseen aircraft
+only from stable identifier evidence, refuses model-only or conflicting matches,
+and converges after object, transaction, and real job retries. A11 still owns
+authorized object reads and bounded replay; reconciliation UI, multi-flight
+items, reprocessing, hosted object storage, and backup deletion remain later
+work.

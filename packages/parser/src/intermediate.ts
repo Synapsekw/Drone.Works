@@ -46,10 +46,29 @@ export interface ParserIntermediateSample {
   >;
 }
 
+export interface ParserIntermediateImported {
+  readonly aircraft_model: string | null;
+  readonly aircraft_name: string | null;
+  readonly application_platform: string | null;
+  readonly application_version: string | null;
+  readonly declared_distance_m: number | null;
+  readonly declared_duration_ms: number | null;
+  readonly declared_max_height_m: number | null;
+  readonly declared_max_horizontal_speed_mps: number | null;
+  readonly declared_max_vertical_speed_mps: number | null;
+  readonly identifiers: Readonly<{
+    aircraft_serials: readonly string[];
+    battery_serials: readonly string[];
+    camera_serials: readonly string[];
+    controller_serials: readonly string[];
+  }>;
+  readonly takeoff_time_utc: string;
+}
+
 export interface ParserIntermediateFlight {
   readonly capabilities: readonly string[];
   readonly flight_index: number;
-  readonly imported: Readonly<Record<string, unknown>>;
+  readonly imported: ParserIntermediateImported;
   readonly sample_count: number;
   readonly samples: readonly ParserIntermediateSample[];
 }
@@ -141,6 +160,13 @@ function finiteOrNull(value: unknown, name: string): void {
   }
 }
 
+function nonNegativeFiniteOrNull(value: unknown, name: string): void {
+  finiteOrNull(value, name);
+  if (typeof value === 'number' && value < 0) {
+    throw new TypeError(`${name} must be non-negative or null.`);
+  }
+}
+
 function nonNegativeIntegerOrNull(value: unknown, name: string): void {
   if (value !== null && (!Number.isSafeInteger(value) || Number(value) < 0)) {
     throw new TypeError(`${name} must be a non-negative integer or null.`);
@@ -201,9 +227,14 @@ function imported(value: unknown): void {
     'declared_max_horizontal_speed_mps',
     'declared_max_vertical_speed_mps',
   ]) {
-    finiteOrNull(row[key], `imported.${key}`);
+    nonNegativeFiniteOrNull(row[key], `imported.${key}`);
   }
-  for (const key of ['aircraft_name', 'application_version'] as const) {
+  for (const key of [
+    'aircraft_name',
+    'aircraft_model',
+    'application_platform',
+    'application_version',
+  ] as const) {
     if (row[key] !== null && typeof row[key] !== 'string') {
       throw new TypeError(`imported.${key} must be a string or null.`);
     }

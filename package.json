@@ -26,6 +26,7 @@
     "test:contract": "corepack pnpm --filter @drone-works/api run test:contract && corepack pnpm contract:check && corepack pnpm boundaries",
     "test:database": "corepack pnpm --filter @drone-works/database run test:database",
     "test:jobs": "corepack pnpm --filter @drone-works/api run test:jobs",
+    "test:normalize": "corepack pnpm --filter @drone-works/api run test:normalize",
     "test:parser:host": "corepack pnpm --filter @drone-works/parser run test:host",
     "test:upload": "corepack pnpm --filter @drone-works/api run test:upload",
     "typecheck": "corepack pnpm --recursive --sort --if-present run typecheck",

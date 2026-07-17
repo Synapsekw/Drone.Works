@@ -120,6 +120,15 @@ Parsers emit a versioned intermediate result which is normalized into one canoni
 
 Source values and parser/model versions must be retained as provenance. The canonical schema must support missing fields and multi-battery flights. Canonical import revision version 1 is a vendor-neutral private persistence contract; source adapters must validate against it before persistence.
 
+Phase 1A A10 promotes the version-1 adapter into the production packages. The
+trusted worker-side repository revalidates the private intermediate against the
+database-owned source digest and size, produces explicit imported/derived/
+user-override envelopes, retains parser/source/field provenance privately, and
+persists only after organization-scoped assignment and duplicate decisions.
+The initial production slice deliberately accepts exactly one parsed flight per
+item; expanding that cardinality requires a later reviewed slice rather than an
+implicit identity rule.
+
 ## D-004 — Raw source immutability and deletion
 
 Status: accepted
@@ -173,6 +182,13 @@ Fingerprint versions and match reasons are stored. Product behavior cannot rely 
 
 `exact-normalized-v1` uses SHA-256 over deterministic, source-independent canonical operational material: imported normalized timing and summary facts, sorted stable aircraft identifiers, any present battery identifiers, capabilities, and telemetry samples. It excludes source/parser/provenance/organization/flight identifiers, assignments, and user overrides. Eligibility requires stable aircraft identity, reliable normalized takeoff time, and duration; a battery identifier is included when available but is not required or treated as positive evidence when absent.
 
+Phase 1A A10 persists that version and match evidence. Exact file re-uploads
+reuse the retained organization-owned raw source; exact normalized matches are
+serialized by organization and fingerprint before they can skip canonical
+creation. Both terminal import results reference the retained flight. Missing
+or conflicting stable aircraft evidence never enters either automatic asset
+path, and probable matching remains deferred and review-only.
+
 ## D-007 — Separate aircraft state dimensions
 
 Status: accepted
@@ -206,6 +222,14 @@ Store each immutable flight revision's full normalized telemetry as one organiza
 Do not store Phase 1 telemetry as one PostgreSQL row per sample and do not require a time-series extension. The executable benchmark physically materialized 100,000 objects and 600 million 5 Hz frames across 100 organizations. It measured 2.872 GB of objects plus 32.1 MB of metadata, 2.87 ms warm local replay, six bounded pages for a full flight, 1.95 ms single-flight deletion, and 59.21 ms to remove 999 objects. The like-for-like partitioned-row cohort occupied 236.3 bytes per frame, projecting to 141.781 GB before database headroom, backup, WAL, or replicas. Both candidates preserved replay summaries and demonstrated deletion; the object candidate also proved additive codec evolution. Provider latency and provider-side deletion verification remain separate P0-07/D-002 obligations. See [`../research/TELEMETRY-BENCHMARK.md`](../research/TELEMETRY-BENCHMARK.md).
 
 The disposable benchmark codec proves the layout contract but is not itself an automatic production-format commitment. A production codec must remain versioned and deterministic, expose the same capability/gap semantics, keep old objects readable, and pass the retained generator and reference tests.
+
+Phase 1A A10 selects `droneworks-columnar-json-gzip` version 1 for the first
+production slice. It stores the validated intermediate sample fields as
+fixed-order column arrays, preserves missing readings as `null`, uses
+deterministic gzip bytes, and records the SHA-256 digest, codec/version,
+capabilities, sample count, and available elapsed-time bounds in PostgreSQL.
+The version-1 decoder and checksum reference tests are retained. This does not
+complete A11 replay/downsampling or choose a hosted object provider.
 
 ### Reconsideration trigger
 

@@ -151,7 +151,8 @@ An imported identifier results in one of four visible outcomes:
 - Raw bytes become a retained source only after the immutable stored object's
   exact version, digest, size, and media type match the declaration. Identical
   retries return the same upload/source; an occupied key with different bytes
-  is rejected.
+  is rejected. A later exact-file re-upload reuses the organization-owned
+  retained source and removes its redundant newly written object version.
 - Every declaration, byte write, completion, and status read rechecks current
   organization membership. No public object URL is returned.
 - Upload completion moves the import to `queued` only in the same transaction

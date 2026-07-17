@@ -467,21 +467,36 @@ export class RawUploadRepository {
           };
         }
 
-        const rawSourceId = uploadId;
-        await transaction.query(
-          `INSERT INTO droneworks.raw_sources (
-             organization_id, id, object_revision_id, content_sha256,
-             byte_size, media_type, state, created_at
-           ) VALUES ($1, $2, $3, $4, $5, $6, 'retained', now())`,
-          [
-            transaction.organizationId,
-            rawSourceId,
-            input.objectVersionId,
-            row.content_sha256,
-            row.byte_size,
-            row.media_type,
-          ],
+        const retained = await transaction.query<{
+          readonly id: string;
+          readonly object_revision_id: string;
+        }>(
+          `SELECT id, object_revision_id
+             FROM droneworks.raw_sources
+            WHERE organization_id = $1
+              AND content_sha256 = $2
+            FOR UPDATE`,
+          [transaction.organizationId, row.content_sha256],
         );
+        const rawSourceId = retained.rows[0]?.id ?? uploadId;
+        const retainedObjectVersionId =
+          retained.rows[0]?.object_revision_id ?? input.objectVersionId;
+        if (!retained.rows[0]) {
+          await transaction.query(
+            `INSERT INTO droneworks.raw_sources (
+               organization_id, id, object_revision_id, content_sha256,
+               byte_size, media_type, state, created_at
+             ) VALUES ($1, $2, $3, $4, $5, $6, 'retained', now())`,
+            [
+              transaction.organizationId,
+              rawSourceId,
+              retainedObjectVersionId,
+              row.content_sha256,
+              row.byte_size,
+              row.media_type,
+            ],
+          );
+        }
         await transaction.query(
           `UPDATE droneworks.import_items
               SET raw_source_id = $3,
@@ -497,7 +512,7 @@ export class RawUploadRepository {
         );
         const responseBody: CompletionBody = {
           content_sha256: row.content_sha256,
-          object_version_id: input.objectVersionId,
+          object_version_id: retainedObjectVersionId,
           raw_source_id: rawSourceId,
           state: 'completed',
           upload_id: uploadId,
@@ -524,7 +539,7 @@ export class RawUploadRepository {
         );
         return {
           contentSha256: row.content_sha256,
-          objectVersionId: input.objectVersionId,
+          objectVersionId: retainedObjectVersionId,
           rawSourceId,
           state: 'completed',
           uploadId,

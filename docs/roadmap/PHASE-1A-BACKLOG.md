@@ -1,7 +1,7 @@
 # Phase 1A implementation backlog
 
 Status: implementation-ready
-Last updated: 2026-07-16
+Last updated: 2026-07-17
 Outcome: an authorized user enters an organization, uploads one supported DJI
 log, observes isolated asynchronous processing, and opens a flight summary with
 a 2D track.
@@ -380,6 +380,15 @@ failure/support wording; review PRODUCT/BEHAVIOR/acceptance for any scope change
 otherwise leaves it disabled and records the blocker.
 
 ### A10 — Normalize and persist one flight idempotently
+
+**Status:** Complete (2026-07-17). Evidence: the production canonical-v1
+adapter, fixed-order versioned telemetry codec, checksum-pinned migration,
+organization-scoped persistence repository, and `pnpm test:normalize` native
+PostgreSQL/pg-boss suite cover the selected valid shape, exact retry and both
+duplicate classes, known/unseen/model-only/ambiguous aircraft evidence,
+telemetry checksum, object and transaction rollback/retry, redacted metrics and
+audit metadata, and Alpha/Beta pooled isolation. `pnpm test:upload` separately
+proves exact-file raw-source reuse and redundant-object cleanup.
 
 **Outcome:** A successful parser result creates one canonical flight revision,
 provenance, pilot/aircraft assignment state, telemetry object, and completed

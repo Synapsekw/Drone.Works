@@ -2,6 +2,7 @@ export {
   PrivateParserIntermediate,
   validatePrivateIntermediate,
   type ParserIntermediateFlight,
+  type ParserIntermediateImported,
   type ParserIntermediateSample,
   type ParserIntermediateShape,
   type ParserIntermediateSource,

@@ -23,12 +23,16 @@ const coreCustomerTables = Object.freeze([
   'telemetry_objects',
 ]);
 
-const customerTables = Object.freeze(
+const keychainCustomerTables = Object.freeze(
   [
     ...coreCustomerTables,
     'keychain_authorizations',
     'keychain_cache_entries',
   ].sort(),
+);
+
+const customerTables = Object.freeze(
+  [...keychainCustomerTables, 'aircraft_identifiers'].sort(),
 );
 
 interface MigrationManifestEntry {
@@ -70,9 +74,20 @@ const manifest: readonly MigrationManifestEntry[] = Object.freeze([
     sha256: 'c3ce1664ddee4066b59ef5e849da4bb3e050f3d5dee2664bf31fba816925489f',
     isolationSha256:
       'ea99e03a1cbe9f2f91e992e9295e7c33fa6103d5a04abe51fd171e00c8c83cc9',
-    expectedTables: customerTables,
+    expectedTables: keychainCustomerTables,
     url: new URL(
       '../sql/migrations/002_dji_keychain_boundary.sql',
+      import.meta.url,
+    ),
+  }),
+  Object.freeze({
+    id: '003_canonical_normalization',
+    sha256: '507144a7b6e0c0a6660c50dcc618d0ed507d07640543881dfae391bc2b344ba7',
+    isolationSha256:
+      'a6b9627f5d6e6561d5e1155bd374e702a1b0fec8f7541066b377679d5cfdc9bd',
+    expectedTables: customerTables,
+    url: new URL(
+      '../sql/migrations/003_canonical_normalization.sql',
       import.meta.url,
     ),
   }),

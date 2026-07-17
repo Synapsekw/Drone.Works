@@ -1,12 +1,12 @@
 ---
 type: north-star
 status: active
-last-updated: 2026-07-17-0824
+last-updated: 2026-07-17-0851
 tags: [project/drone-works, north-star]
 related:
   - "[[project-history]]"
   - "[[memory]]"
-  - "[[2026-07-17-0824-local-dev-start-alias]]"
+  - "[[2026-07-17-0851-a08-hosted-gate]]"
 ---
 
 # Drone.Works — North Star
@@ -24,19 +24,19 @@ Drone.Works is an explainable operational record for small professional drone te
 | Increment | State | Current outcome |
 |---|---|---|
 | Phase 0 — Technical discovery | Complete | Accepted evidence/decisions, safe external gates, threat model, and implementation-ready backlog. |
-| Phase 1A — Walking skeleton | In progress | A01–A07 complete; A08 parser supervision is implemented and committed, with its required hosted Linux production-image gate pending. |
+| Phase 1A — Walking skeleton | In progress | A01–A08 complete; A09 is blocked on qualified provider/key approval or an authorized supported unencrypted variant. |
 | Phase 1B — Trustworthy imports | Planned | Explain every batch outcome and reconcile uncertainty without silent loss. |
 | Phase 1C — Operational logbook | Planned | Daily flight, fleet, replay, correction, search, and export workflow. |
 | Phase 1D — Maintenance and hardening | Planned | Basic maintenance plus deletion, recovery, security, and operations gates. |
 
 ## Now
 
-- **Phase:** Phase 1A implementation is active. A01–A07 are complete; A08 implementation is committed but its required hosted Linux promotion gate is pending. A09–A13a continue the functional path before A13b integrates verified authentication; AWS still begins only at A14.
-- **Branch:** local-start fix `2100b32` follows A08 implementation `81717ec` on local `main`, which is fifty-six commits ahead of `origin/main` before this vault-only closeout commit; nothing was pushed. An unrelated `.obsidian/app.json` change remains unstaged and untouched.
-- **Completed evidence:** A08 adds a pinned native release/image manifest, content-addressed rootless no-network supervisor, strict private validation, and digest-only promotion path. The generated local stack now also starts through the conventional `pnpm dev` alias while retaining explicit `dev:up`/`dev:down`; A04–A07 boundaries remain unchanged.
-- **Verification baseline:** `pnpm dev` and explicit `dev:up` each completed a full smoke cycle and clean shutdown against generated API, worker, dispatcher, loopback services, authorization, upload/dispatch, web, and PostgreSQL. `pnpm verify` passes with eleven parser host and four API contract tests. Earlier two-build, 86-file reproducibility, clean 42-component target audit, and 68-pass/two-skip spike evidence remain current. No Docker/OCI production run, push, private fixture, customer data, Better Auth, provider access, or AWS/RDS resource occurred.
-- **Blocking evidence:** A08 cannot be marked complete until the committed production image runs through hosted Linux containment, exact-digest, and attestation gates; no compatible local OCI runtime was available and pushing was out of scope. A09 production DJI gates remain external and disabled. A13b verified auth must pass before A14; A14–A15 still require AWS authority and live hosted-data evidence.
-- **Next technical action:** make `81717ec` available to the hosted Linux workflow, inspect every A08 job, and promote A08 only if the exact production OCI and retained containment/attestation gates pass. Then enter A09; do not start normalization, provider access, Better Auth, RDS, or AWS early.
+- **Phase:** Phase 1A implementation is active. A01–A08 are complete. A09 is the current external enablement gate; A10–A13a follow only after one authorized supported parsing path exists, A13b then integrates verified authentication, and AWS still begins only at A14.
+- **Branch:** `main` is synchronized with `origin/main` at canonical A08 completion commit `3499031` before this vault-only closeout commit. The unrelated `.obsidian/app.json` change remains unstaged and untouched.
+- **Completed evidence:** The exact A08 Linux binary and rootless production OCI path passed hosted parser tests, retained containment, reproducibility, target-only RustSec, release verification, execution/cleanup, three attestations, and evidence upload. Clean-checkout workspace verify/build and disposable PostgreSQL database, authorization, upload, and jobs suites also pass after CI dependency/setup corrections.
+- **Verification baseline:** Hosted parser run `29555481380` and verify run `29555765264` are green. The shipped Linux SBOM contains 41 target components with zero target RustSec vulnerabilities or warnings; eleven parser host tests, four API contract tests, and six tests in each native authorization/upload/jobs suite pass. No private fixture, customer data, Better Auth, provider access, AWS/RDS resource, or credential was used.
+- **Blocking evidence:** A09 production DJI support remains disabled until qualified D-012 provider/key approval or an authorized supported unencrypted variant exists. A13b verified auth must pass before A14; A14–A15 still require AWS authority and live hosted-data evidence.
+- **Next technical action:** enter A09 only after confirming one authorized path, then prove its representative contained decode and public support matrix before A10 normalization. If neither path is available, record A09 as externally blocked and keep support disabled.
 - **Next external decision:** A09 needs either qualified D-012 provider/key approval or an authorized supported unencrypted variant before the walking skeleton can claim parsing support. No AWS action is needed through A13b; before A14, confirm an operational approved region and account/spend authority.
 - **Parallel follow-up:** when cloud help becomes necessary, provide the first-time account owner one step at a time with purpose, cost/security effect, verification, and safe stop/rollback; never request secret values.
 - **Privacy:** raw fixtures remain ignored and local. No raw values, coordinates, identifiers, keychain feature points, credentials, or generated parser artifacts belong in this vault.

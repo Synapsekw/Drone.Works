@@ -1,12 +1,12 @@
 ---
 type: north-star
 status: active
-last-updated: 2026-07-17-1155
+last-updated: 2026-07-17-1203
 tags: [project/drone-works, north-star]
 related:
   - "[[project-history]]"
   - "[[memory]]"
-  - "[[2026-07-17-1155-a10-normalization-gate]]"
+  - "[[2026-07-17-1203-hosted-a10-evidence]]"
 ---
 
 # Drone.Works — North Star
@@ -32,9 +32,9 @@ Drone.Works is an explainable operational record for small professional drone te
 ## Now
 
 - **Phase:** Phase 1A implementation is active. A01–A10 are complete. A11 flight APIs, A12 web, and A13a functional local completion follow; A13b then integrates verified authentication, and AWS still begins only at A14.
-- **Branch:** `main` is synchronized with `origin/main` at A10 implementation commit `1386603` before this vault-only closeout commit. The unrelated `.obsidian/app.json` change and two untracked `index 2.ts` copies remain unstaged and untouched.
+- **Branch:** `main` is synchronized with `origin/main` through A10 vault closeout commit `17f1bbc` before this hosted-evidence wrap-up. The unrelated `.obsidian/app.json` change and two untracked `index 2.ts` copies remain unstaged and untouched.
 - **Completed evidence:** The narrow supported v14 path now validates its private intermediate again, persists one provenance-aware canonical revision and deterministic checksummed telemetry object, creates or matches aircraft only from stable organization-scoped evidence, retains the uploader as a pilot proposal, and skips exact source/normalized duplicates without a second flight. Forced RLS and pooled isolation remain active.
-- **Verification baseline:** Local `pnpm verify` and `pnpm build` pass. A10 has six native normalization/queue tests, the reviewed database has seven, upload has seven, authorization and jobs have six each, and the production parser has 20. Prior hosted parser/verify runs remain green; no new hosted run was listed for `1386603` at wrap-up.
+- **Verification baseline:** Local `pnpm verify` and `pnpm build` pass. A10 has six native normalization/queue tests, the reviewed database has seven, upload has seven, authorization and jobs have six each, and the production parser has 20. Branch-tip hosted verify run `29564777791` passed workspace and native PostgreSQL gates; parser-evidence run `29564633726` passed all four jobs after an unchanged Linux-containment retry.
 - **Blocking evidence:** A11 has no external blocker. A13b verified auth must still pass before A14; A14–A15 require AWS authority, hosted secret/KMS deployment, and live hosted-data evidence.
 - **Next technical action:** implement A11's organization-authorized flight summary and bounded track replay over A10's current revision and exact telemetry object, with checksum, null/gap, redaction, pagination/downsampling, and Alpha/Beta tests.
 - **Next external decision:** No external decision is needed through A13b. Before A14, confirm an operational approved region and account/spend authority; hosted provider credentials and managed-key activation remain off until their deployment gates pass.

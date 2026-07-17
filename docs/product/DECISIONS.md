@@ -1,7 +1,7 @@
 # Decision Log — Drone.Works
 
 Status: active
-Last updated: 2026-07-16
+Last updated: 2026-07-17
 
 This file records architectural and implementation decisions. Product behavior belongs in `BEHAVIOR.md`; unresolved choices remain open here until accepted.
 
@@ -230,6 +230,25 @@ deterministic gzip bytes, and records the SHA-256 digest, codec/version,
 capabilities, sample count, and available elapsed-time bounds in PostgreSQL.
 The version-1 decoder and checksum reference tests are retained. This does not
 complete A11 replay/downsampling or choose a hosted object provider.
+
+Phase 1A A11 now reads only the highest retained flight revision and derives the
+telemetry key server-side from organization plus revision identity. Every replay
+fetches the exact stored object version and verifies SHA-256, codec/version,
+sample count, capability metadata, and elapsed bounds before projection. The
+public summary exposes effective values and origin labels but removes private
+source/parser provenance and all storage identity.
+
+The default `significant-v1` selection is deterministic and capped at 1,000
+samples. It retains first/last samples, full-series minima/maxima for the public
+altitude, height, horizontal/vertical speed, and battery fields, then preserves
+availability-transition pairs within the remaining budget before filling
+evenly. Full retrieval uses revision-bound cursors and at most 2,000 samples per
+page. Both paths preserve `null` rather than manufacturing zero, return private
+no-store cache headers, and emit only payload-free latency/object-outcome
+metrics. Native PostgreSQL and loopback-object tests prove all roles, Alpha/Beta
+and removed-member denial, exact-version checksum failure, deterministic pages,
+and pooled-context clearing. Provider-inclusive staging latency remains an A15
+gate rather than an A11 claim.
 
 ### Reconsideration trigger
 

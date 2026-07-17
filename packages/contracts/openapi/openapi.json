@@ -653,6 +653,1065 @@
           }
         },
         "title": "ImportStatus"
+      },
+      "def-19": {
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "organization_id",
+          "flight_id"
+        ],
+        "properties": {
+          "organization_id": {
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+            "type": "string"
+          },
+          "flight_id": {
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+            "type": "string"
+          }
+        },
+        "title": "FlightPath"
+      },
+      "def-20": {
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "aircraft_model",
+          "aircraft_name",
+          "application_platform",
+          "application_version",
+          "distance_m",
+          "duration_ms",
+          "max_height_m",
+          "max_horizontal_speed_mps",
+          "max_vertical_speed_mps",
+          "takeoff_time_utc"
+        ],
+        "properties": {
+          "aircraft_model": {
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "origin",
+              "value"
+            ],
+            "properties": {
+              "origin": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "imported"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "derived"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "user_override"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "unavailable"
+                    ]
+                  }
+                ]
+              },
+              "value": {
+                "anyOf": [
+                  {
+                    "maxLength": 500,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          },
+          "aircraft_name": {
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "origin",
+              "value"
+            ],
+            "properties": {
+              "origin": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "imported"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "derived"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "user_override"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "unavailable"
+                    ]
+                  }
+                ]
+              },
+              "value": {
+                "anyOf": [
+                  {
+                    "maxLength": 500,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          },
+          "application_platform": {
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "origin",
+              "value"
+            ],
+            "properties": {
+              "origin": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "imported"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "derived"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "user_override"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "unavailable"
+                    ]
+                  }
+                ]
+              },
+              "value": {
+                "anyOf": [
+                  {
+                    "maxLength": 500,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          },
+          "application_version": {
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "origin",
+              "value"
+            ],
+            "properties": {
+              "origin": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "imported"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "derived"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "user_override"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "unavailable"
+                    ]
+                  }
+                ]
+              },
+              "value": {
+                "anyOf": [
+                  {
+                    "maxLength": 500,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          },
+          "distance_m": {
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "origin",
+              "value"
+            ],
+            "properties": {
+              "origin": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "imported"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "derived"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "user_override"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "unavailable"
+                    ]
+                  }
+                ]
+              },
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          },
+          "duration_ms": {
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "origin",
+              "value"
+            ],
+            "properties": {
+              "origin": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "imported"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "derived"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "user_override"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "unavailable"
+                    ]
+                  }
+                ]
+              },
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          },
+          "max_height_m": {
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "origin",
+              "value"
+            ],
+            "properties": {
+              "origin": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "imported"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "derived"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "user_override"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "unavailable"
+                    ]
+                  }
+                ]
+              },
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          },
+          "max_horizontal_speed_mps": {
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "origin",
+              "value"
+            ],
+            "properties": {
+              "origin": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "imported"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "derived"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "user_override"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "unavailable"
+                    ]
+                  }
+                ]
+              },
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          },
+          "max_vertical_speed_mps": {
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "origin",
+              "value"
+            ],
+            "properties": {
+              "origin": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "imported"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "derived"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "user_override"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "unavailable"
+                    ]
+                  }
+                ]
+              },
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          },
+          "takeoff_time_utc": {
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "origin",
+              "value"
+            ],
+            "properties": {
+              "origin": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "imported"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "derived"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "user_override"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "unavailable"
+                    ]
+                  }
+                ]
+              },
+              "value": {
+                "anyOf": [
+                  {
+                    "maxLength": 500,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "title": "FlightFacts"
+      },
+      "def-21": {
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "sample_count",
+          "first_elapsed_ms",
+          "last_elapsed_ms"
+        ],
+        "properties": {
+          "sample_count": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "first_elapsed_ms": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_elapsed_ms": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "FlightTelemetrySummary"
+      },
+      "def-22": {
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "flight_id",
+          "state",
+          "assignment_status",
+          "source_kind",
+          "pilot_profile_id",
+          "proposed_pilot_profile_id",
+          "aircraft_id",
+          "takeoff_timezone",
+          "revision_number",
+          "capabilities",
+          "facts",
+          "telemetry"
+        ],
+        "properties": {
+          "flight_id": {
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+            "type": "string"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "active"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "awaiting_review"
+                ]
+              }
+            ]
+          },
+          "assignment_status": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "assigned"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "awaiting_pilot"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "awaiting_aircraft"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "ambiguous_aircraft"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "awaiting_time"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "awaiting_multiple"
+                ]
+              }
+            ]
+          },
+          "source_kind": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "imported"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "manual"
+                ]
+              }
+            ]
+          },
+          "pilot_profile_id": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "proposed_pilot_profile_id": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "aircraft_id": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "takeoff_timezone": {
+            "minLength": 1,
+            "maxLength": 100,
+            "type": "string"
+          },
+          "revision_number": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "capabilities": {
+            "maxItems": 32,
+            "uniqueItems": true,
+            "type": "array",
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "facts": {
+            "$ref": "#/components/schemas/def-20"
+          },
+          "telemetry": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/def-21"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "FlightSummary"
+      },
+      "def-23": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {
+          "mode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "default"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "full"
+                ]
+              }
+            ]
+          },
+          "cursor": {
+            "pattern": "^[A-Za-z0-9_-]{1,200}$",
+            "type": "string"
+          },
+          "limit": {
+            "minimum": 1,
+            "maximum": 2000,
+            "type": "integer"
+          }
+        },
+        "title": "FlightTrackQuery"
+      },
+      "def-24": {
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "sample_index",
+          "elapsed_ms",
+          "position",
+          "altitude_msl_m",
+          "height_agl_m",
+          "horizontal_speed_mps",
+          "vertical_speed_mps",
+          "battery_charge_percent",
+          "gps_satellites",
+          "gps_signal_level",
+          "signal_downlink_percent",
+          "signal_uplink_percent"
+        ],
+        "properties": {
+          "sample_index": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "elapsed_ms": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "position": {
+            "anyOf": [
+              {
+                "additionalProperties": false,
+                "type": "object",
+                "required": [
+                  "latitude_deg",
+                  "longitude_deg"
+                ],
+                "properties": {
+                  "latitude_deg": {
+                    "minimum": -90,
+                    "maximum": 90,
+                    "type": "number"
+                  },
+                  "longitude_deg": {
+                    "minimum": -180,
+                    "maximum": 180,
+                    "type": "number"
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "altitude_msl_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "height_agl_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "horizontal_speed_mps": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "vertical_speed_mps": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "battery_charge_percent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "gps_satellites": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "gps_signal_level": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "signal_downlink_percent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "signal_uplink_percent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "FlightTrackPoint"
+      },
+      "def-25": {
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "minimum",
+          "maximum"
+        ],
+        "properties": {
+          "minimum": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "maximum": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "FlightTelemetryRange"
+      },
+      "def-26": {
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "altitude_msl_m",
+          "battery_charge_percent",
+          "height_agl_m",
+          "horizontal_speed_mps",
+          "vertical_speed_mps"
+        ],
+        "properties": {
+          "altitude_msl_m": {
+            "$ref": "#/components/schemas/def-25"
+          },
+          "battery_charge_percent": {
+            "$ref": "#/components/schemas/def-25"
+          },
+          "height_agl_m": {
+            "$ref": "#/components/schemas/def-25"
+          },
+          "horizontal_speed_mps": {
+            "$ref": "#/components/schemas/def-25"
+          },
+          "vertical_speed_mps": {
+            "$ref": "#/components/schemas/def-25"
+          }
+        },
+        "title": "FlightTrackStatistics"
+      },
+      "def-27": {
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "flight_id",
+          "revision_number",
+          "mode",
+          "capabilities",
+          "source_sample_count",
+          "returned_sample_count",
+          "next_cursor",
+          "gap_transition_count",
+          "preserved_gap_transition_count",
+          "statistics",
+          "samples"
+        ],
+        "properties": {
+          "flight_id": {
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+            "type": "string"
+          },
+          "revision_number": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "mode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "default"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "full"
+                ]
+              }
+            ]
+          },
+          "capabilities": {
+            "maxItems": 32,
+            "uniqueItems": true,
+            "type": "array",
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "source_sample_count": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "returned_sample_count": {
+            "minimum": 0,
+            "maximum": 2000,
+            "type": "integer"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "gap_transition_count": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "preserved_gap_transition_count": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "statistics": {
+            "$ref": "#/components/schemas/def-26"
+          },
+          "samples": {
+            "maxItems": 2000,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/def-24"
+            }
+          }
+        },
+        "title": "FlightTrack"
       }
     }
   },
@@ -2904,6 +3963,559 @@
           },
           "5XX": {
             "description": "The import operation could not be completed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "instance",
+                    "correlation_id"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "minimum": 400,
+                      "maximum": 599,
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "correlation_id": {
+                      "type": "string"
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/def-0"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organizations/{organization_id}/flights/{flight_id}": {
+      "get": {
+        "operationId": "getFlightSummary",
+        "summary": "Get a flight summary",
+        "tags": [
+          "flights"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "type": "string"
+            },
+            "in": "path",
+            "name": "organization_id",
+            "required": true
+          },
+          {
+            "schema": {
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "type": "string"
+            },
+            "in": "path",
+            "name": "flight_id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The authorized current flight summary with public provenance origins.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "flight_id",
+                    "state",
+                    "assignment_status",
+                    "source_kind",
+                    "pilot_profile_id",
+                    "proposed_pilot_profile_id",
+                    "aircraft_id",
+                    "takeoff_timezone",
+                    "revision_number",
+                    "capabilities",
+                    "facts",
+                    "telemetry"
+                  ],
+                  "properties": {
+                    "flight_id": {
+                      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+                      "type": "string"
+                    },
+                    "state": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "active"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "awaiting_review"
+                          ]
+                        }
+                      ]
+                    },
+                    "assignment_status": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "assigned"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "awaiting_pilot"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "awaiting_aircraft"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "ambiguous_aircraft"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "awaiting_time"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "awaiting_multiple"
+                          ]
+                        }
+                      ]
+                    },
+                    "source_kind": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "imported"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "manual"
+                          ]
+                        }
+                      ]
+                    },
+                    "pilot_profile_id": {
+                      "anyOf": [
+                        {
+                          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "proposed_pilot_profile_id": {
+                      "anyOf": [
+                        {
+                          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "aircraft_id": {
+                      "anyOf": [
+                        {
+                          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "takeoff_timezone": {
+                      "minLength": 1,
+                      "maxLength": 100,
+                      "type": "string"
+                    },
+                    "revision_number": {
+                      "minimum": 1,
+                      "type": "integer"
+                    },
+                    "capabilities": {
+                      "maxItems": 32,
+                      "uniqueItems": true,
+                      "type": "array",
+                      "items": {
+                        "minLength": 1,
+                        "type": "string"
+                      }
+                    },
+                    "facts": {
+                      "$ref": "#/components/schemas/def-20"
+                    },
+                    "telemetry": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/def-21"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "The flight was denied or the request was invalid.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "instance",
+                    "correlation_id"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "minimum": 400,
+                      "maximum": 599,
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "correlation_id": {
+                      "type": "string"
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/def-0"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "The flight read could not be completed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "instance",
+                    "correlation_id"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "minimum": 400,
+                      "maximum": 599,
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "correlation_id": {
+                      "type": "string"
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/def-0"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organizations/{organization_id}/flights/{flight_id}/track": {
+      "get": {
+        "operationId": "getFlightTrack",
+        "summary": "Get a bounded flight track",
+        "tags": [
+          "flights"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "default"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "full"
+                  ]
+                }
+              ]
+            },
+            "in": "query",
+            "name": "mode",
+            "required": false
+          },
+          {
+            "schema": {
+              "pattern": "^[A-Za-z0-9_-]{1,200}$",
+              "type": "string"
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false
+          },
+          {
+            "schema": {
+              "minimum": 1,
+              "maximum": 2000,
+              "type": "integer"
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false
+          },
+          {
+            "schema": {
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "type": "string"
+            },
+            "in": "path",
+            "name": "organization_id",
+            "required": true
+          },
+          {
+            "schema": {
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "type": "string"
+            },
+            "in": "path",
+            "name": "flight_id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A checksum-verified bounded track from the current telemetry revision.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "flight_id",
+                    "revision_number",
+                    "mode",
+                    "capabilities",
+                    "source_sample_count",
+                    "returned_sample_count",
+                    "next_cursor",
+                    "gap_transition_count",
+                    "preserved_gap_transition_count",
+                    "statistics",
+                    "samples"
+                  ],
+                  "properties": {
+                    "flight_id": {
+                      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+                      "type": "string"
+                    },
+                    "revision_number": {
+                      "minimum": 1,
+                      "type": "integer"
+                    },
+                    "mode": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "default"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "full"
+                          ]
+                        }
+                      ]
+                    },
+                    "capabilities": {
+                      "maxItems": 32,
+                      "uniqueItems": true,
+                      "type": "array",
+                      "items": {
+                        "minLength": 1,
+                        "type": "string"
+                      }
+                    },
+                    "source_sample_count": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "returned_sample_count": {
+                      "minimum": 0,
+                      "maximum": 2000,
+                      "type": "integer"
+                    },
+                    "next_cursor": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "gap_transition_count": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "preserved_gap_transition_count": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "statistics": {
+                      "$ref": "#/components/schemas/def-26"
+                    },
+                    "samples": {
+                      "maxItems": 2000,
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/def-24"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "The flight was denied or the request was invalid.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "instance",
+                    "correlation_id"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "minimum": 400,
+                      "maximum": 599,
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "correlation_id": {
+                      "type": "string"
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/def-0"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "The flight read could not be completed.",
             "content": {
               "application/problem+json": {
                 "schema": {

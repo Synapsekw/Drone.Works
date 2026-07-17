@@ -60,6 +60,22 @@ export {
   type TelemetryObjectStore,
 } from './flight-normalization.js';
 export {
+  flightFactNames,
+  FlightReadRepository,
+  FlightTelemetryUnavailableError,
+  FlightTrackCursorError,
+  type FlightFactName,
+  type FlightFactOrigin,
+  type FlightFactSummary,
+  type FlightReadMetric,
+  type FlightReadMetricsSink,
+  type FlightSummary,
+  type FlightTelemetrySummary,
+  type FlightTrackRequest,
+  type FlightTrackResult,
+  type ReadableTelemetryObjectStore,
+} from './flight-read.js';
+export {
   IdempotencyConflictError,
   ImportCancellationConflictError,
   ImportProcessingRepository,

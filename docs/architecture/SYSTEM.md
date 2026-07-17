@@ -131,8 +131,11 @@ and [S3 version-deletion behavior](https://docs.aws.amazon.com/AmazonS3/latest/u
 5. The trusted worker validates the private intermediate, normalizes it,
    persists canonical/provenance rows, writes a versioned telemetry object, and
    commits processing state idempotently.
-6. The API returns summary data and short-lived, exact-version downloads only
-   after current authorization.
+6. The API rechecks current membership, reads the highest retained flight
+   revision, and returns a redacted effective-fact/capability summary. Track
+   replay derives the private object key server-side, reads the exact telemetry
+   version, verifies checksum/codec/metadata, and returns either at most 1,000
+   significant samples or revision-bound pages of at most 2,000.
 
 ## Explicit Phase 1A boundaries
 

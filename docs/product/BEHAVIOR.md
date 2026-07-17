@@ -2,7 +2,7 @@
 
 Status: founding draft
 Version: 1.0
-Last updated: 2026-07-16
+Last updated: 2026-07-17
 
 This document defines observable product behavior. Technology choices and internal implementation details belong in `DECISIONS.md`. Acceptance examples for the first release live in `PHASE-1-ACCEPTANCE.md`.
 
@@ -212,11 +212,28 @@ An imported identifier results in one of four visible outcomes:
 ### Flight detail and replay
 
 - A telemetry-capable flight shows a 2D track and a shared time cursor across the map and charts.
+- Every current organization member may read a non-deleted flight summary. The
+  summary comes from the highest retained revision number and exposes only
+  effective fact values with their public origin, current assignments,
+  capability names, and bounded telemetry counts/time bounds. It does not
+  expose source/parser provenance, checksums, codecs, object keys, object
+  versions, or internal revision identifiers.
 - Replay supports play, pause, seek, and selectable speed.
 - Essential Phase 1 charts are altitude, horizontal/vertical speed, battery state, GPS/satellite count, and signal when supplied by the source.
 - Every chart identifies unavailable intervals and source gaps.
 - Downsampling preserves the first and last samples and significant extrema needed to understand warnings and summary statistics.
-- Users can request the full available telemetry through an authorized API operation, subject to reasonable response limits.
+- The default Phase 1A track response contains at most 1,000 deterministic
+  samples and preserves endpoints, full-series material extrema, and explicit
+  availability transitions within that bound. Missing values remain `null`,
+  and fields outside the declared capabilities are not synthesized as zero.
+- Users can request the full available telemetry through the same authorized
+  API operation in deterministic cursor pages of at most 2,000 samples. A
+  cursor is bound to the visible revision number and is rejected after the
+  current revision changes.
+- Every track response reads the exact stored telemetry object version and
+  verifies its SHA-256 checksum, codec contract, sample count, capabilities,
+  and elapsed-time bounds before returning customer data. Missing or corrupt
+  objects fail with a redacted service error.
 
 ### Editing and deletion
 

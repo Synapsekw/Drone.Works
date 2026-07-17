@@ -22,6 +22,15 @@ import {
   idempotencyHeadersSchema,
   importPathSchema,
   importStatusSchema,
+  flightFactsSchema,
+  flightPathSchema,
+  flightSummarySchema,
+  flightTelemetryRangeSchema,
+  flightTelemetrySummarySchema,
+  flightTrackPointSchema,
+  flightTrackQuerySchema,
+  flightTrackSchema,
+  flightTrackStatisticsSchema,
   membershipListSchema,
   membershipPathSchema,
   membershipSchema,
@@ -37,6 +46,8 @@ import {
 } from '@drone-works/contracts/server';
 import type { ServiceEnvironment } from '@drone-works/config';
 import {
+  FlightTelemetryUnavailableError,
+  type FlightReadRepository,
   type ImportProcessingRepository,
   LastOwnerError,
   OrganizationAccessDeniedError,
@@ -51,6 +62,10 @@ import {
   UnavailableIdentitySource,
   type IdentitySource,
 } from './identity.js';
+import {
+  registerFlightRoutes,
+  type FlightRouteDependencies,
+} from './flight-routes.js';
 import {
   registerOrganizationRoutes,
   type OrganizationRouteDependencies,
@@ -71,6 +86,8 @@ export const documentedApiRoutes = new Set([
   'DELETE /api/v1/organizations/:organization_id/imports/:import_id',
   'DELETE /api/v1/organizations/:organization_id/memberships/:user_id',
   'GET /api/v1/health',
+  'GET /api/v1/organizations/:organization_id/flights/:flight_id',
+  'GET /api/v1/organizations/:organization_id/flights/:flight_id/track',
   'GET /api/v1/organizations/:organization_id/imports/:import_id',
   'GET /api/v1/organizations/:organization_id/memberships',
   'POST /api/v1/organizations',
@@ -151,8 +168,20 @@ const unavailableImports: ImportRouteDependencies['imports'] = {
   },
 };
 
+const unavailableFlights: FlightRouteDependencies['flights'] = {
+  async getSummary() {
+    throw new RawUploadServiceUnavailableError();
+  },
+  async getTrack() {
+    throw new RawUploadServiceUnavailableError();
+  },
+};
+
 const unavailableObjectStore: ImmutableObjectStore = {
   async deleteExact() {
+    throw new RawUploadServiceUnavailableError();
+  },
+  async getExact() {
     throw new RawUploadServiceUnavailableError();
   },
   async headExact() {
@@ -202,6 +231,7 @@ function problem(
 export interface BuildApiOptions {
   readonly environment?: ServiceEnvironment;
   readonly identitySource?: IdentitySource;
+  readonly flights?: Pick<FlightReadRepository, 'getSummary' | 'getTrack'>;
   readonly imports?: Pick<ImportProcessingRepository, 'cancel' | 'getStatus'>;
   readonly organizations?: OrganizationRouteDependencies['organizations'];
   readonly objectStore?: ImmutableObjectStore;
@@ -274,6 +304,15 @@ export async function buildApi(options: BuildApiOptions = {}) {
   app.addSchema(rawUploadSchema);
   app.addSchema(importPathSchema);
   app.addSchema(importStatusSchema);
+  app.addSchema(flightPathSchema);
+  app.addSchema(flightFactsSchema);
+  app.addSchema(flightTelemetrySummarySchema);
+  app.addSchema(flightSummarySchema);
+  app.addSchema(flightTrackQuerySchema);
+  app.addSchema(flightTrackPointSchema);
+  app.addSchema(flightTelemetryRangeSchema);
+  app.addSchema(flightTrackStatisticsSchema);
+  app.addSchema(flightTrackSchema);
 
   app.addHook('onSend', async (request, reply, payload) => {
     reply.header('x-correlation-id', request.id);
@@ -331,6 +370,10 @@ export async function buildApi(options: BuildApiOptions = {}) {
   registerImportRoutes(app, {
     identitySource,
     imports: options.imports ?? unavailableImports,
+  });
+  registerFlightRoutes(app, {
+    identitySource,
+    flights: options.flights ?? unavailableFlights,
   });
 
   if (identitySource instanceof GeneratedPersonaIdentitySource) {
@@ -428,9 +471,11 @@ export async function buildApi(options: BuildApiOptions = {}) {
             ? 'The organization must retain at least one owner.'
             : status >= 400 && status < 500
               ? fastifyError.message
-              : status === 503
-                ? 'The upload service is not configured.'
-                : 'The request could not be completed.';
+              : error instanceof FlightTelemetryUnavailableError
+                ? 'The flight telemetry is temporarily unavailable.'
+                : status === 503
+                  ? 'The requested service is temporarily unavailable.'
+                  : 'The request could not be completed.';
 
     return reply
       .code(status)

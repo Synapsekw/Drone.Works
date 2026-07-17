@@ -1,7 +1,7 @@
 # Phase 1 Acceptance Specification
 
 Status: founding draft
-Last updated: 2026-07-16
+Last updated: 2026-07-17
 
 These scenarios define the minimum observable behavior of the first useful Drone.Works release. They are implementation-neutral and should become automated acceptance tests where practical.
 
@@ -243,6 +243,19 @@ And no chart displays zero-valued telemetry as if it had been measured
 
 ## 7. Replay and downsampling
 
+### Scenario: Flight summary is current, authorized, and redacted
+
+```gherkin
+Given Alpha retains more than one revision for a flight
+And the current Alpha user has any Phase 1 organization role
+When the user requests the flight summary
+Then the highest retained revision supplies the effective facts and capabilities
+And each exposed fact identifies only its public imported, derived, override, or unavailable origin
+And no parser provenance, source digest, object key, object version, codec, or checksum is returned
+When a Beta-only or removed user requests the exact Alpha flight identifier
+Then the same not-found denial is returned without reading the telemetry object
+```
+
 ### Scenario: Map and charts share a cursor
 
 ```gherkin
@@ -260,6 +273,18 @@ When the default downsampled representation is produced
 Then the first and last samples are retained
 And the significant minimum and maximum remain represented
 And summary statistics agree with the full series
+```
+
+### Scenario: Full telemetry retrieval is exact and bounded
+
+```gherkin
+Given a current flight revision references one immutable telemetry object version
+When an authorized member requests full telemetry
+Then the exact object version is read and its checksum and versioned codec are verified
+And each page contains at most 2000 samples in stable source order
+And the opaque next cursor continues at the next sample for the same revision
+And a stale, malformed, or out-of-range cursor is rejected
+And a missing, corrupt, or metadata-inconsistent object returns a redacted service error
 ```
 
 ## 8. Corrections and reprocessing

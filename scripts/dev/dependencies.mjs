@@ -71,6 +71,25 @@ const objectServer = createServer(async (request, response) => {
     return;
   }
 
+  if (request.method === 'GET' && url.pathname.startsWith('/objects/')) {
+    const key = decodeURIComponent(url.pathname.slice('/objects/'.length));
+    const object = objects.get(key);
+    if (!object || url.searchParams.get('version_id') !== object.versionId) {
+      response.writeHead(404).end();
+      return;
+    }
+    response.writeHead(200, {
+      'content-type': object.mediaType,
+      'content-length': String(object.body.byteLength),
+      'x-byte-size': String(object.body.byteLength),
+      'x-content-sha256': object.digest,
+      'x-stored-media-type': object.mediaType,
+      'x-version-id': object.versionId,
+    });
+    response.end(object.body);
+    return;
+  }
+
   if (request.method === 'HEAD' && url.pathname.startsWith('/objects/')) {
     const key = decodeURIComponent(url.pathname.slice('/objects/'.length));
     const object = objects.get(key);

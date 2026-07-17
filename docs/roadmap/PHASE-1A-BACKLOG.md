@@ -422,6 +422,15 @@ telemetry/object failure alerts; no intermediate payload logging.
 
 ### A11 — Serve flight summary and bounded track replay
 
+**Status:** Complete (2026-07-17). Evidence: the generated OpenAPI contract,
+organization-authorized current-revision repository, exact-version loopback
+object read, checksum/codec/metadata verification, deterministic significant-v1
+selection, revision-bound full paging, private cache policy, and
+`pnpm test:flight-api` native PostgreSQL suite cover all four Alpha roles,
+Beta/removed exact-ID denial, endpoint/extrema/gap preservation, 2,000-sample
+page limits, corrupt-object redaction, payload-free metrics, and one-backend RLS
+context clearing. Provider-inclusive staging latency remains assigned to A15.
+
 **Outcome:** Every organization member can retrieve the created flight summary
 and a bounded 2D track representation through `/api/v1/`.
 

@@ -188,21 +188,26 @@ It excludes organization, source, import, attempt, revision, parser, provenance,
 
 Stored evidence includes the algorithm, fingerprint version, eligibility status, included match-field names, and missing requirements. Exact classification requires the same organization, version, digest, and explainable stable-identifier/timing evidence. Probable duplicate scoring remains a separate, review-only future proof.
 
-## Draft Phase 1A API resources
+## Phase 1A API resources
 
 All routes are versioned and organization-scoped; authorization is rechecked on every operation.
 
 | Method and resource | Purpose |
 |---|---|
-| `POST /v1/organizations/{organizationId}/import-batches` | Create upload intent and item records. |
-| `GET /v1/organizations/{organizationId}/import-batches/{batchId}` | Read batch and per-item progress/outcome. |
-| `GET /v1/organizations/{organizationId}/import-items/{itemId}` | Read parser, normalization, review, or failure evidence. |
-| `GET /v1/organizations/{organizationId}/flights/{flightId}` | Read effective facts, provenance summaries, assignments, and capabilities. |
-| `GET /v1/organizations/{organizationId}/flights/{flightId}/track` | Read authorized canonical track data with bounded resolution. |
-| `PATCH /v1/organizations/{organizationId}/flights/{flightId}/overrides/{field}` | Create or replace an audited field override. |
-| `DELETE /v1/organizations/{organizationId}/flights/{flightId}/overrides/{field}` | Remove the active override and reveal the current base value. |
+| `POST /api/v1/organizations/{organizationId}/import-batches` | Create upload intent and item records. |
+| `GET /api/v1/organizations/{organizationId}/import-batches/{batchId}` | Read batch and per-item progress/outcome. |
+| `GET /api/v1/organizations/{organizationId}/import-items/{itemId}` | Read parser, normalization, review, or failure evidence. |
+| `GET /api/v1/organizations/{organizationId}/flights/{flightId}` | Read effective facts, public origin summaries, assignments, capabilities, and bounded telemetry metadata from the current revision. |
+| `GET /api/v1/organizations/{organizationId}/flights/{flightId}/track` | Read the checksum-verified exact telemetry object as a significant default track or bounded full pages. |
+| `PATCH /api/v1/organizations/{organizationId}/flights/{flightId}/overrides/{field}` | Create or replace an audited field override. |
+| `DELETE /api/v1/organizations/{organizationId}/flights/{flightId}/overrides/{field}` | Remove the active override and reveal the current base value. |
 
-Private parser/intermediate structures are never returned by these resources. Public response schemas will be defined with the walking-skeleton API and must preserve the imported/derived/override distinction where the product exposes provenance.
+Private parser/intermediate structures are never returned by these resources.
+A11 defines the two flight-read schemas in the generated OpenAPI snapshot. They
+preserve the imported/derived/override/unavailable origin distinction while
+redacting source/parser provenance, storage identity, checksums, and internal
+revision IDs. The remaining draft resources keep the same constraint when
+their public schemas are implemented.
 
 ## Executable evidence and remaining work
 

@@ -1,4 +1,4 @@
-import { Type, type Static } from '@sinclair/typebox';
+import { Type, type Static, type TSchema } from '@sinclair/typebox';
 
 const uuidStringSchema = Type.String({
   pattern:
@@ -177,6 +177,171 @@ export const importStatusSchema = Type.Object(
   { $id: 'ImportStatus', additionalProperties: false },
 );
 
+export const flightPathSchema = Type.Object(
+  {
+    organization_id: uuidStringSchema,
+    flight_id: uuidStringSchema,
+  },
+  { $id: 'FlightPath', additionalProperties: false },
+);
+
+export const flightFactOriginSchema = Type.Union([
+  Type.Literal('imported'),
+  Type.Literal('derived'),
+  Type.Literal('user_override'),
+  Type.Literal('unavailable'),
+]);
+
+const nullableStringSchema = Type.Union([
+  Type.String({ maxLength: 500 }),
+  Type.Null(),
+]);
+const nullableNumberSchema = Type.Union([Type.Number(), Type.Null()]);
+const nullableIntegerSchema = Type.Union([
+  Type.Integer({ minimum: 0 }),
+  Type.Null(),
+]);
+
+function factSchema(value: TSchema) {
+  return Type.Object(
+    { origin: flightFactOriginSchema, value },
+    { additionalProperties: false },
+  );
+}
+
+export const flightFactsSchema = Type.Object(
+  {
+    aircraft_model: factSchema(nullableStringSchema),
+    aircraft_name: factSchema(nullableStringSchema),
+    application_platform: factSchema(nullableStringSchema),
+    application_version: factSchema(nullableStringSchema),
+    distance_m: factSchema(nullableNumberSchema),
+    duration_ms: factSchema(nullableNumberSchema),
+    max_height_m: factSchema(nullableNumberSchema),
+    max_horizontal_speed_mps: factSchema(nullableNumberSchema),
+    max_vertical_speed_mps: factSchema(nullableNumberSchema),
+    takeoff_time_utc: factSchema(nullableStringSchema),
+  },
+  { $id: 'FlightFacts', additionalProperties: false },
+);
+
+export const flightTelemetrySummarySchema = Type.Object(
+  {
+    sample_count: Type.Integer({ minimum: 0 }),
+    first_elapsed_ms: nullableIntegerSchema,
+    last_elapsed_ms: nullableIntegerSchema,
+  },
+  { $id: 'FlightTelemetrySummary', additionalProperties: false },
+);
+
+export const flightSummarySchema = Type.Object(
+  {
+    flight_id: uuidStringSchema,
+    state: Type.Union([
+      Type.Literal('active'),
+      Type.Literal('awaiting_review'),
+    ]),
+    assignment_status: Type.Union([
+      Type.Literal('assigned'),
+      Type.Literal('awaiting_pilot'),
+      Type.Literal('awaiting_aircraft'),
+      Type.Literal('ambiguous_aircraft'),
+      Type.Literal('awaiting_time'),
+      Type.Literal('awaiting_multiple'),
+    ]),
+    source_kind: Type.Union([Type.Literal('imported'), Type.Literal('manual')]),
+    pilot_profile_id: Type.Union([uuidStringSchema, Type.Null()]),
+    proposed_pilot_profile_id: Type.Union([uuidStringSchema, Type.Null()]),
+    aircraft_id: Type.Union([uuidStringSchema, Type.Null()]),
+    takeoff_timezone: Type.String({ minLength: 1, maxLength: 100 }),
+    revision_number: Type.Integer({ minimum: 1 }),
+    capabilities: Type.Array(Type.String({ minLength: 1 }), {
+      maxItems: 32,
+      uniqueItems: true,
+    }),
+    facts: Type.Ref(flightFactsSchema),
+    telemetry: Type.Union([
+      Type.Ref(flightTelemetrySummarySchema),
+      Type.Null(),
+    ]),
+  },
+  { $id: 'FlightSummary', additionalProperties: false },
+);
+
+export const flightTrackQuerySchema = Type.Object(
+  {
+    mode: Type.Optional(
+      Type.Union([Type.Literal('default'), Type.Literal('full')]),
+    ),
+    cursor: Type.Optional(Type.String({ pattern: '^[A-Za-z0-9_-]{1,200}$' })),
+    limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 2_000 })),
+  },
+  { $id: 'FlightTrackQuery', additionalProperties: false },
+);
+
+export const flightTrackPointSchema = Type.Object(
+  {
+    sample_index: Type.Integer({ minimum: 0 }),
+    elapsed_ms: nullableIntegerSchema,
+    position: Type.Union([
+      Type.Object(
+        {
+          latitude_deg: Type.Number({ minimum: -90, maximum: 90 }),
+          longitude_deg: Type.Number({ minimum: -180, maximum: 180 }),
+        },
+        { additionalProperties: false },
+      ),
+      Type.Null(),
+    ]),
+    altitude_msl_m: nullableNumberSchema,
+    height_agl_m: nullableNumberSchema,
+    horizontal_speed_mps: nullableNumberSchema,
+    vertical_speed_mps: nullableNumberSchema,
+    battery_charge_percent: nullableNumberSchema,
+    gps_satellites: nullableIntegerSchema,
+    gps_signal_level: nullableIntegerSchema,
+    signal_downlink_percent: nullableNumberSchema,
+    signal_uplink_percent: nullableNumberSchema,
+  },
+  { $id: 'FlightTrackPoint', additionalProperties: false },
+);
+
+export const flightTelemetryRangeSchema = Type.Object(
+  { minimum: nullableNumberSchema, maximum: nullableNumberSchema },
+  { $id: 'FlightTelemetryRange', additionalProperties: false },
+);
+
+export const flightTrackStatisticsSchema = Type.Object(
+  {
+    altitude_msl_m: Type.Ref(flightTelemetryRangeSchema),
+    battery_charge_percent: Type.Ref(flightTelemetryRangeSchema),
+    height_agl_m: Type.Ref(flightTelemetryRangeSchema),
+    horizontal_speed_mps: Type.Ref(flightTelemetryRangeSchema),
+    vertical_speed_mps: Type.Ref(flightTelemetryRangeSchema),
+  },
+  { $id: 'FlightTrackStatistics', additionalProperties: false },
+);
+
+export const flightTrackSchema = Type.Object(
+  {
+    flight_id: uuidStringSchema,
+    revision_number: Type.Integer({ minimum: 1 }),
+    mode: Type.Union([Type.Literal('default'), Type.Literal('full')]),
+    capabilities: Type.Array(Type.String({ minLength: 1 }), {
+      maxItems: 32,
+      uniqueItems: true,
+    }),
+    source_sample_count: Type.Integer({ minimum: 0 }),
+    returned_sample_count: Type.Integer({ minimum: 0, maximum: 2_000 }),
+    next_cursor: Type.Union([Type.String(), Type.Null()]),
+    gap_transition_count: Type.Integer({ minimum: 0 }),
+    preserved_gap_transition_count: Type.Integer({ minimum: 0 }),
+    statistics: Type.Ref(flightTrackStatisticsSchema),
+    samples: Type.Array(Type.Ref(flightTrackPointSchema), { maxItems: 2_000 }),
+  },
+  { $id: 'FlightTrack', additionalProperties: false },
+);
+
 export const problemErrorSchema = Type.Object(
   {
     pointer: Type.String(),
@@ -210,3 +375,5 @@ export type RawUploadPath = Static<typeof rawUploadPathSchema>;
 export type DeclareRawUploadBody = Static<typeof declareRawUploadBodySchema>;
 export type CompleteRawUploadBody = Static<typeof completeRawUploadBodySchema>;
 export type ImportPath = Static<typeof importPathSchema>;
+export type FlightPath = Static<typeof flightPathSchema>;
+export type FlightTrackQuery = Static<typeof flightTrackQuerySchema>;

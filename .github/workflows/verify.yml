@@ -43,3 +43,4 @@ jobs:
       - run: corepack pnpm test:authorization
       - run: corepack pnpm test:upload
       - run: corepack pnpm test:jobs
+      - run: corepack pnpm test:flight-api

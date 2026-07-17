@@ -176,6 +176,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/organizations/{organization_id}/flights/{flight_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a flight summary */
+        get: operations["getFlightSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organizations/{organization_id}/flights/{flight_id}/track": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a bounded flight track */
+        get: operations["getFlightTrack"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -298,6 +332,126 @@ export interface components {
             state: "uploaded" | "queued" | "detecting" | "parsing" | "normalizing" | "awaiting_review" | "completed" | "failed" | "cancelled" | "skipped_duplicate";
             /** Format: date-time */
             updated_at: string;
+        };
+        /** FlightPath */
+        "def-19": {
+            organization_id: string;
+            flight_id: string;
+        };
+        /** FlightFacts */
+        "def-20": {
+            aircraft_model: {
+                origin: "imported" | "derived" | "user_override" | "unavailable";
+                value: string | null;
+            };
+            aircraft_name: {
+                origin: "imported" | "derived" | "user_override" | "unavailable";
+                value: string | null;
+            };
+            application_platform: {
+                origin: "imported" | "derived" | "user_override" | "unavailable";
+                value: string | null;
+            };
+            application_version: {
+                origin: "imported" | "derived" | "user_override" | "unavailable";
+                value: string | null;
+            };
+            distance_m: {
+                origin: "imported" | "derived" | "user_override" | "unavailable";
+                value: number | null;
+            };
+            duration_ms: {
+                origin: "imported" | "derived" | "user_override" | "unavailable";
+                value: number | null;
+            };
+            max_height_m: {
+                origin: "imported" | "derived" | "user_override" | "unavailable";
+                value: number | null;
+            };
+            max_horizontal_speed_mps: {
+                origin: "imported" | "derived" | "user_override" | "unavailable";
+                value: number | null;
+            };
+            max_vertical_speed_mps: {
+                origin: "imported" | "derived" | "user_override" | "unavailable";
+                value: number | null;
+            };
+            takeoff_time_utc: {
+                origin: "imported" | "derived" | "user_override" | "unavailable";
+                value: string | null;
+            };
+        };
+        /** FlightTelemetrySummary */
+        "def-21": {
+            sample_count: number;
+            first_elapsed_ms: number | null;
+            last_elapsed_ms: number | null;
+        };
+        /** FlightSummary */
+        "def-22": {
+            flight_id: string;
+            state: "active" | "awaiting_review";
+            assignment_status: "assigned" | "awaiting_pilot" | "awaiting_aircraft" | "ambiguous_aircraft" | "awaiting_time" | "awaiting_multiple";
+            source_kind: "imported" | "manual";
+            pilot_profile_id: string | null;
+            proposed_pilot_profile_id: string | null;
+            aircraft_id: string | null;
+            takeoff_timezone: string;
+            revision_number: number;
+            capabilities: string[];
+            facts: components["schemas"]["def-20"];
+            telemetry: components["schemas"]["def-21"] | null;
+        };
+        /** FlightTrackQuery */
+        "def-23": {
+            mode?: "default" | "full";
+            cursor?: string;
+            limit?: number;
+        };
+        /** FlightTrackPoint */
+        "def-24": {
+            sample_index: number;
+            elapsed_ms: number | null;
+            position: {
+                latitude_deg: number;
+                longitude_deg: number;
+            } | null;
+            altitude_msl_m: number | null;
+            height_agl_m: number | null;
+            horizontal_speed_mps: number | null;
+            vertical_speed_mps: number | null;
+            battery_charge_percent: number | null;
+            gps_satellites: number | null;
+            gps_signal_level: number | null;
+            signal_downlink_percent: number | null;
+            signal_uplink_percent: number | null;
+        };
+        /** FlightTelemetryRange */
+        "def-25": {
+            minimum: number | null;
+            maximum: number | null;
+        };
+        /** FlightTrackStatistics */
+        "def-26": {
+            altitude_msl_m: components["schemas"]["def-25"];
+            battery_charge_percent: components["schemas"]["def-25"];
+            height_agl_m: components["schemas"]["def-25"];
+            horizontal_speed_mps: components["schemas"]["def-25"];
+            vertical_speed_mps: components["schemas"]["def-25"];
+        };
+        /** FlightTrack */
+        "def-27": {
+            flight_id: string;
+            revision_number: number;
+            mode: "default" | "full";
+            capabilities: string[];
+            source_sample_count: number;
+            returned_sample_count: number;
+            next_cursor: string | null;
+            gap_transition_count: number;
+            preserved_gap_transition_count: number;
+            statistics: components["schemas"]["def-26"];
+            samples: components["schemas"]["def-24"][];
         };
     };
     responses: never;
@@ -1064,6 +1218,149 @@ export interface operations {
                 };
             };
             /** @description The import operation could not be completed. */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        type: string;
+                        title: string;
+                        status: number;
+                        detail: string;
+                        instance: string;
+                        correlation_id: string;
+                        errors?: components["schemas"]["def-0"][];
+                    };
+                };
+            };
+        };
+    };
+    getFlightSummary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                organization_id: string;
+                flight_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The authorized current flight summary with public provenance origins. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        flight_id: string;
+                        state: "active" | "awaiting_review";
+                        assignment_status: "assigned" | "awaiting_pilot" | "awaiting_aircraft" | "ambiguous_aircraft" | "awaiting_time" | "awaiting_multiple";
+                        source_kind: "imported" | "manual";
+                        pilot_profile_id: string | null;
+                        proposed_pilot_profile_id: string | null;
+                        aircraft_id: string | null;
+                        takeoff_timezone: string;
+                        revision_number: number;
+                        capabilities: string[];
+                        facts: components["schemas"]["def-20"];
+                        telemetry: components["schemas"]["def-21"] | null;
+                    };
+                };
+            };
+            /** @description The flight was denied or the request was invalid. */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        type: string;
+                        title: string;
+                        status: number;
+                        detail: string;
+                        instance: string;
+                        correlation_id: string;
+                        errors?: components["schemas"]["def-0"][];
+                    };
+                };
+            };
+            /** @description The flight read could not be completed. */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        type: string;
+                        title: string;
+                        status: number;
+                        detail: string;
+                        instance: string;
+                        correlation_id: string;
+                        errors?: components["schemas"]["def-0"][];
+                    };
+                };
+            };
+        };
+    };
+    getFlightTrack: {
+        parameters: {
+            query?: {
+                mode?: "default" | "full";
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                organization_id: string;
+                flight_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A checksum-verified bounded track from the current telemetry revision. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        flight_id: string;
+                        revision_number: number;
+                        mode: "default" | "full";
+                        capabilities: string[];
+                        source_sample_count: number;
+                        returned_sample_count: number;
+                        next_cursor: string | null;
+                        gap_transition_count: number;
+                        preserved_gap_transition_count: number;
+                        statistics: components["schemas"]["def-26"];
+                        samples: components["schemas"]["def-24"][];
+                    };
+                };
+            };
+            /** @description The flight was denied or the request was invalid. */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        type: string;
+                        title: string;
+                        status: number;
+                        detail: string;
+                        instance: string;
+                        correlation_id: string;
+                        errors?: components["schemas"]["def-0"][];
+                    };
+                };
+            };
+            /** @description The flight read could not be completed. */
             "5XX": {
                 headers: {
                     [name: string]: unknown;

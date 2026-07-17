@@ -27,6 +27,7 @@ export class ObjectStoreVerificationError extends Error {
 
 export interface ImmutableObjectStore {
   deleteExact(key: string, versionId: string): Promise<void>;
+  getExact(key: string, versionId: string): Promise<Buffer | null>;
   headExact(key: string, versionId: string): Promise<ImmutableObject | null>;
   putIfAbsent(
     key: string,
@@ -118,6 +119,18 @@ export class LoopbackImmutableObjectStore implements ImmutableObjectStore {
     if (response.status === 404) return null;
     if (!response.ok) throw new Error('The object service HEAD failed.');
     return immutableObject(response);
+  }
+
+  async getExact(key: string, versionId: string): Promise<Buffer | null> {
+    const response = await fetch(objectUrl(this.#baseUrl, key, versionId));
+    if (response.status === 404) return null;
+    if (!response.ok) throw new Error('The object service exact read failed.');
+    const metadata = immutableObject(response);
+    const body = Buffer.from(await response.arrayBuffer());
+    if (metadata.versionId !== versionId || metadata.byteSize !== body.length) {
+      throw new Error('The object service exact read was inconsistent.');
+    }
+    return body;
   }
 
   async deleteExact(key: string, versionId: string): Promise<void> {

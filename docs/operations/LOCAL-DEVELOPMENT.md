@@ -79,8 +79,10 @@ record is generated and safe to delete.
 1. Start the generated local database and all loopback services:
 
    ```sh
-   corepack pnpm dev:up
+   corepack pnpm dev
    ```
+
+   `corepack pnpm dev:up` is the equivalent explicit lifecycle command.
 
    The final line prints the local web address. The port is chosen automatically
    so it does not collide with another project. Startup applies the same

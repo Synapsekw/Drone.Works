@@ -13,6 +13,7 @@
     "build": "corepack pnpm --recursive --sort --if-present run build",
     "contract:check": "node scripts/verify/contract-snapshot.mjs",
     "contract:generate": "corepack pnpm --filter @drone-works/contracts --filter @drone-works/database --parallel run build && node --import tsx apps/api/scripts/generate-openapi.ts && openapi-typescript packages/contracts/openapi/openapi.json -o packages/contracts/src/generated/openapi.ts",
+    "dev": "node scripts/dev/up.mjs",
     "dev:down": "node scripts/dev/down.mjs",
     "dev:up": "node scripts/dev/up.mjs",
     "format": "prettier --write apps packages scripts/dev scripts/verify .github/workflows/verify.yml eslint.config.mjs package.json pnpm-workspace.yaml tsconfig.base.json",

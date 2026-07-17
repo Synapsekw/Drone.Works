@@ -1,8 +1,8 @@
 # DJI parser evaluation
 
-Status: A09 narrow v14 path complete locally; final hosted promotion rerun pending
+Status: A09 narrow v14 path complete and hosted promotion green
 Candidate: pinned `dji-log-parser@0.5.7` behind a minimal Rust CLI
-Last updated: 2026-07-15
+Last updated: 2026-07-17
 
 ## Scope
 
@@ -30,7 +30,7 @@ provider use, and fixture processing for the narrow encrypted path. A09 therefor
 enables only the DJI Fly / DJI TXT v14 row in the public matrix. This is not a
 broad DJI support claim; other application/version combinations remain disabled.
 
-The local prefix/details probe is reproducible through [`../../spikes/dji-parser/`](../../spikes/dji-parser/). The newer DJI Fly fixture now has fresh sanitized request/response, native decode, deterministic private-intermediate, and canonical-normalization evidence. Hosted Linux evidence for the A09 CLI revision remains the final promotion check.
+The local prefix/details probe is reproducible through [`../../spikes/dji-parser/`](../../spikes/dji-parser/). The newer DJI Fly fixture now has fresh sanitized request/response, native decode, deterministic private-intermediate, canonical-normalization, and hosted Linux promotion evidence.
 
 A trusted keychain broker, encrypted cache, private parser/keychain IPC, disabled-by-default provider adapter, and explicit one-shot research runner are implemented. After explicit authorization, the real path fetched one validated keychain response from DJI and decoded only in fresh no-network children. The result contained no credential, request values, keys, IVs, coordinates, or unexpected worker fields.
 
@@ -236,7 +236,12 @@ passed strict target RustSec checks, and uploaded the reviewed evidence before
 stopping at the intentional old-digest comparison. The 1,164,872-byte Linux
 executable has SHA-256
 `7fa91c9b0d88dae687d1bc2e57275f0673a77dc3d1d2e346fb21266281321cec`;
-that exact digest is now pinned for the final promotion rerun.
+that exact digest is pinned in the production release manifest.
+
+[Hosted promotion run `29558470922`](https://github.com/Synapsekw/Drone.Works/actions/runs/29558470922)
+then passed the pinned release check, OCI build and contained execution/cleanup,
+evidence upload, and binary, SBOM, and image attestations. All four workflow jobs
+completed successfully, closing the A09 hosted parser gate.
 
 The repository workflow repeats the build twice for `x86_64-unknown-linux-gnu`, compares the entire output tree, denies target vulnerabilities and warnings, uploads the evidence, and requests GitHub binary-provenance and SBOM attestations on non-PR runs. [GitHub Actions run `29398131979`](https://github.com/Synapsekw/Drone.Works/actions/runs/29398131979) passed at commit `6be0f8a`: 78 of 78 build-output files were byte-identical, the 38-component Linux target graph had zero target vulnerabilities and zero target warnings, and the uploaded 591,415-byte evidence archive was retained as artifact `8336052110`. The 1,028,120-byte executable has SHA-256 `22ea490fb456b080fe50ea1bb25369be68fe318495cb55ed7652a32794ab689a`. Independent `gh attestation verify` checks bound both the [binary provenance attestation](https://github.com/Synapsekw/Drone.Works/attestations/35405520) and [CycloneDX SBOM attestation](https://github.com/Synapsekw/Drone.Works/attestations/35405526) to the exact repository workflow, source commit, and artifact digest.
 

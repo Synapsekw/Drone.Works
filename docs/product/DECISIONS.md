@@ -421,9 +421,10 @@ A newly approved DJI Fly v14 fixture produced one bounded request and response,
 decoded 5,049 samples in the rebuilt native child, reproduced the same private
 intermediate digest in two fresh operations, and produced one eligible canonical
 revision candidate. Ordinary output contained only sanitized structural and
-process evidence. Hosted Linux reproducibility and release-digest pinning remain
-the final A09 promotion check; no AWS resource is required or provisioned by this
-decision.
+process evidence. Hosted Linux run `29558470922` passed reproducibility, strict
+target audit, release-digest verification, OCI execution/cleanup, evidence
+upload, and binary, SBOM, and image attestations. A09 is complete; no AWS
+resource was required or provisioned by this decision.
 
 ## D-013 — Self-hosted authentication with an app-owned authorization boundary
 

@@ -341,11 +341,12 @@ containment alarms, and upgrade review.
 
 ### A09 — Pass the supported DJI/key enablement gate
 
-**Status:** Implementation and local evidence complete (2026-07-17); the
-reproducible hosted Linux digest from run `29558128064` is pinned and its final
-promotion rerun is pending. Path A is selected
-for the exact DJI Fly / DJI TXT v14 variant in
-[`SUPPORTED-FORMATS.md`](../product/SUPPORTED-FORMATS.md).
+**Status:** Complete (2026-07-17). Path A is selected for the exact DJI Fly /
+DJI TXT v14 variant in
+[`SUPPORTED-FORMATS.md`](../product/SUPPORTED-FORMATS.md). Hosted
+[parser evidence run `29558470922`](https://github.com/Synapsekw/Drone.Works/actions/runs/29558470922)
+and [repository verify run `29558470853`](https://github.com/Synapsekw/Drone.Works/actions/runs/29558470853)
+are green.
 
 **Outcome:** One legally usable Phase 1A DJI variant has an explicit production
 processing path, or the walking-skeleton release is declared blocked without a

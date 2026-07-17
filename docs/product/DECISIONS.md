@@ -262,17 +262,22 @@ Eleven host tests cover boundary revalidation, private-output destruction, poiso
 recovery, panic recovery, wall-time/output/OOM classification, exact-source and
 input limits, control deadlines, cleanup failure, and floating-image rejection.
 Two disposable native builds were byte-identical across 86 evidence files. The
-shipped 42-component target graph had zero RustSec vulnerabilities or warnings; four vulnerabilities
-and two warnings in non-target lockfile packages were excluded by exact SBOM
-membership. The pinned Linux artifact, SBOM/notices, distroless base, reviewed
-source inputs, OCI construction, runtime proof, and attestations are one CI
-promotion path.
+shipped 41-component Linux target graph had zero RustSec vulnerabilities or
+warnings; four vulnerabilities and two warnings in non-target lockfile packages
+were excluded by exact SBOM membership. The pinned Linux artifact,
+SBOM/notices, distroless base, reviewed source inputs, OCI construction, runtime
+proof, and attestations are one CI promotion path.
 
-This implementation was completed without Docker or a compatible OCI runtime
-on the development host and was not pushed. Therefore the new exact production
-image has not yet run in hosted Linux CI. A08 remains pending until that workflow
-passes; prior D-009 Linux evidence and host simulation do not substitute for the
-required combined production-image run.
+The hosted `DJI parser evidence` run on commit `f124740` passed all four jobs on
+2026-07-17. It reproduced and verified the exact Linux binary with SHA-256
+`492a5a3b57988e2216449800fc57ab1a6e8eca1657f409cc365020ea147fd718`,
+passed the target-only RustSec gate and retained Linux containment suite, built
+the pinned production image, proved production OCI execution and cleanup,
+published binary provenance, binary SBOM, and OCI attestations, and uploaded the
+release evidence. The complete hosted record is
+[run 29555481380](https://github.com/Synapsekw/Drone.Works/actions/runs/29555481380).
+A08 is complete; A09 remains the separate representative-fixture and DJI
+provider/key enablement gate.
 
 ### Reconsideration triggers
 

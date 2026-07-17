@@ -303,14 +303,14 @@ shutdown, alerts, and retry runbook.
 
 ### A08 — Package the native parser supervisor
 
-**Status:** Implementation complete locally (2026-07-17); the completion gate
-remains pending the required hosted Linux OCI run on this committed change. The
-production package, pinned release manifest, rootless image, strict private
-intermediate validator, sanitized supervisor, host suite, and promotion workflow
-are present. Docker-free local verification passed, including two identical
-native builds and the target-only RustSec gate. Do not mark A08 complete until
-the workflow builds and exercises the exact production image, publishes its
-attestations, and passes the retained Linux containment suite.
+**Status:** Complete (2026-07-17). Evidence: the production package, pinned
+release manifest, rootless image, strict private intermediate validator,
+sanitized supervisor, host suite, and promotion workflow pass the
+[hosted Linux gate](https://github.com/Synapsekw/Drone.Works/actions/runs/29555481380).
+That run built the exact native artifact twice, passed target-only RustSec and
+the retained Linux containment suite, exercised and cleaned up the exact
+production OCI image, published binary provenance/SBOM and OCI attestations, and
+uploaded the release evidence.
 
 **Outcome:** The worker runs one exact source in a fresh constrained Linux parser
 container and receives only a bounded versioned private intermediate or sanitized

@@ -24,6 +24,12 @@ Promotion records and deploys the resulting image digest, never a mutable tag.
 Pull requests may build and test candidates but do not publish release
 attestations. A locally built or host-simulated image is not promotable evidence.
 
+The first complete A08 promotion-path proof is
+[hosted run 29555481380](https://github.com/Synapsekw/Drone.Works/actions/runs/29555481380)
+on 2026-07-17. It covers the reproducible exact Linux binary, target-only
+RustSec policy, retained containment suite, production OCI execution and
+cleanup, binary provenance/SBOM and OCI attestations, and evidence upload.
+
 ## Runtime signals and alarms
 
 Allowed parser signals are outcome code, wall-time bucket, input/output byte

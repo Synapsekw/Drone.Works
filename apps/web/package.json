@@ -6,7 +6,7 @@
     "build": "node scripts/clean-build.mjs && next build",
     "dev": "next dev",
     "start": "next start",
-    "test:web": "node test/hosted-build.mjs && node test/local-build.mjs && playwright test",
+    "test:web": "corepack pnpm --filter @drone-works/contracts run build && node test/hosted-build.mjs && node test/local-build.mjs && playwright test",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

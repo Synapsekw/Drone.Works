@@ -1,12 +1,12 @@
 ---
 type: north-star
 status: active
-last-updated: 2026-07-17-0704
+last-updated: 2026-07-17-0824
 tags: [project/drone-works, north-star]
 related:
   - "[[project-history]]"
   - "[[memory]]"
-  - "[[2026-07-17-0704-a08-parser-supervisor]]"
+  - "[[2026-07-17-0824-local-dev-start-alias]]"
 ---
 
 # Drone.Works — North Star
@@ -32,9 +32,9 @@ Drone.Works is an explainable operational record for small professional drone te
 ## Now
 
 - **Phase:** Phase 1A implementation is active. A01–A07 are complete; A08 implementation is committed but its required hosted Linux promotion gate is pending. A09–A13a continue the functional path before A13b integrates verified authentication; AWS still begins only at A14.
-- **Branch:** implementation commit `81717ec` is local on `main`, which is fifty-four commits ahead of `origin/main` before this vault-only closeout commit; nothing was pushed. An unrelated `.obsidian/app.json` change remains unstaged and untouched.
-- **Completed evidence:** A08 adds a pinned native release/image manifest, content-addressed rootless no-network supervisor, exact-source and resource limits, strict one-use private intermediate validation, sanitized failure/cleanup handling, and a digest-only promotion/rollback path. A04–A07 membership, forced-RLS, immutable-source, and payload-free job boundaries remain unchanged.
-- **Verification baseline:** frozen install, `pnpm verify`, and build pass with eleven parser host and four API contract tests. Two exact native builds each passed six Rust tests and matched across 86 retained evidence files; the 42-component target graph has zero RustSec findings. The retained spike suite passed 68 tests with two sandbox-dependent skips. No Docker/OCI production run, push, private fixture, customer data, Better Auth, provider access, or AWS/RDS resource occurred.
+- **Branch:** local-start fix `2100b32` follows A08 implementation `81717ec` on local `main`, which is fifty-six commits ahead of `origin/main` before this vault-only closeout commit; nothing was pushed. An unrelated `.obsidian/app.json` change remains unstaged and untouched.
+- **Completed evidence:** A08 adds a pinned native release/image manifest, content-addressed rootless no-network supervisor, strict private validation, and digest-only promotion path. The generated local stack now also starts through the conventional `pnpm dev` alias while retaining explicit `dev:up`/`dev:down`; A04–A07 boundaries remain unchanged.
+- **Verification baseline:** `pnpm dev` and explicit `dev:up` each completed a full smoke cycle and clean shutdown against generated API, worker, dispatcher, loopback services, authorization, upload/dispatch, web, and PostgreSQL. `pnpm verify` passes with eleven parser host and four API contract tests. Earlier two-build, 86-file reproducibility, clean 42-component target audit, and 68-pass/two-skip spike evidence remain current. No Docker/OCI production run, push, private fixture, customer data, Better Auth, provider access, or AWS/RDS resource occurred.
 - **Blocking evidence:** A08 cannot be marked complete until the committed production image runs through hosted Linux containment, exact-digest, and attestation gates; no compatible local OCI runtime was available and pushing was out of scope. A09 production DJI gates remain external and disabled. A13b verified auth must pass before A14; A14–A15 still require AWS authority and live hosted-data evidence.
 - **Next technical action:** make `81717ec` available to the hosted Linux workflow, inspect every A08 job, and promote A08 only if the exact production OCI and retained containment/attestation gates pass. Then enter A09; do not start normalization, provider access, Better Auth, RDS, or AWS early.
 - **Next external decision:** A09 needs either qualified D-012 provider/key approval or an authorized supported unencrypted variant before the walking skeleton can claim parsing support. No AWS action is needed through A13b; before A14, confirm an operational approved region and account/spend authority.

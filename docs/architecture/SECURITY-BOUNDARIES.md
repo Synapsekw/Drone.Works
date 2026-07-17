@@ -1,7 +1,7 @@
 # Security boundaries
 
 Status: accepted Phase 0 baseline
-Last updated: 2026-07-16
+Last updated: 2026-07-17
 
 The abuse-case analysis and release gates are in
 [`../security/THREAT-MODEL.md`](../security/THREAT-MODEL.md) and
@@ -9,17 +9,36 @@ The abuse-case analysis and release gates are in
 
 ## Trust boundaries
 
-| Boundary | Trusted input crossing it | Forbidden input or capability | Enforcement |
-|---|---|---|---|
-| Browser → web/API | validated request plus a verified hosted session, or one server-resolved generated persona in local/test only | client-selected user/organization/role, object key, queue payload, database tenant context | D-015 environment/persona interlock or Better Auth session lookup, schemas, rate limits, app-derived identifiers |
-| Identity → authorization | generated local `userId`, or hosted `sessionId` and `userId` only | arbitrary browser user; provider active organization or role | D-015/D-013 identity adapters; canonical membership and RLS |
-| API/worker → PostgreSQL | transaction-local organization, bounded parameters | contextless customer query, owner/superuser/BYPASSRLS connection | non-owner roles, forced RLS, composite organization keys, organization-required repositories |
-| API/worker → S3 | derived key, exact version, checksum, bounded expiry | public ACL, client key, bucket listing, unsigned customer read | prefix-scoped IAM, Block Public Access, adapter, signed exact-version GET |
-| Queue → worker | version, organization ID, domain ID | telemetry, coordinates, source bytes, keychains, credentials | strict payload schema and RLS reload |
-| Worker → parser | one read-only source and bounded private keychain IPC | network, database, S3/IAM credentials, durable queue access | fresh rootless no-network container and resource limits |
-| Key broker → DJI | separately authorized bounded provider request | parser network, broad credentials, redirects, logged request/response bodies | disabled-by-default allowlist adapter and D-012 gates |
-| Application → telemetry/log provider | outcome, timing, opaque correlation IDs, aggregate counts | coordinates, telemetry, serials, names, object keys, auth/session tokens | structured allowlist and redaction tests |
-| Operator → production | federated, time-bound approved session | shared keys, standing admin, direct customer export | separate account, least privilege, SSM, CloudTrail, audited break-glass procedure |
+| Boundary                             | Trusted input crossing it                                                                                     | Forbidden input or capability                                                              | Enforcement                                                                                                      |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| Browser → web/API                    | validated request plus a verified hosted session, or one server-resolved generated persona in local/test only | client-selected user/organization/role, object key, queue payload, database tenant context | D-015 environment/persona interlock or Better Auth session lookup, schemas, rate limits, app-derived identifiers |
+| Identity → authorization             | generated local `userId`, or hosted `sessionId` and `userId` only                                             | arbitrary browser user; provider active organization or role                               | D-015/D-013 identity adapters; canonical membership and RLS                                                      |
+| API/worker → PostgreSQL              | transaction-local organization, bounded parameters                                                            | contextless customer query, owner/superuser/BYPASSRLS connection                           | non-owner roles, forced RLS, composite organization keys, organization-required repositories                     |
+| API/worker → S3                      | derived key, exact version, checksum, bounded expiry                                                          | public ACL, client key, bucket listing, unsigned customer read                             | prefix-scoped IAM, Block Public Access, adapter, signed exact-version GET                                        |
+| Queue → worker                       | version, organization ID, domain ID                                                                           | telemetry, coordinates, source bytes, keychains, credentials                               | strict payload schema and RLS reload                                                                             |
+| Worker → parser                      | one read-only source and bounded private keychain IPC                                                         | network, database, S3/IAM credentials, durable queue access                                | fresh rootless no-network container and resource limits                                                          |
+| Key broker → DJI                     | separately authorized bounded provider request                                                                | parser network, broad credentials, redirects, logged request/response bodies               | disabled-by-default allowlist adapter and D-012 gates                                                            |
+| Application → telemetry/log provider | outcome, timing, opaque correlation IDs, aggregate counts                                                     | coordinates, telemetry, serials, names, object keys, auth/session tokens                   | structured allowlist and redaction tests                                                                         |
+| Operator → production                | federated, time-bound approved session                                                                        | shared keys, standing admin, direct customer export                                        | separate account, least privilege, SSM, CloudTrail, audited break-glass procedure                                |
+
+## Parser execution boundary
+
+The worker may invoke only a content-addressed A08 parser image with an exact
+source path, byte count, and SHA-256. It rehashes the regular non-symlink source,
+caps it at 32 MiB, sends at most 256 KiB of private input over standard input,
+and retains at most 32 MiB of combined process output. The effective container
+configuration is inspected before execution; any network, privilege, writable
+root/source, unexpected mount, secret-like environment name, or weakened
+resource setting fails closed.
+
+Successful output must pass the exact private intermediate schema and source
+identity check before a one-use consumer can see it. The wrapper clears private
+input, captured stdout, and consumed object fields and removes the container on
+success or failure. Runtime control operations have their own hard deadlines,
+and failed forced removal becomes a sanitized cleanup failure. Public/job/log-safe
+failures contain only an allowlisted code and bounded process/resource metadata;
+stderr contents, source hashes, telemetry, coordinates, names, identifiers, and
+key material are excluded.
 
 ## Development identity boundary
 

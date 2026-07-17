@@ -3,17 +3,23 @@ name: DJI parser evidence
 on:
   pull_request:
     paths:
-      - ".github/workflows/dji-parser.yml"
-      - "spikes/dji-parser/**"
-      - "docs/research/DJI-PARSER-*.md"
+      - '.github/workflows/dji-parser.yml'
+      - 'packages/parser/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'spikes/dji-parser/**'
+      - 'docs/research/DJI-PARSER-*.md'
   push:
     branches: [main]
     paths:
-      - ".github/workflows/dji-parser.yml"
-      - "spikes/dji-parser/**"
-      - "docs/research/DJI-PARSER-*.md"
+      - '.github/workflows/dji-parser.yml'
+      - 'packages/parser/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'spikes/dji-parser/**'
+      - 'docs/research/DJI-PARSER-*.md'
   schedule:
-    - cron: "17 4 * * 1"
+    - cron: '17 4 * * 1'
   workflow_dispatch:
 
 permissions:
@@ -37,6 +43,12 @@ jobs:
         with:
           node-version: 24.18.0
           package-manager-cache: false
+      - name: Install the production workspace
+        working-directory: .
+        run: corepack pnpm install --frozen-lockfile
+      - name: Run the production parser host gate
+        working-directory: .
+        run: corepack pnpm test:parser:host
       - name: Install the pinned published parser without scripts
         run: npm ci --ignore-scripts
       - name: Run parser and containment-orchestration tests
@@ -55,6 +67,8 @@ jobs:
         with:
           node-version: 24.18.0
           package-manager-cache: false
+      - name: Install the production workspace
+        run: corepack pnpm install --frozen-lockfile
       - name: Build the disposable Linux proof image
         run: >-
           docker build
@@ -118,6 +132,8 @@ jobs:
         with:
           node-version: 24.18.0
           package-manager-cache: false
+      - name: Install the production workspace
+        run: corepack pnpm install --frozen-lockfile
       - name: Install the pinned native Rust toolchain
         run: |
           rustup toolchain install 1.96.1 --profile minimal --target x86_64-unknown-linux-gnu
@@ -141,6 +157,24 @@ jobs:
           /tmp/dji-native-out-1/sbom.cdx.json
           deny-warnings
           | tee /tmp/dji-native-out-1/rustsec-audit.json
+      - name: Verify the production parser release inputs and artifact
+        run: >-
+          node packages/parser/scripts/verify-release.mjs
+          /tmp/dji-native-out-1
+      - name: Build the pinned native parser OCI image
+        run: >-
+          docker build
+          --file packages/parser/oci/Containerfile
+          --tag droneworks/dji-parser:ci
+          /tmp/dji-native-out-1
+      - name: Prove production OCI execution and cleanup
+        env:
+          DRONEWORKS_PARSER_TEST_IMAGE: droneworks/dji-parser:ci
+        run: |
+          corepack pnpm --filter @drone-works/parser run build
+          node packages/parser/scripts/verify-oci.mjs
+      - name: Export the content-addressed parser OCI image
+        run: docker save --output /tmp/dji-parser-image.tar droneworks/dji-parser:ci
       - name: Attest the native Linux binary provenance
         if: github.event_name != 'pull_request'
         uses: actions/attest@v4
@@ -152,10 +186,17 @@ jobs:
         with:
           subject-path: /tmp/dji-native-out-1/droneworks-dji-parser-cli
           sbom-path: /tmp/dji-native-out-1/sbom.cdx.json
+      - name: Attest the native parser OCI image
+        if: github.event_name != 'pull_request'
+        uses: actions/attest@v4
+        with:
+          subject-path: /tmp/dji-parser-image.tar
       - name: Upload native Linux release evidence
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: dji-native-linux-evidence
-          path: /tmp/dji-native-out-1
+          path: |
+            /tmp/dji-native-out-1
+            /tmp/dji-parser-image.tar
           if-no-files-found: warn

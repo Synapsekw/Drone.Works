@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "parser": {
+    "id": "dji-log-parser",
+    "version": "0.5.7",
+    "source_commit": "e2e0775670a8391b4f7ecc40fca4cb01ea4a90fa"
+  },
+  "tools": {
+    "rust": "1.96.1",
+    "cargo_cyclonedx": "0.5.9"
+  },
+  "linux_artifact": {
+    "target": "x86_64-unknown-linux-gnu",
+    "sha256": "22ea490fb456b080fe50ea1bb25369be68fe318495cb55ed7652a32794ab689a",
+    "provenance_attestation": "https://github.com/Synapsekw/Drone.Works/attestations/35405520",
+    "sbom_attestation": "https://github.com/Synapsekw/Drone.Works/attestations/35405526"
+  },
+  "oci": {
+    "base": "gcr.io/distroless/cc-debian13:nonroot@sha256:d97bc0a941b8d4be647dc0ee75b264ddbb772f1ac5ba690a4309c00723b23775",
+    "entrypoint": "/usr/local/bin/droneworks-dji-parser-cli",
+    "user": "65532:65532"
+  },
+  "reviewed_inputs": [
+    {
+      "path": "spikes/dji-parser/internal-build/source.json",
+      "sha256": "dc3d8be9d8cc1829808b070fc5947d5ace7497d3d8c528c10088a7b48cf3437d"
+    },
+    {
+      "path": "spikes/dji-parser/native-cli/Cargo.toml",
+      "sha256": "7a5bf412a6b22b277e0842a36fe5415424f03162a5efd433cd9397f1b9eed9f4"
+    },
+    {
+      "path": "spikes/dji-parser/native-cli/build.mjs",
+      "sha256": "e7e0a2cc15e20f3a5ce02b5a88fba5d807d471f4d9287510b4b7da52f46d0aff"
+    },
+    {
+      "path": "spikes/dji-parser/native-cli/keychain-api.rs",
+      "sha256": "8a87ed5abd644f2f64a3324b400d1c24231d2fd97866af05cd1dc9654ee0fe97"
+    },
+    {
+      "path": "spikes/dji-parser/native-cli/intermediate.schema.json",
+      "sha256": "0f2f39ccb1131e1e3700c7239a4b7850e224c28707c31bca6e3084007602b724"
+    },
+    {
+      "path": "spikes/dji-parser/native-cli/decoder-hardening.patch",
+      "sha256": "9ac660d3747e232f91662c2369ccf6cbbdae53711c4da9625ea75475cfcd6fdd"
+    },
+    {
+      "path": "spikes/dji-parser/native-cli/src/main.rs",
+      "sha256": "6f8972957fafc2254180cbdfdd95116244fb8c4219cbbbcaebdb3c17eefb72a7"
+    }
+  ]
+}

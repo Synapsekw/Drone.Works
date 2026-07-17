@@ -1,7 +1,7 @@
 # Local development without Docker
 
 Status: accepted Phase 1A foundation
-Last updated: 2026-07-16
+Last updated: 2026-07-17
 
 This workflow runs only on your Mac. It does not create anything in AWS, ask for
 cloud credentials, use Docker, send real email, or load customer data. The seed
@@ -62,6 +62,17 @@ record is generated and safe to delete.
    This creates a temporary socket-only PostgreSQL cluster, runs generated
    Alpha/Beta isolation tests, and removes the cluster. It does not use your
    Homebrew service database.
+
+7. Verify the production parser host boundary without Docker:
+
+   ```sh
+   corepack pnpm test:parser:host
+   ```
+
+   This builds the parser supervisor, runs generated boundary/failure/private
+   intermediate tests, and verifies the pinned release inputs. It does not run
+   an OCI container. The exact production image and retained hard-containment
+   suite run only in hosted Linux CI; a local pass cannot promote an image.
 
 ## Start and check the local application
 

@@ -1,7 +1,7 @@
 # Phase 1A system architecture
 
 Status: accepted Phase 0 baseline
-Last updated: 2026-07-16
+Last updated: 2026-07-17
 
 ## System shape
 
@@ -76,6 +76,11 @@ is deferred.
   read-only inputs, bounded temporary storage, dropped capabilities,
   `no-new-privileges`, and CPU/memory/PID/time/output limits. It receives no host
   IAM credential or database socket.
+- The A08 supervisor accepts only a content-addressed parser image and one exact
+  source identity, revalidates the effective OCI configuration before start,
+  and returns either a one-use private version-1 intermediate or a sanitized
+  failure. It never returns stderr text or source identity. The current source
+  ceiling is the same 32 MiB bound enforced at A06 upload.
 - RDS PostgreSQL is private, encrypted, Single-AZ for beta, and sized from load
   evidence. Multi-AZ becomes mandatory before an uptime commitment or when a
   single-AZ recovery drill cannot meet the four-hour RTO.
@@ -106,7 +111,7 @@ and [S3 version-deletion behavior](https://docs.aws.amazon.com/AmazonS3/latest/u
 | pg-boss/outbox        | Engineering                               | stuck/duplicate/abandoned job                                  | Job payload/version and handler boundaries permit another queue; domain handlers remain idempotent.                     |
 | Better Auth           | Engineering                               | login outage, security advisory, migration error               | Identity adapter exposes only user/session IDs; export auth rows and replace the provider without changing memberships. |
 | S3                    | Engineering; AWS manages durability       | denied request, throttling, region outage, incomplete deletion | Object keys, checksums, version IDs, and adapter contract map to another S3-compatible store.                           |
-| Parser                | Engineering                               | malformed input, resource exhaustion, unsupported version      | Replace the CLI behind the versioned intermediate contract.                                                             |
+| Parser                | Engineering                               | malformed input, resource exhaustion, unsupported version      | Replace the digest-pinned CLI behind the versioned intermediate contract and rerun the release/containment gate.        |
 | CloudWatch            | Engineering                               | missing/delayed telemetry or excess log cost                   | OpenTelemetry-compatible application signals and structured JSON can move to another backend.                           |
 | Email and map tiles   | Engineering                               | provider outage or quota                                       | Application-owned adapters; providers remain Phase 1A procurement tasks.                                                |
 

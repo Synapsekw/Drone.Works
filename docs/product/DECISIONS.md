@@ -238,6 +238,42 @@ For v13+ logs, the native wrapper returns `truncated_records` only when the term
 
 The JS/WASM binding remains useful as a research comparator; it is not the production parser runtime. The native build must retain pinned-source verification, target-specific SBOM/notices, advisory checks, artifact attestation, and the Linux containment proof in CI.
 
+### Phase 1A A08 implementation evidence — 2026-07-17
+
+The production parser package now requires a content-addressed image and one
+exact source identity, independently rehashes the source, and rejects sources
+above the existing 32 MiB Phase 1A upload boundary. Each invocation creates a
+fresh numeric-user container with no network, a read-only root filesystem and
+source mount, all capabilities dropped, `no-new-privileges`, and explicit CPU,
+memory/swap, PID, temporary-filesystem, wall-time, private-input, and total-output
+limits. The supervisor inspects that effective boundary before start and always
+removes the container.
+
+Only the exact version-1 private intermediate is accepted. It must match the
+source digest and size, parser identity, structural field allowlists, bounded
+coordinates and percentages, monotonic time, declared sample counts, and
+capabilities. Private input, captured process output, and consumed intermediate
+objects are cleared; ordinary return values contain only structural counts,
+content digests, resource summaries, and allowlisted failure codes. Stderr text,
+source identity, telemetry, identifiers, keychains, credentials, and arbitrary
+parser fields are never returned.
+
+Eleven host tests cover boundary revalidation, private-output destruction, poison
+recovery, panic recovery, wall-time/output/OOM classification, exact-source and
+input limits, control deadlines, cleanup failure, and floating-image rejection.
+Two disposable native builds were byte-identical across 86 evidence files. The
+shipped 42-component target graph had zero RustSec vulnerabilities or warnings; four vulnerabilities
+and two warnings in non-target lockfile packages were excluded by exact SBOM
+membership. The pinned Linux artifact, SBOM/notices, distroless base, reviewed
+source inputs, OCI construction, runtime proof, and attestations are one CI
+promotion path.
+
+This implementation was completed without Docker or a compatible OCI runtime
+on the development host and was not pushed. Therefore the new exact production
+image has not yet run in hosted Linux CI. A08 remains pending until that workflow
+passes; prior D-009 Linux evidence and host simulation do not substitute for the
+required combined production-image run.
+
 ### Reconsideration triggers
 
 - The combined envelope, decoded-prefix, and duration rule does not generalize across representative supported fixtures.

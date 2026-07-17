@@ -14,6 +14,7 @@ const requiredPackages = [
   'packages/database',
   'packages/domain',
   'packages/jobs',
+  'packages/parser',
   'packages/telemetry',
   'packages/testing',
 ];

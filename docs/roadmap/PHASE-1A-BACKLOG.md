@@ -303,6 +303,15 @@ shutdown, alerts, and retry runbook.
 
 ### A08 — Package the native parser supervisor
 
+**Status:** Implementation complete locally (2026-07-17); the completion gate
+remains pending the required hosted Linux OCI run on this committed change. The
+production package, pinned release manifest, rootless image, strict private
+intermediate validator, sanitized supervisor, host suite, and promotion workflow
+are present. Docker-free local verification passed, including two identical
+native builds and the target-only RustSec gate. Do not mark A08 complete until
+the workflow builds and exercises the exact production image, publishes its
+attestations, and passes the retained Linux containment suite.
+
 **Outcome:** The worker runs one exact source in a fresh constrained Linux parser
 container and receives only a bounded versioned private intermediate or sanitized
 failure.

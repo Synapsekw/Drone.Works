@@ -1,12 +1,12 @@
 ---
 type: north-star
 status: active
-last-updated: 2026-07-16-2326
+last-updated: 2026-07-17-0704
 tags: [project/drone-works, north-star]
 related:
   - "[[project-history]]"
   - "[[memory]]"
-  - "[[2026-07-16-2326-a07-atomic-dispatch]]"
+  - "[[2026-07-17-0704-a08-parser-supervisor]]"
 ---
 
 # Drone.Works — North Star
@@ -24,20 +24,20 @@ Drone.Works is an explainable operational record for small professional drone te
 | Increment | State | Current outcome |
 |---|---|---|
 | Phase 0 — Technical discovery | Complete | Accepted evidence/decisions, safe external gates, threat model, and implementation-ready backlog. |
-| Phase 1A — Walking skeleton | In progress | A01–A07 foundation, forced-RLS authorization, immutable upload, and atomic durable dispatch complete; A08 parser supervision is next. |
+| Phase 1A — Walking skeleton | In progress | A01–A07 complete; A08 parser supervision is implemented and committed, with its required hosted Linux production-image gate pending. |
 | Phase 1B — Trustworthy imports | Planned | Explain every batch outcome and reconcile uncertainty without silent loss. |
 | Phase 1C — Operational logbook | Planned | Daily flight, fleet, replay, correction, search, and export workflow. |
 | Phase 1D — Maintenance and hardening | Planned | Basic maintenance plus deletion, recovery, security, and operations gates. |
 
 ## Now
 
-- **Phase:** Phase 1A implementation is active. A01–A07 are complete. A08–A13a continue the functional local application before A13b integrates verified authentication; AWS still begins only at A14.
-- **Branch:** implementation commit `e323348` is local on `main`, which is fifty-two commits ahead of `origin/main` before this vault-only closeout commit; nothing was pushed. An unrelated `.obsidian/app.json` change remains unstaged and untouched.
-- **Completed evidence:** A07 atomically couples A06 completion to one payload-free outbox reference, leases it through a narrow dispatcher, derives a stable pg-boss ID, validates the private job before an ordinary forced-RLS reload, and exposes authorized status plus safe pending cancellation. A04 pooled isolation and A05 app-owned authorization remain active.
-- **Verification baseline:** `pnpm verify`, contract drift, and build pass with four API tests; six A07 jobs tests prove rollback, post-send deduplication, worker/lease recovery, cancellation, redacted metrics, tenant swap, and pooled clearing. Six-test A04/A05/A06 regressions pass, and one integrated local runtime cycle proved durable dispatch and clean shutdown. No Docker, parser, Better Auth, AWS credential/resource, customer data, or private fixture was used.
-- **Blocking evidence:** A08 has no current external-provider blocker. A09 production DJI gates remain external and disabled. A13b verified auth must pass before A14; A14–A15 still require AWS account/spend authority and live hosted-data evidence.
-- **Next technical action:** implement A08's exact native parser supervisor behind the strict A07 worker boundary while preserving immutable exact-version input, forced-RLS reload, resource containment, and payload redaction. Do not enable DJI provider access, normalization, Better Auth, RDS, or AWS.
-- **Next external decision:** no AWS action is needed while building through A13b. Before A14, confirm an operational approved region and account/spend authority; Frankfurt is synthetic-only while UAE is not operationally suitable, and customer residency remains an explicit gate.
+- **Phase:** Phase 1A implementation is active. A01–A07 are complete; A08 implementation is committed but its required hosted Linux promotion gate is pending. A09–A13a continue the functional path before A13b integrates verified authentication; AWS still begins only at A14.
+- **Branch:** implementation commit `81717ec` is local on `main`, which is fifty-four commits ahead of `origin/main` before this vault-only closeout commit; nothing was pushed. An unrelated `.obsidian/app.json` change remains unstaged and untouched.
+- **Completed evidence:** A08 adds a pinned native release/image manifest, content-addressed rootless no-network supervisor, exact-source and resource limits, strict one-use private intermediate validation, sanitized failure/cleanup handling, and a digest-only promotion/rollback path. A04–A07 membership, forced-RLS, immutable-source, and payload-free job boundaries remain unchanged.
+- **Verification baseline:** frozen install, `pnpm verify`, and build pass with eleven parser host and four API contract tests. Two exact native builds each passed six Rust tests and matched across 86 retained evidence files; the 42-component target graph has zero RustSec findings. The retained spike suite passed 68 tests with two sandbox-dependent skips. No Docker/OCI production run, push, private fixture, customer data, Better Auth, provider access, or AWS/RDS resource occurred.
+- **Blocking evidence:** A08 cannot be marked complete until the committed production image runs through hosted Linux containment, exact-digest, and attestation gates; no compatible local OCI runtime was available and pushing was out of scope. A09 production DJI gates remain external and disabled. A13b verified auth must pass before A14; A14–A15 still require AWS authority and live hosted-data evidence.
+- **Next technical action:** make `81717ec` available to the hosted Linux workflow, inspect every A08 job, and promote A08 only if the exact production OCI and retained containment/attestation gates pass. Then enter A09; do not start normalization, provider access, Better Auth, RDS, or AWS early.
+- **Next external decision:** A09 needs either qualified D-012 provider/key approval or an authorized supported unencrypted variant before the walking skeleton can claim parsing support. No AWS action is needed through A13b; before A14, confirm an operational approved region and account/spend authority.
 - **Parallel follow-up:** when cloud help becomes necessary, provide the first-time account owner one step at a time with purpose, cost/security effect, verification, and safe stop/rollback; never request secret values.
 - **Privacy:** raw fixtures remain ignored and local. No raw values, coordinates, identifiers, keychain feature points, credentials, or generated parser artifacts belong in this vault.
 

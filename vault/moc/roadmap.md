@@ -29,16 +29,17 @@ Phase 0 complete
   -> A08 parser supervisor (complete)
   -> A09 supported DJI/key gate (complete)
   -> A10 normalize and persist (complete)
-  -> A11 flight summary and bounded replay
-  -> A12 web vertical path
+  -> A11 flight summary and bounded replay (complete)
+  -> A12 web vertical path (complete)
   -> A13a functional local application
   -> A13b verified auth and repeated end-to-end path
   -> A14 AWS staging
   -> continue the ordered Phase 1A vertical path
 ```
 
-Resume at A11 over A10's organization-owned current revision and exact telemetry
-object. Add only the authorized summary and bounded replay contract, preserve
-null/gap and provenance semantics, and keep object identities private. Better
-Auth waits for A13b and RDS waits for A14; keep A14–A15 fail-closed until their
-external authority and evidence pass.
+Resume at A13a by connecting the production parser and normalizer worker to the
+passing A12 browser path, then prove the functional local application across
+supported, corrupt, duplicate, retry, deletion, and privacy cases. Preserve the
+generated `/api/v1/` boundary, forced RLS, provider-free replay, and fixture
+privacy. Better Auth waits for A13b and RDS waits for A14; keep A14–A15
+fail-closed until their external authority and evidence pass.

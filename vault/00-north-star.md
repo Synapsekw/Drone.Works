@@ -1,12 +1,12 @@
 ---
 type: north-star
 status: active
-last-updated: 2026-07-17-1203
+last-updated: 2026-07-17-1448
 tags: [project/drone-works, north-star]
 related:
   - "[[project-history]]"
   - "[[memory]]"
-  - "[[2026-07-17-1203-hosted-a10-evidence]]"
+  - "[[2026-07-17-1448-a11-flight-api-gate]]"
 ---
 
 # Drone.Works — North Star
@@ -24,19 +24,19 @@ Drone.Works is an explainable operational record for small professional drone te
 | Increment | State | Current outcome |
 |---|---|---|
 | Phase 0 — Technical discovery | Complete | Accepted evidence/decisions, safe external gates, threat model, and implementation-ready backlog. |
-| Phase 1A — Walking skeleton | In progress | A01–A10 complete; one supported DJI Fly/TXT v14 result now persists idempotently and A11 flight APIs are next. |
+| Phase 1A — Walking skeleton | In progress | A01–A11 complete; the supported DJI Fly/TXT v14 flight now has an authorized redacted summary and bounded 2D replay API, with A12 web next. |
 | Phase 1B — Trustworthy imports | Planned | Explain every batch outcome and reconcile uncertainty without silent loss. |
 | Phase 1C — Operational logbook | Planned | Daily flight, fleet, replay, correction, search, and export workflow. |
 | Phase 1D — Maintenance and hardening | Planned | Basic maintenance plus deletion, recovery, security, and operations gates. |
 
 ## Now
 
-- **Phase:** Phase 1A implementation is active. A01–A10 are complete. A11 flight APIs, A12 web, and A13a functional local completion follow; A13b then integrates verified authentication, and AWS still begins only at A14.
-- **Branch:** `main` is synchronized with `origin/main` through A10 vault closeout commit `17f1bbc` before this hosted-evidence wrap-up. The unrelated `.obsidian/app.json` change and two untracked `index 2.ts` copies remain unstaged and untouched.
-- **Completed evidence:** The narrow supported v14 path now validates its private intermediate again, persists one provenance-aware canonical revision and deterministic checksummed telemetry object, creates or matches aircraft only from stable organization-scoped evidence, retains the uploader as a pilot proposal, and skips exact source/normalized duplicates without a second flight. Forced RLS and pooled isolation remain active.
-- **Verification baseline:** Local `pnpm verify` and `pnpm build` pass. A10 has six native normalization/queue tests, the reviewed database has seven, upload has seven, authorization and jobs have six each, and the production parser has 20. Branch-tip hosted verify run `29564777791` passed workspace and native PostgreSQL gates; parser-evidence run `29564633726` passed all four jobs after an unchanged Linux-containment retry.
-- **Blocking evidence:** A11 has no external blocker. A13b verified auth must still pass before A14; A14–A15 require AWS authority, hosted secret/KMS deployment, and live hosted-data evidence.
-- **Next technical action:** implement A11's organization-authorized flight summary and bounded track replay over A10's current revision and exact telemetry object, with checksum, null/gap, redaction, pagination/downsampling, and Alpha/Beta tests.
+- **Phase:** Phase 1A implementation is active. A01–A11 are complete. A12 web and A13a functional local completion follow; A13b then integrates verified authentication, and AWS still begins only at A14.
+- **Branch:** `main` is synchronized with `origin/main` through A11 implementation commit `2b0959d` before this vault closeout. The unrelated `.obsidian/app.json` change and two untracked `index 2.ts` copies remain unstaged and untouched.
+- **Completed evidence:** Every current organization role can read the highest retained non-deleted flight revision through the generated v1 summary contract. Track replay derives private storage identity server-side, verifies the exact telemetry version and checksum/metadata, returns a deterministic 1,000-sample significant representation or revision-bound 2,000-sample pages, and keeps nulls/gaps, storage metadata, and private provenance truthful and redacted. Forced RLS and pooled isolation remain active.
+- **Verification baseline:** Local `pnpm verify`, `pnpm build`, contract snapshot, and all native suites pass. A11 has six flight-API tests; normalization and jobs have six each, database and upload seven each, authorization six, and the production parser 20. Branch-tip hosted verify run `29574692496` passed workspace/build and all native PostgreSQL gates including A11; parser-evidence run `29574692423` also passed.
+- **Blocking evidence:** A12 has no external blocker. A13b verified auth must still pass before A14; A14–A15 require AWS authority, hosted secret/KMS deployment, and live hosted-data evidence.
+- **Next technical action:** implement A12's generated-persona web vertical path for organization entry, one-file upload/status, the A11 flight summary, and capability-aware 2D MapLibre replay without leaking coordinates to tile/style providers.
 - **Next external decision:** No external decision is needed through A13b. Before A14, confirm an operational approved region and account/spend authority; hosted provider credentials and managed-key activation remain off until their deployment gates pass.
 - **Parallel follow-up:** when cloud help becomes necessary, provide the first-time account owner one step at a time with purpose, cost/security effect, verification, and safe stop/rollback; never request secret values.
 - **Privacy:** raw fixtures remain ignored and local. No raw values, coordinates, identifiers, keychain feature points, credentials, or generated parser artifacts belong in this vault.
@@ -50,7 +50,7 @@ Drone.Works is an explainable operational record for small professional drone te
 | P0-03 parser/key feasibility | Complete for narrow Phase 1A path | D-009/D-012, the native containerized parser, trusted broker, encrypted scoped cache, exact provider interlocks, and the DJI Fly/TXT v14 support row pass; broader variants remain gated. |
 | P0-04 canonical model | Complete; initial production slice | A10 promotes the one-flight canonical-v1 adapter, provenance envelopes, stable aircraft evidence, assignment review, exact-normalized fingerprint, and idempotent relational revision into the production packages. |
 | P0-05 organization isolation | Complete for Phase 0 | Twenty-three-table forced RLS, pooled context, API/jobs/exports/deletion, auth-claim rejection, object version purge, and backup/log/emergency boundaries support accepted D-002; live AWS conformance and restore are safe Phase 1A hosted-data gates. |
-| P0-06 telemetry benchmark | Complete; initial codec selected | D-008's benchmark passes; A10 adds deterministic null-preserving columnar-gzip version 1 with checksum and PostgreSQL metadata. A11 still owns bounded replay/downsampling. |
+| P0-06 telemetry benchmark | Complete; initial codec and replay selected | D-008's benchmark passes; A10 adds deterministic null-preserving columnar-gzip version 1, and A11 adds exact-object verification, significant-v1 replay, bounded full pages, and payload-free metrics. Hosted provider-inclusive latency remains an A15 gate. |
 | P0-07 runtime/deployment selection | Complete | D-011/D-013/D-014 accept the modular TypeScript stack, Better Auth boundary, outbox/pg-boss, S3 lifecycle, AWS UAE environments, recovery/rollback, observability, and cost envelope. |
 | P0-08 threat model | Complete | Sensitive-data inventory, privacy flow, 17 critical/high abuse cases, engineering/legal separation, owners, controls, and objective Phase 1A security gates are recorded. |
 | P0-09 Phase 1A backlog | Complete; revised | The original sixteen issues passed Phase 0; D-015 now splits A13 into functional-local and verified-auth gates, yielding seventeen reviewable tasks with updated risk and dependencies. |

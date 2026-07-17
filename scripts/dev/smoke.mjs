@@ -124,7 +124,9 @@ const importStatus = await importStatusResponse.json();
 if (
   !importStatusResponse.ok ||
   importStatus.import_id !== declaration.upload_id ||
-  importStatus.state !== 'queued'
+  importStatus.state !== 'queued' ||
+  importStatus.failure_reason !== null ||
+  importStatus.result_flight_id !== null
 ) {
   throw new Error('The local import-status path did not pass.');
 }
@@ -136,7 +138,11 @@ const [api, dispatcher, worker, objects, email, , proxiedApi] =
     waitForHttp(state.endpoints.worker, 'worker', 5_000),
     waitForHttp(state.endpoints.objects, 'objects', 5_000),
     waitForHttp(state.endpoints.email, 'email', 5_000),
-    waitForPage(state.endpoints.web, 'Local foundation', 5_000),
+    waitForPage(
+      state.endpoints.web,
+      'From source log to truthful flight',
+      5_000,
+    ),
     waitForHttp(`${state.endpoints.web}/api/v1/health`, 'api', 5_000),
   ]);
 
@@ -144,7 +150,7 @@ if (proxiedApi.version !== 'v1') {
   throw new Error('The web API proxy did not return the v1 contract.');
 }
 
-let databaseProof = '';
+let databaseProofPassed = false;
 for (let attempt = 0; attempt < 50; attempt += 1) {
   const { stdout } = await execFileAsync(join(state.postgres.bin, 'psql'), [
     '--host',
@@ -165,12 +171,19 @@ for (let attempt = 0; attempt < 50; attempt += 1) {
        (SELECT count(*) FROM droneworks_jobs.outbox
          WHERE state = 'dispatched')::text;`,
   ]);
-  databaseProof = stdout.trim();
-  if (databaseProof === `${state.generated_organizations}:1:1:1`) break;
+  const databaseProof = stdout.trim();
+  const [organizations, customerMigrations, jobsMigrations, dispatched] =
+    databaseProof.split(':').map(Number);
+  databaseProofPassed =
+    organizations === state.generated_organizations &&
+    customerMigrations >= 1 &&
+    jobsMigrations >= 1 &&
+    dispatched === 1;
+  if (databaseProofPassed) break;
   await new Promise((resolve) => setTimeout(resolve, 100));
 }
 
-if (databaseProof !== `${state.generated_organizations}:1:1:1`) {
+if (!databaseProofPassed) {
   throw new Error(
     'The migrated PostgreSQL or durable dispatch proof is missing.',
   );

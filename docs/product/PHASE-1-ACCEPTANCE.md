@@ -74,6 +74,18 @@ And cancelling before dispatch makes the work unclaimable
 And cancelling after dispatch has begun returns a conflict
 ```
 
+### Scenario: The minimal web path stays on the public boundary
+
+```gherkin
+Given the generated local identity harness is explicitly enabled
+When a persona enters an organization, uploads one file, observes processing, and opens its resulting flight
+Then every domain request uses the generated /api/v1 client
+And a completed or review result supplies the flight identifier without exposing parser or object internals
+And changing persona or organization clears every prior organization-bound status, summary, and track
+And the persona control is visibly identified as local development only
+And a hosted build contains neither that control nor its local rewrite
+```
+
 ### Scenario: A known aircraft is matched by serial
 
 ```gherkin
@@ -149,6 +161,16 @@ When processing reaches decryption
 Then the import records a retriable failure or waiting state with a specific reason
 And it is not reported as corrupt or unsupported
 And other imports continue
+```
+
+### Scenario: Web failure categories remain actionable and distinct
+
+```gherkin
+Given import processing reaches a terminal failure
+When the browser reads the authorized import status
+Then unsupported, corrupt, truncated, key-unavailable, and other processing failures have distinct public categories
+And an expired identity or unavailable organization resource is displayed as an authorization failure instead
+And no internal parser code, source identity, object identity, or provider payload is returned
 ```
 
 ### Scenario: Encrypted DJI processing requires versioned consent
@@ -285,6 +307,18 @@ And each page contains at most 2000 samples in stable source order
 And the opaque next cursor continues at the next sample for the same revision
 And a stale, malformed, or out-of-range cursor is rejected
 And a missing, corrupt, or metadata-inconsistent object returns a redacted service error
+```
+
+### Scenario: The 2D map does not disclose coordinates to a provider
+
+```gherkin
+Given an authorized flight declares position capability and returns a bounded track with gaps
+When the web application renders the track with MapLibre
+Then it uses a provider-free local style with no tile or style request
+And coordinates exist only in the authorized API response and in-memory map source
+And null position runs remain visible gaps rather than invented lines
+When the flight lacks position capability
+Then no track request is made and the map explains that position is unavailable
 ```
 
 ## 8. Corrections and reprocessing

@@ -31,7 +31,9 @@ const problemResponses = {
 
 function statusResponse(status: ImportStatus) {
   return {
+    failure_reason: status.failureReason,
     import_id: status.importId,
+    result_flight_id: status.resultFlightId,
     state: status.state,
     updated_at: status.updatedAt.toISOString(),
   };

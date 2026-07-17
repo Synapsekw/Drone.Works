@@ -162,6 +162,10 @@ An imported identifier results in one of four visible outcomes:
   processing state. They may cancel it while its durable reference is still
   pending; once dispatch has begun, cancellation returns a conflict instead of
   racing a worker. Cross-organization exact identifiers disclose no status.
+- Import status returns the resulting flight identifier only when a retained
+  flight exists. A failed item exposes one redacted public category—unsupported,
+  corrupt, truncated, key unavailable, or processing failed—rather than parser,
+  provider, object, or source internals.
 
 - A batch upload creates one batch and one import item per file.
 - Each file shows independent progress and outcome.
@@ -234,6 +238,10 @@ An imported identifier results in one of four visible outcomes:
   verifies its SHA-256 checksum, codec contract, sample count, capabilities,
   and elapsed-time bounds before returning customer data. Missing or corrupt
   objects fail with a redacted service error.
+- The Phase 1A web map uses MapLibre with an empty provider-free local style.
+  Track coordinates enter only the in-memory GeoJSON source; they are not placed
+  in tile/style URLs, CSP reports, analytics, or any unrelated request. Null
+  positions split the rendered line instead of being interpolated.
 
 ### Editing and deletion
 
@@ -272,6 +280,11 @@ An imported identifier results in one of four visible outcomes:
 - Breaking contract changes require a new API version. Additive fields may appear in v1, so clients must ignore unknown fields.
 - Phase 1 uses web sessions. Public API-key creation and webhook subscriptions are deferred, but authorization is modeled independently of session handling.
 - Auth/session and future billing callbacks are the only standing exceptions to the first-party API rule. Any new exception requires an accepted entry in `DECISIONS.md`.
+- The local generated-persona control is the D-015 identity-harness exception,
+  not a domain operation. Every browser domain read or mutation, including
+  organization selection, upload, status, summary, and track, uses the generated
+  `/api/v1/` client. Switching persona or organization aborts polling and clears
+  all organization-bound upload, status, summary, track, and error state.
 
 ## 9. Privacy, retention, and security behavior
 

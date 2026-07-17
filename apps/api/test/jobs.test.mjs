@@ -25,6 +25,7 @@ import { LoopbackImmutableObjectStore } from '../dist/loopback-object-store.js';
 
 const { Pool } = pg;
 const alphaOrganizationId = '00000000-0000-4000-8000-0000000000a1';
+const alphaFlightId = '00000000-0000-4000-8000-0000000000aa';
 const betaOrganizationId = '00000000-0000-4000-8000-0000000000b1';
 const environment = {
   DRONE_WORKS_ENV: 'test',
@@ -413,5 +414,75 @@ describe.sequential('A07 atomic processing dispatch', () => {
     expect(cleared.rows[0].pid).toBe(alphaPid);
     expect([null, '']).toContain(cleared.rows[0].organization_id);
     expect(cleared.rows[0].count).toBe(0);
+  });
+
+  it('projects a result flight and redacted actionable failure categories', async () => {
+    const completed = await completeUpload(
+      Buffer.from('web-status-projection'),
+      'web-status-projection',
+    );
+    await withOrganizationTransaction(
+      appPool,
+      alphaOrganizationId,
+      async (transaction) => {
+        await transaction.query(
+          `UPDATE droneworks.import_items
+              SET state = 'completed', result_flight_id = $3, updated_at = now()
+            WHERE organization_id = $1 AND id = $2`,
+          [alphaOrganizationId, completed.importId, alphaFlightId],
+        );
+      },
+    );
+    const result = await request('alpha_owner', {
+      method: 'GET',
+      url: `/api/v1/organizations/${alphaOrganizationId}/imports/${completed.importId}`,
+    });
+    expect(result.statusCode).toBe(200);
+    expect(result.json()).toMatchObject({
+      failure_reason: null,
+      import_id: completed.importId,
+      result_flight_id: alphaFlightId,
+      state: 'completed',
+    });
+
+    const failureCases = [
+      ['unsupported_format', 'unsupported'],
+      ['invalid_or_corrupt_prefix', 'corrupt'],
+      ['truncated_source', 'truncated'],
+      ['key_service_unavailable', 'key_unavailable'],
+      ['parser_internal_error', 'processing_failed'],
+    ];
+    for (const [internalCode, publicReason] of failureCases) {
+      await withOrganizationTransaction(
+        appPool,
+        alphaOrganizationId,
+        async (transaction) => {
+          await transaction.query(
+            `UPDATE droneworks.import_items
+                SET state = 'failed', failure_code = $3,
+                    result_flight_id = NULL, updated_at = now()
+              WHERE organization_id = $1 AND id = $2`,
+            [alphaOrganizationId, completed.importId, internalCode],
+          );
+        },
+      );
+      const failed = await request('alpha_owner', {
+        method: 'GET',
+        url: `/api/v1/organizations/${alphaOrganizationId}/imports/${completed.importId}`,
+      });
+      expect(failed.statusCode).toBe(200);
+      expect(failed.json()).toMatchObject({
+        failure_reason: publicReason,
+        result_flight_id: null,
+        state: 'failed',
+      });
+      expect(JSON.stringify(failed.json())).not.toContain(internalCode);
+    }
+
+    const denied = await request('beta_owner', {
+      method: 'GET',
+      url: `/api/v1/organizations/${alphaOrganizationId}/imports/${completed.importId}`,
+    });
+    expect(denied.statusCode).toBe(404);
   });
 });

@@ -180,7 +180,11 @@ try {
   );
 
   const apiUrl = `http://127.0.0.1:${ports.api}`;
-  await runPnpm(['build'], { API_INTERNAL_URL: apiUrl });
+  await runPnpm(['build'], {
+    API_INTERNAL_URL: apiUrl,
+    DRONE_WORKS_ENV: 'local',
+    DRONE_WORKS_LOCAL_IDENTITY_ENABLED: 'true',
+  });
 
   spawnService(
     'dependencies',
@@ -230,7 +234,11 @@ try {
       '--port',
       String(ports.web),
     ],
-    { API_INTERNAL_URL: apiUrl },
+    {
+      API_INTERNAL_URL: apiUrl,
+      DRONE_WORKS_ENV: 'local',
+      DRONE_WORKS_LOCAL_IDENTITY_ENABLED: 'true',
+    },
     join(repositoryRoot, 'apps/web'),
   );
 
@@ -270,7 +278,7 @@ try {
     waitForHttp(state.endpoints.objects, 'objects'),
     waitForHttp(state.endpoints.email, 'email'),
   ]);
-  await waitForPage(state.endpoints.web, 'Local foundation');
+  await waitForPage(state.endpoints.web, 'From source log to truthful flight');
   await waitForHttp(`${state.endpoints.web}/api/v1/health`, 'api');
 
   process.stdout.write(

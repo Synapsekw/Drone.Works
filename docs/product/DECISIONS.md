@@ -404,6 +404,25 @@ metrics, membership/role denial, and context clearing on one reused backend.
 This gate adds no parsing, Better Auth, AWS/RDS, uploads beyond A06, or customer
 fixtures.
 
+### Phase 1A A12 evidence — 2026-07-17
+
+The first-party Next.js application now performs organization selection and
+creation, immutable single-file upload, status polling, flight-summary reads,
+and bounded track reads only through the generated v1 client. The sole local
+identity request remains D-015's hidden generated-persona control; production
+build evidence proves that its UI and rewrite are absent. Persona or organization
+changes abort active polling and synchronously discard all organization-bound
+browser state, so a prior summary or coordinate set cannot survive a switch.
+
+MapLibre receives a source-free local style and an in-memory GeoJSON track.
+Position nulls split line segments, missing position capability prevents the
+track request, and CSP restricts connections to the application origin while
+accepting payload-free reports. Browser request assertions prove that no domain
+mutation bypasses `/api/v1/` and that coordinates do not enter tile, style,
+reporting, analytics, or unrelated requests. This is the A12 renderer and web
+boundary evidence; provider selection remains an open decision and A13a still
+owns the real parser-to-browser functional local gate.
+
 ## D-012 — DJI keychain trust boundary
 
 Status: accepted

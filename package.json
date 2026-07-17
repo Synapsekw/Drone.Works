@@ -30,6 +30,7 @@
     "test:normalize": "corepack pnpm --filter @drone-works/api run test:normalize",
     "test:parser:host": "corepack pnpm --filter @drone-works/parser run test:host",
     "test:upload": "corepack pnpm --filter @drone-works/api run test:upload",
+    "test:web": "corepack pnpm --filter @drone-works/web run test:web",
     "typecheck": "corepack pnpm --recursive --sort --if-present run typecheck",
     "verify": "corepack pnpm format:check && corepack pnpm lint && corepack pnpm typecheck && corepack pnpm test && corepack pnpm boundaries && corepack pnpm privacy:check"
   },

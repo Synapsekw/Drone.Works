@@ -576,6 +576,8 @@
         "required": [
           "import_id",
           "state",
+          "failure_reason",
+          "result_flight_id",
           "updated_at"
         ],
         "properties": {
@@ -644,6 +646,58 @@
                 "enum": [
                   "skipped_duplicate"
                 ]
+              }
+            ]
+          },
+          "failure_reason": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "unsupported"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "corrupt"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "truncated"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "key_unavailable"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "processing_failed"
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "result_flight_id": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
               }
             ]
           },
@@ -3621,6 +3675,8 @@
                   "required": [
                     "import_id",
                     "state",
+                    "failure_reason",
+                    "result_flight_id",
                     "updated_at"
                   ],
                   "properties": {
@@ -3689,6 +3745,58 @@
                           "enum": [
                             "skipped_duplicate"
                           ]
+                        }
+                      ]
+                    },
+                    "failure_reason": {
+                      "anyOf": [
+                        {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "unsupported"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "corrupt"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "truncated"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "key_unavailable"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "processing_failed"
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "result_flight_id": {
+                      "anyOf": [
+                        {
+                          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
                         }
                       ]
                     },
@@ -3834,6 +3942,8 @@
                   "required": [
                     "import_id",
                     "state",
+                    "failure_reason",
+                    "result_flight_id",
                     "updated_at"
                   ],
                   "properties": {
@@ -3902,6 +4012,58 @@
                           "enum": [
                             "skipped_duplicate"
                           ]
+                        }
+                      ]
+                    },
+                    "failure_reason": {
+                      "anyOf": [
+                        {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "unsupported"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "corrupt"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "truncated"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "key_unavailable"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "processing_failed"
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "result_flight_id": {
+                      "anyOf": [
+                        {
+                          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
                         }
                       ]
                     },

@@ -330,6 +330,8 @@ export interface components {
         "def-18": {
             import_id: string;
             state: "uploaded" | "queued" | "detecting" | "parsing" | "normalizing" | "awaiting_review" | "completed" | "failed" | "cancelled" | "skipped_duplicate";
+            failure_reason: ("unsupported" | "corrupt" | "truncated" | "key_unavailable" | "processing_failed") | null;
+            result_flight_id: string | null;
             /** Format: date-time */
             updated_at: string;
         };
@@ -1133,6 +1135,8 @@ export interface operations {
                     "application/json": {
                         import_id: string;
                         state: "uploaded" | "queued" | "detecting" | "parsing" | "normalizing" | "awaiting_review" | "completed" | "failed" | "cancelled" | "skipped_duplicate";
+                        failure_reason: ("unsupported" | "corrupt" | "truncated" | "key_unavailable" | "processing_failed") | null;
+                        result_flight_id: string | null;
                         /** Format: date-time */
                         updated_at: string;
                     };
@@ -1195,6 +1199,8 @@ export interface operations {
                     "application/json": {
                         import_id: string;
                         state: "uploaded" | "queued" | "detecting" | "parsing" | "normalizing" | "awaiting_review" | "completed" | "failed" | "cancelled" | "skipped_duplicate";
+                        failure_reason: ("unsupported" | "corrupt" | "truncated" | "key_unavailable" | "processing_failed") | null;
+                        result_flight_id: string | null;
                         /** Format: date-time */
                         updated_at: string;
                     };

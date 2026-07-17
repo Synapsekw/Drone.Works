@@ -70,6 +70,9 @@ interface UploadRow {
   readonly media_type: string;
   readonly original_filename: string;
   readonly raw_source_id: string | null;
+  readonly duplicate_of_flight_id: string | null;
+  readonly failure_code: string | null;
+  readonly result_flight_id: string | null;
   readonly state: ImportState;
   readonly updated_at: Date;
   readonly uploaded_by_user_id: string;
@@ -124,7 +127,15 @@ export const importStates = [
 export type ImportState = (typeof importStates)[number];
 
 export interface ImportStatus {
+  readonly failureReason:
+    | 'unsupported'
+    | 'corrupt'
+    | 'truncated'
+    | 'key_unavailable'
+    | 'processing_failed'
+    | null;
   readonly importId: string;
+  readonly resultFlightId: string | null;
   readonly state: ImportState;
   readonly updatedAt: Date;
 }
@@ -198,6 +209,9 @@ async function uploadRow(
     `SELECT item.client_file_id,
             item.original_filename,
             item.raw_source_id,
+            item.failure_code,
+            item.result_flight_id,
+            item.duplicate_of_flight_id,
             item.state,
             item.updated_at,
             batch.uploaded_by_user_id,
@@ -223,6 +237,35 @@ async function uploadRow(
   const row = result.rows[0];
   if (!row) throw new OrganizationAccessDeniedError();
   return row;
+}
+
+function publicFailureReason(
+  state: ImportState,
+  failureCode: string | null,
+): ImportStatus['failureReason'] {
+  if (state !== 'failed') return null;
+  if (
+    failureCode === 'unsupported_format' ||
+    failureCode === 'unsupported_version'
+  ) {
+    return 'unsupported';
+  }
+  if (failureCode === 'truncated_source') return 'truncated';
+  if (
+    failureCode === 'invalid_source' ||
+    failureCode === 'invalid_or_corrupt_prefix' ||
+    failureCode === 'source_identity_mismatch'
+  ) {
+    return 'corrupt';
+  }
+  if (
+    failureCode?.includes('key') ||
+    failureCode?.includes('provider') ||
+    failureCode === 'external_processing_not_authorized'
+  ) {
+    return 'key_unavailable';
+  }
+  return 'processing_failed';
 }
 
 async function writeAudit(
@@ -591,7 +634,10 @@ export class ImportProcessingRepository {
           throw new OrganizationAccessDeniedError();
         }
         return {
+          failureReason: publicFailureReason(row.state, row.failure_code),
           importId,
+          resultFlightId:
+            row.result_flight_id ?? row.duplicate_of_flight_id ?? null,
           state: row.state,
           updatedAt: row.updated_at,
         };
@@ -614,7 +660,13 @@ export class ImportProcessingRepository {
           throw new OrganizationAccessDeniedError();
         }
         if (row.state === 'cancelled') {
-          return { importId, state: row.state, updatedAt: row.updated_at };
+          return {
+            failureReason: null,
+            importId,
+            resultFlightId: null,
+            state: row.state,
+            updatedAt: row.updated_at,
+          };
         }
         if (row.state !== 'uploaded' && row.state !== 'queued') {
           throw new ImportCancellationConflictError();
@@ -647,7 +699,9 @@ export class ImportProcessingRepository {
           importId,
         );
         return {
+          failureReason: null,
           importId,
+          resultFlightId: null,
           state: 'cancelled',
           updatedAt: updated.rows[0]?.updated_at ?? new Date(),
         };

@@ -152,6 +152,12 @@ export async function seedOrganization(transaction, seed) {
     ],
   );
   await transaction.query(
+    `UPDATE droneworks.import_items
+        SET result_flight_id = $3
+      WHERE organization_id = $1 AND id = $2`,
+    [seed.organizationId, seed.itemId, seed.flightId],
+  );
+  await transaction.query(
     `INSERT INTO droneworks.flight_revisions (
        organization_id, id, canonical_flight_id, import_attempt_id,
        revision_number, canonical_schema_version, facts, capabilities,

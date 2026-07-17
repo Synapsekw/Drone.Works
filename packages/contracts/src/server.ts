@@ -168,10 +168,20 @@ export const importStateSchema = Type.Union([
   Type.Literal('skipped_duplicate'),
 ]);
 
+export const importFailureReasonSchema = Type.Union([
+  Type.Literal('unsupported'),
+  Type.Literal('corrupt'),
+  Type.Literal('truncated'),
+  Type.Literal('key_unavailable'),
+  Type.Literal('processing_failed'),
+]);
+
 export const importStatusSchema = Type.Object(
   {
     import_id: uuidStringSchema,
     state: importStateSchema,
+    failure_reason: Type.Union([importFailureReasonSchema, Type.Null()]),
+    result_flight_id: Type.Union([uuidStringSchema, Type.Null()]),
     updated_at: Type.String({ format: 'date-time' }),
   },
   { $id: 'ImportStatus', additionalProperties: false },

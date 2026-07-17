@@ -109,7 +109,8 @@ record is generated and safe to delete.
 
 ## What is running
 
-- `web`: the current browser shell;
+- `web`: the A12 local-only persona, organization, single-file upload/status,
+  flight-summary, and provider-free MapLibre path;
 - `api`: the versioned `/api/v1/health` contract;
 - `dispatcher`: leases payload-free outbox rows and sends stable pg-boss jobs;
 - `worker`: the future parser/background-work boundary;
@@ -138,6 +139,21 @@ and pooled-context gate with:
 ```sh
 corepack pnpm test:jobs
 ```
+
+Run the A12 hosted-exclusion, production-browser, accessibility, CSP, API
+boundary, organization-switch, failure wording, and coordinate-privacy gate
+with:
+
+```sh
+corepack pnpm test:web
+```
+
+This command builds both hosted and explicitly local web variants, then uses
+Chromium against generated API responses. It never uses a tile/style provider,
+customer file, cloud credential, or external analytics endpoint. Install the
+pinned Playwright Chromium runtime once with
+`corepack pnpm --filter @drone-works/web exec playwright install chromium` if
+the local browser binary is absent.
 
 Run the A10 canonical normalization, assignment, exact-duplicate, telemetry
 checksum, object/transaction retry, real job retry, and Alpha/Beta gate with:
@@ -168,3 +184,10 @@ and AWS remains deferred to A14. No AWS help is needed for this foundation. When
 A14 reaches the cloud setup, the account-owner steps will be provided one at a
 time with their purpose, expected cost/security effect, a verification check,
 and a safe stop or rollback step.
+
+The A12 web can upload to the local immutable-source and queue boundaries and
+can open the generated retained A11 flight when given its flight ID. The local
+worker remains a health-only process until A13a connects the already proven
+parser, normalization, and persistence slices into one functional runtime; a
+new local upload therefore remains queued at A12 rather than claiming a false
+end-to-end completion.

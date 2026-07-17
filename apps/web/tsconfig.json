@@ -15,6 +15,10 @@
         "name": "next"
       }
     ],
+    "baseUrl": ".",
+    "paths": {
+      "@drone-works/web-entry": ["./src/app/workspace-entry.tsx"]
+    },
     "resolveJsonModule": true,
     "skipLibCheck": false,
     "strict": true,
@@ -27,5 +31,5 @@
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"
   ],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", ".next/dev/types/**/*.ts", ".next/**/* 2.ts"]
 }

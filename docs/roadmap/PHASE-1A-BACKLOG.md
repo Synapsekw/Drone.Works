@@ -460,6 +460,16 @@ alarms.
 
 ### A12 — Build the minimal web vertical path
 
+**Status:** Complete (2026-07-17). Evidence: the generated v1 client now owns
+every organization, upload, status, summary, and track call; the local-only
+persona UI/rewrite is excluded from the hosted production build; the source-free
+MapLibre style keeps coordinates in memory; and `pnpm test:web` passes seven
+production-browser tests for the happy path, public failure categories,
+authorization, organization-switch clearing, capability absence, CSP reporting,
+accessibility, and request/coordinate boundaries. The native jobs suite adds the
+result-flight and redacted failure projection under forced RLS. A13a still owns
+the real parser/worker end-to-end path.
+
 **Outcome:** A generated local persona creates/enters an organization, uploads
 one file, watches its status, and opens a flight summary with a 2D MapLibre
 track.

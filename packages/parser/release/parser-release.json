@@ -11,7 +11,7 @@
   },
   "linux_artifact": {
     "target": "x86_64-unknown-linux-gnu",
-    "sha256": "492a5a3b57988e2216449800fc57ab1a6e8eca1657f409cc365020ea147fd718"
+    "sha256": "7fa91c9b0d88dae687d1bc2e57275f0673a77dc3d1d2e346fb21266281321cec"
   },
   "oci": {
     "base": "gcr.io/distroless/cc-debian13:nonroot@sha256:d97bc0a941b8d4be647dc0ee75b264ddbb772f1ac5ba690a4309c00723b23775",

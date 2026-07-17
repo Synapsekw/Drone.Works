@@ -341,8 +341,9 @@ containment alarms, and upgrade review.
 
 ### A09 — Pass the supported DJI/key enablement gate
 
-**Status:** Implementation and local evidence complete (2026-07-17); hosted Linux
-release verification is pending the first digest-pinning run. Path A is selected
+**Status:** Implementation and local evidence complete (2026-07-17); the
+reproducible hosted Linux digest from run `29558128064` is pinned and its final
+promotion rerun is pending. Path A is selected
 for the exact DJI Fly / DJI TXT v14 variant in
 [`SUPPORTED-FORMATS.md`](../product/SUPPORTED-FORMATS.md).
 

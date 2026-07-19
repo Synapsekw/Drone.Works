@@ -18,7 +18,17 @@ const configuration = {
   port: database.PGPORT,
 };
 const dispatcher = new DispatcherRepository(configuration);
-const queue = await ProcessingQueue.start(configuration);
+const expireInSeconds = Number(
+  process.env.DRONE_WORKS_PROCESSING_JOB_EXPIRE_SECONDS ?? '60',
+);
+if (
+  !Number.isSafeInteger(expireInSeconds) ||
+  expireInSeconds < 1 ||
+  expireInSeconds > 3_600
+) {
+  throw new Error('The processing job expiration is invalid.');
+}
+const queue = await ProcessingQueue.start(configuration, { expireInSeconds });
 let healthy = true;
 let dispatching = false;
 

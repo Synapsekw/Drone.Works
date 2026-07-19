@@ -1,7 +1,7 @@
 # Local development without Docker
 
 Status: accepted Phase 1A foundation
-Last updated: 2026-07-17
+Last updated: 2026-07-19
 
 This workflow runs only on your Mac. It does not create anything in AWS, ask for
 cloud credentials, use Docker, send real email, or load customer data. The seed
@@ -113,8 +113,10 @@ record is generated and safe to delete.
   flight-summary, and provider-free MapLibre path;
 - `api`: the versioned `/api/v1/health` contract;
 - `dispatcher`: leases payload-free outbox rows and sends stable pg-boss jobs;
-- `worker`: the future parser/background-work boundary;
-- `objects`: a loopback placeholder for future versioned file storage;
+- `worker`: the durable import consumer, trusted keychain broker, exact-source
+  reader, parser supervisor, normalizer, and persistence boundary;
+- `objects`: a loopback versioned-object adapter for immutable raw and telemetry
+  objects;
 - `email`: a loopback placeholder that never sends a message;
 - `PostgreSQL`: a disposable native database with the reviewed customer and jobs
   schemas, their separate migration ledgers, and generated Alpha/Beta
@@ -155,6 +157,35 @@ pinned Playwright Chromium runtime once with
 `corepack pnpm --filter @drone-works/web exec playwright install chromium` if
 the local browser binary is absent.
 
+## Run the destructive A13a functional gate
+
+This separate command uses a policy-approved local-only fixture and, after the
+browser records the current notice and terms acceptance, sends its bounded
+source-derived keychain request to DJI. The raw log itself stays on loopback.
+Do not run this gate for an unapproved fixture, with a hosted credential, or
+without understanding that the bounded request contains sensitive
+source-derived feature points.
+
+Provide the exact reviewed local parser executable and its SHA-256 reference,
+keep the approved credential only in ignored `.env.local` as
+`DJI_FLIGHT_RECORD_API_KEY`, then run:
+
+```sh
+DRONE_WORKS_LOCAL_PARSER_EXECUTABLE=/absolute/path/to/droneworks-dji-parser-cli \
+DRONE_WORKS_LOCAL_PARSER_SHA256=<reviewed-64-character-sha256> \
+corepack pnpm test:e2e:functional
+```
+
+The gate verifies the private fixture manifest, builds and starts a disposable
+runtime, drives Chromium through key-unavailable and approved paths, kills and
+replaces the worker, re-uploads the exact bytes, creates a controlled corrupt
+derivative in memory, checks Alpha/Beta isolation and coordinate/network
+boundaries, scans generated logs for a canary, deletes exact object versions,
+and confirms zero generated Alpha customer rows. It always stops and removes
+the runtime. Its ignored machine report contains pass/fail categories only; the
+retained sanitized evidence is in
+`../testing/A13A-FUNCTIONAL-EVIDENCE.md`.
+
 Run the A10 canonical normalization, assignment, exact-duplicate, telemetry
 checksum, object/transaction retry, real job retry, and Alpha/Beta gate with:
 
@@ -185,9 +216,7 @@ A14 reaches the cloud setup, the account-owner steps will be provided one at a
 time with their purpose, expected cost/security effect, a verification check,
 and a safe stop or rollback step.
 
-The A12 web can upload to the local immutable-source and queue boundaries and
-can open the generated retained A11 flight when given its flight ID. The local
-worker remains a health-only process until A13a connects the already proven
-parser, normalization, and persistence slices into one functional runtime; a
-new local upload therefore remains queued at A12 rather than claiming a false
-end-to-end completion.
+The A13a runtime connects the web, immutable source, durable queue, trusted
+keychain broker, parser, normalization, telemetry persistence, summary, and
+track slices. The provider remains disabled during ordinary `dev:up`; only the
+explicit functional command above enables its generated local/test path.

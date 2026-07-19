@@ -10,7 +10,10 @@
   },
   "dependencies": {
     "@drone-works/config": "workspace:*",
-    "@drone-works/domain": "workspace:*"
+    "@drone-works/database": "workspace:*",
+    "@drone-works/domain": "workspace:*",
+    "@drone-works/jobs": "workspace:*",
+    "@drone-works/parser": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "catalog:",

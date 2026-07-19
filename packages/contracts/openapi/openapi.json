@@ -487,6 +487,12 @@
           "object_version_id": {
             "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
             "type": "string"
+          },
+          "dji_encrypted_processing": {
+            "type": "string",
+            "enum": [
+              "approved"
+            ]
           }
         },
         "title": "CompleteRawUploadBody"
@@ -3246,6 +3252,12 @@
                   "object_version_id": {
                     "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
                     "type": "string"
+                  },
+                  "dji_encrypted_processing": {
+                    "type": "string",
+                    "enum": [
+                      "approved"
+                    ]
                   }
                 }
               }

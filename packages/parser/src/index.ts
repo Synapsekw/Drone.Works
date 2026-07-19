@@ -6,10 +6,12 @@ export {
   type ParserIntermediateSample,
   type ParserIntermediateShape,
   type ParserIntermediateSource,
+  type PrivateIntermediateBoundary,
   type PrivateIntermediateSummary,
   type PrivateIntermediateValue,
 } from './intermediate.js';
 export { CliOciRuntime } from './runtime.js';
+export { LocalNativeParserOperations } from './local-native.js';
 export { DjiKeychainProvider, djiKeychainEndpoint } from './dji-provider.js';
 export {
   classifyDjiFormat,

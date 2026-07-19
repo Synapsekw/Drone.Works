@@ -503,6 +503,19 @@ and no distributed Next.js cache dependency.
 
 ### A13a — Close the functional local application
 
+**Status:** Complete (2026-07-19). Evidence: `pnpm test:e2e:functional`
+starts the native disposable PostgreSQL and loopback services without Docker,
+drives the real generated-persona browser through an approved DJI Fly v14
+source, kills and replaces the active worker, and reaches the persisted flight
+summary and provider-free MapLibre track. The same gate proves unapproved key
+retrieval fails closed, exact bytes reuse one retained flight, a controlled
+corrupt derivative fails independently, Beta cannot infer Alpha, browser domain
+mutations stay under `/api/v1/`, coordinates make no unrelated request,
+redaction canaries stay out of service logs, and teardown leaves zero Alpha
+customer rows and no referenced raw or telemetry object versions. The retained
+sanitized matrix is in `../testing/A13A-FUNCTIONAL-EVIDENCE.md`; Better Auth,
+AWS, RDS, and hosted credentials remain absent.
+
 **Outcome:** The complete functional application path passes locally under the
 generated identity: organization entry, upload, processing, summary, track,
 corrupt-input, idempotency, deletion, and cross-organization behavior work from

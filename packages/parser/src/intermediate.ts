@@ -95,17 +95,28 @@ export interface ParserIntermediateShape {
   readonly signalSampleCount: number;
 }
 
+export type PrivateIntermediateBoundary =
+  | Readonly<{
+      cpus: number;
+      memoryMb: number;
+      network: 'none';
+      pidsLimit: number;
+      rootFilesystem: 'read_only';
+      tmpfsMb: number;
+      user: string;
+      validated: true;
+    }>
+  | Readonly<{
+      execution: 'local_native';
+      network: 'none';
+      platform: 'darwin';
+      sandbox: 'macos_sandbox_exec';
+      sourceFilesystem: 'read_only';
+      validated: true;
+    }>;
+
 export interface PrivateIntermediateSummary {
-  readonly boundary: Readonly<{
-    cpus: number;
-    memoryMb: number;
-    network: 'none';
-    pidsLimit: number;
-    rootFilesystem: 'read_only';
-    tmpfsMb: number;
-    user: string;
-    validated: true;
-  }>;
+  readonly boundary: PrivateIntermediateBoundary;
   readonly contract: Readonly<{
     kind: 'dji_parser_intermediate';
     schemaVersion: 1;

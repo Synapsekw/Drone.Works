@@ -1,7 +1,7 @@
 # Phase 1A system architecture
 
 Status: accepted Phase 0 baseline
-Last updated: 2026-07-17
+Last updated: 2026-07-19
 
 ## System shape
 
@@ -42,7 +42,7 @@ memory.
 | Authentication               | Better Auth core with PostgreSQL                                        | Self-hosted identity behind the D-013 provider-neutral boundary.                                                                                                                                            |
 | Raw/export/telemetry objects | Amazon S3 through an application-owned versioned-object adapter         | Immutable conditional writes, exact versions, signed reads, lifecycle controls, and portable S3 semantics.                                                                                                  |
 | Telemetry                    | D-008 versioned per-flight columnar objects plus PostgreSQL metadata    | The complete 100,000-flight benchmark passed.                                                                                                                                                               |
-| Parser                       | D-009 native Rust CLI in a fresh Linux OCI container                    | Approximately 70 MB observed peak RSS with a hard no-network boundary and independent failure.                                                                                                              |
+| Parser                       | D-009 Rust CLI; Linux OCI hosted, digest-pinned macOS sandbox locally   | The same private intermediate contract runs behind a hard no-network boundary; the local adapter is rejected in hosted modes.                                                                               |
 | Maps                         | MapLibre GL JS; source-free local style in A12, provider selected later | The renderer receives private track data only as in-memory GeoJSON; coordinates do not enter tile/style, analytics, CSP-report, or unrelated network requests.                                              |
 | Hosting                      | AWS region selected through the D-014 readiness gate                    | UAE `me-central-1` is the preferred customer-data target; Frankfurt `eu-central-1` is permitted for synthetic-only staging while UAE is not operationally suitable. Region remains an infrastructure input. |
 
@@ -92,8 +92,11 @@ is deferred.
   administration path; inbound SSH is disabled.
 - CloudWatch receives bounded structured logs, metrics, alarms, and deployment
   events. Application traces are sampled and payload-free.
-- The DJI provider path remains disabled. Enabling it requires every D-012 legal,
-  consent, secret, egress, cache, and deletion gate.
+- The production DJI provider path remains disabled. A13a permits only the
+  generated local/test adapter with explicit current consent, an approved
+  fixture, ignored credential and managed-key references, exact parser digest,
+  and destructive cleanup. Enabling hosted processing still requires every
+  D-012 legal, secret, egress, cache, and deletion gate.
 
 AWS documents that an account is an isolation boundary and that separate
 accounts reduce the blast radius between workloads. S3 documents that a simple
@@ -127,7 +130,8 @@ and [S3 version-deletion behavior](https://docs.aws.amazon.com/AmazonS3/latest/u
 3. Domain state and a payload-free outbox row commit together. The dispatcher
    sends one stable pg-boss job ID.
 4. The worker reloads organization context through forced RLS, fetches one exact
-   object version, and starts a fresh parser container.
+   object version, and starts a fresh no-network parser boundary: Linux OCI when
+   hosted, or the digest-pinned macOS sandbox in the generated A13a runtime.
 5. The trusted worker validates the private intermediate, normalizes it,
    persists canonical/provenance rows, writes a versioned telemetry object, and
    commits processing state idempotently.

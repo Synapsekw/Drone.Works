@@ -1,4 +1,5 @@
 import { closeSync, openSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { userInfo } from 'node:os';
 import { join } from 'node:path';
@@ -42,6 +43,7 @@ const ports = {
 const postgresData = join(runtimeRoot, 'postgres', 'data');
 const postgresSocket = join(runtimeRoot, 'postgres', 'socket');
 const logs = join(runtimeRoot, 'logs');
+const localKmsKeyFile = join(runtimeRoot, 'dji-cache-key.bin');
 const processRecords = [];
 let postgresStarted = false;
 
@@ -82,6 +84,9 @@ async function runPnpm(args, environment = {}) {
 try {
   await mkdir(postgresSocket, { recursive: true });
   await mkdir(logs, { recursive: true });
+  const localKmsKey = randomBytes(32);
+  await writeFile(localKmsKeyFile, localKmsKey, { mode: 0o600 });
+  localKmsKey.fill(0);
 
   await execFileAsync(join(postgresBin, 'initdb'), [
     '--pgdata',
@@ -213,6 +218,8 @@ try {
     {
       ...databaseEnvironment,
       DRONE_WORKS_ENV: 'local',
+      DRONE_WORKS_PROCESSING_JOB_EXPIRE_SECONDS:
+        process.env.DRONE_WORKS_PROCESSING_JOB_EXPIRE_SECONDS ?? '60',
       HOST: '127.0.0.1',
       PORT: String(ports.dispatcher),
     },
@@ -221,7 +228,38 @@ try {
     'worker',
     process.execPath,
     [join(repositoryRoot, 'apps/worker/dist/server.js')],
-    { DRONE_WORKS_ENV: 'local', HOST: '127.0.0.1', PORT: String(ports.worker) },
+    {
+      ...databaseEnvironment,
+      DRONE_WORKS_DJI_KMS_KEY_REFERENCE:
+        process.env.DRONE_WORKS_DJI_KMS_KEY_REFERENCE ?? 'kms://local/a13a',
+      DRONE_WORKS_DJI_KMS_KEY_VERSION:
+        process.env.DRONE_WORKS_DJI_KMS_KEY_VERSION ?? 'local-v1',
+      DRONE_WORKS_DJI_NOTICE_VERSION:
+        process.env.DRONE_WORKS_DJI_NOTICE_VERSION ?? 'dji-keychain-notice-v1',
+      DRONE_WORKS_DJI_PROVIDER_ENABLED:
+        process.env.DRONE_WORKS_DJI_PROVIDER_ENABLED ?? 'false',
+      DRONE_WORKS_DJI_SECRET_REFERENCE:
+        process.env.DRONE_WORKS_DJI_SECRET_REFERENCE ??
+        'secret://local/dji-flight-record-api',
+      DRONE_WORKS_DJI_TERMS_VERSION:
+        process.env.DRONE_WORKS_DJI_TERMS_VERSION ??
+        'dji-flight-record-api-review-2026-07-17',
+      DRONE_WORKS_ENV: 'local',
+      DRONE_WORKS_LOCAL_CREDENTIAL_FILE:
+        process.env.DRONE_WORKS_LOCAL_CREDENTIAL_FILE ??
+        join(repositoryRoot, '.env.local'),
+      DRONE_WORKS_LOCAL_KMS_KEY_FILE: localKmsKeyFile,
+      DRONE_WORKS_LOCAL_PARSER_EXECUTABLE:
+        process.env.DRONE_WORKS_LOCAL_PARSER_EXECUTABLE ?? '',
+      DRONE_WORKS_LOCAL_PARSER_SHA256:
+        process.env.DRONE_WORKS_LOCAL_PARSER_SHA256 ?? '',
+      DRONE_WORKS_LOCAL_WORKER_RECOVERY_PROBE_MS:
+        process.env.DRONE_WORKS_LOCAL_WORKER_RECOVERY_PROBE_MS ?? '0',
+      HOST: '127.0.0.1',
+      OBJECT_INTERNAL_URL: `http://127.0.0.1:${ports.objects}`,
+      PGUSER: 'droneworks_app',
+      PORT: String(ports.worker),
+    },
   );
   spawnService(
     'web',
@@ -264,6 +302,19 @@ try {
       user: userInfo().username,
     },
     processes: processRecords,
+    worker: {
+      credentialFile:
+        process.env.DRONE_WORKS_LOCAL_CREDENTIAL_FILE ??
+        join(repositoryRoot, '.env.local'),
+      jobExpireSeconds:
+        process.env.DRONE_WORKS_PROCESSING_JOB_EXPIRE_SECONDS ?? '60',
+      kmsKeyFile: localKmsKeyFile,
+      parserExecutable: process.env.DRONE_WORKS_LOCAL_PARSER_EXECUTABLE ?? '',
+      parserSha256: process.env.DRONE_WORKS_LOCAL_PARSER_SHA256 ?? '',
+      providerEnabled: process.env.DRONE_WORKS_DJI_PROVIDER_ENABLED ?? 'false',
+      recoveryProbeMs:
+        process.env.DRONE_WORKS_LOCAL_WORKER_RECOVERY_PROBE_MS ?? '0',
+    },
   };
   await writeFile(
     runtimeStatePath,

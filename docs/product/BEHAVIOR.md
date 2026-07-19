@@ -158,6 +158,11 @@ An imported identifier results in one of four visible outcomes:
 - Upload completion moves the import to `queued` only in the same transaction
   that creates its payload-free durable processing reference. The private queue
   payload contains only a schema version, organization ID, and import item ID.
+- When the uploader selects encrypted DJI processing, completion records the
+  current notice and terms-review versions plus both source-scoped permissions
+  in that same transaction. Without that explicit selection, the upload still
+  remains retained but provider access fails closed as key unavailable and no
+  DJI request is sent.
 - Owners and admins, or the pilot who uploaded the item, may read its current
   processing state. They may cancel it while its durable reference is still
   pending; once dispatch has begun, cancellation returns a conflict instead of
@@ -174,6 +179,9 @@ An imported identifier results in one of four visible outcomes:
   `uploaded → queued → detecting → parsing → normalizing → awaiting_review → completed`
 
 - `failed`, `cancelled`, and `skipped_duplicate` are terminal outcomes.
+- A worker restart may reload `queued`, `detecting`, `parsing`, or `normalizing`
+  work from the exact retained source and safely repeat detection and parsing.
+  Terminal imports are not claimable again.
 - A batch summarizes completed, awaiting-review, duplicate, failed, and cancelled items without hiding per-file details.
 - Failure of one file never prevents other files in the batch from completing.
 - Retrying a failed item creates a new processing attempt under the same import item and preserves earlier attempt history.

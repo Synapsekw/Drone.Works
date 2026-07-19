@@ -130,6 +130,7 @@ export function LocalWorkspace() {
   const [organizationState, setOrganizationState] =
     useState<ActivityState>('empty');
   const [file, setFile] = useState<File | null>(null);
+  const [approveDjiProcessing, setApproveDjiProcessing] = useState(false);
   const [importStatus, setImportStatus] = useState<ApiImportStatus | null>(
     null,
   );
@@ -149,6 +150,7 @@ export function LocalWorkspace() {
     pollController.current = null;
     setOrganization(null);
     setFile(null);
+    setApproveDjiProcessing(false);
     setImportStatus(null);
     setUploadState('empty');
     setUploadMessage('Choose one supported source file to begin.');
@@ -351,6 +353,7 @@ export function LocalWorkspace() {
         declaration.upload_id,
         stored.object_version_id,
         `web-complete-${clientFileId}`,
+        { approveDjiEncryptedProcessing: approveDjiProcessing },
       );
       setUploadMessage('Queued for isolated processing');
       await pollImport(declaration.upload_id, controller);
@@ -531,6 +534,25 @@ export function LocalWorkspace() {
                 type="file"
               />
             </label>
+            <label className="consent-control">
+              <input
+                checked={approveDjiProcessing}
+                disabled={!organization || uploadState === 'loading'}
+                onChange={(event) =>
+                  setApproveDjiProcessing(event.currentTarget.checked)
+                }
+                type="checkbox"
+              />
+              <span>
+                <strong>Approve encrypted DJI processing if required</strong>
+                <small>
+                  Drone.Works may send a bounded encrypted key request—not the
+                  flight log—to DJI, then stores the returned keychain encrypted
+                  for this organization and source. Leaving this unchecked sends
+                  nothing to DJI.
+                </small>
+              </span>
+            </label>
             <button
               disabled={!file || !organization || uploadState === 'loading'}
               type="submit"
@@ -611,10 +633,10 @@ export function LocalWorkspace() {
       </section>
 
       {error ? (
-        <aside className="error-banner" role="alert">
+        <div className="error-banner" role="alert">
           <strong>Action needed</strong>
           <span>{error}</span>
-        </aside>
+        </div>
       ) : null}
     </main>
   );

@@ -386,6 +386,52 @@ describe.sequential('A07 atomic processing dispatch', () => {
     expect(betaCancel.statusCode).toBe(404);
   });
 
+  it('reloads every restartable processing stage and terminalizes failures once', async () => {
+    const completed = await completeUpload(
+      Buffer.from('restartable-worker-state'),
+      'restartable-worker-state',
+    );
+    expect(completed.completion.statusCode).toBe(200);
+
+    for (const stage of ['detecting', 'parsing', 'normalizing']) {
+      expect(
+        await imports.markStage(alphaOrganizationId, completed.importId, stage),
+      ).toBe(true);
+      expect(
+        await imports.loadForJob(alphaOrganizationId, completed.importId),
+      ).toMatchObject({
+        importId: completed.importId,
+        objectVersionId: completed.objectVersionId,
+        state: stage,
+      });
+    }
+    expect(
+      await imports.fail(
+        alphaOrganizationId,
+        completed.importId,
+        'invalid_source',
+      ),
+    ).toBe(true);
+    expect(
+      await imports.fail(
+        alphaOrganizationId,
+        completed.importId,
+        'invalid_source',
+      ),
+    ).toBe(false);
+    expect(
+      await imports.loadForJob(alphaOrganizationId, completed.importId),
+    ).toBeNull();
+    const status = await request('alpha_owner', {
+      method: 'GET',
+      url: `/api/v1/organizations/${alphaOrganizationId}/imports/${completed.importId}`,
+    });
+    expect(status.json()).toMatchObject({
+      failure_reason: 'corrupt',
+      state: 'failed',
+    });
+  });
+
   it('returns payload-free aggregate metrics and clears reused organization context', async () => {
     const outboxMetrics = await dispatcher.metrics(new Date());
     const queueMetrics = await queue.metrics();

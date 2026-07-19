@@ -388,6 +388,62 @@ describe.sequential('A06 immutable raw upload', () => {
     });
   });
 
+  it('records current encrypted-processing approval atomically and without request material', async () => {
+    const content = Buffer.from('generated-consent-source');
+    const declaration = await declare('alpha_owner', content, 'consent');
+    const uploadId = declaration.json().upload_id;
+    const stored = await putContent('alpha_owner', uploadId, content);
+    const completed = await request('alpha_owner', {
+      method: 'POST',
+      url: `/api/v1/organizations/${alphaOrganizationId}/uploads/${uploadId}/completion`,
+      headers: { 'idempotency-key': 'complete-with-current-consent' },
+      payload: {
+        dji_encrypted_processing: 'approved',
+        object_version_id: stored.json().object_version_id,
+      },
+    });
+    expect(completed.statusCode).toBe(200);
+
+    await withOrganizationTransaction(
+      pool,
+      alphaOrganizationId,
+      async (transaction) => {
+        const authorization = await transaction.query(
+          `SELECT keychain_use_authorized,
+                  external_service_processing_authorized,
+                  notice_version, terms_version, revoked_at
+             FROM droneworks.keychain_authorizations
+            WHERE raw_source_id = $1`,
+          [uploadId],
+        );
+        expect(authorization.rows[0]).toEqual({
+          external_service_processing_authorized: true,
+          keychain_use_authorized: true,
+          notice_version: 'dji-keychain-notice-v1',
+          revoked_at: null,
+          terms_version: 'dji-flight-record-api-review-2026-07-17',
+        });
+        const audit = await transaction.query(
+          `SELECT changed_fields, metadata
+             FROM droneworks.audit_events
+            WHERE action = 'keychain.authorization_recorded'
+              AND resource_id = $1`,
+          [uploadId],
+        );
+        expect(audit.rows[0].metadata).toEqual({ provider: 'dji' });
+        expect(audit.rows[0].changed_fields).toEqual([
+          'external_service_processing_authorized',
+          'keychain_use_authorized',
+          'notice_version',
+          'terms_version',
+        ]);
+        expect(JSON.stringify(audit.rows[0])).not.toContain(
+          'generated-consent-source',
+        );
+      },
+    );
+  });
+
   it('rechecks membership and clears the one pooled connection between organizations', async () => {
     const content = Buffer.from('removed-membership');
     const declaration = await declare('alpha_pilot', content, 'removed');

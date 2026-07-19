@@ -22,6 +22,10 @@ import type {
   RawUploadRecord,
   RawUploadRepository,
 } from '@drone-works/database';
+import {
+  djiKeychainNoticeVersion,
+  djiKeychainTermsVersion,
+} from '@drone-works/database';
 
 import type { IdentitySource } from './identity.js';
 import type { ImmutableObjectStore } from './loopback-object-store.js';
@@ -274,7 +278,17 @@ export function registerRawUploadRoutes(
           request.params.organization_id,
           request.params.upload_id,
           idempotencyKey(request.headers),
-          { objectVersionId: exact.versionId },
+          {
+            objectVersionId: exact.versionId,
+            ...(request.body.dji_encrypted_processing === 'approved'
+              ? {
+                  djiKeychainAuthorization: {
+                    noticeVersion: djiKeychainNoticeVersion,
+                    termsVersion: djiKeychainTermsVersion,
+                  },
+                }
+              : {}),
+          },
         );
         if (completed.objectVersionId !== exact.versionId) {
           await dependencies.objectStore.deleteExact(

@@ -6,6 +6,7 @@ import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
+  LocalNativeParserOperations,
   ParserSupervisor,
   buildParserCreateArguments,
   defaultParserConstraints,
@@ -167,6 +168,19 @@ afterEach(async () => {
 });
 
 describe('A08 native parser supervisor', () => {
+  it('rejects the local native adapter in every hosted environment', () => {
+    for (const environment of ['staging', 'production']) {
+      expect(
+        () =>
+          new LocalNativeParserOperations({
+            environment,
+            executable: '/generated/parser',
+            executableSha256: 'a'.repeat(64),
+          }),
+      ).toThrow('unavailable in hosted mode');
+    }
+  });
+
   it('builds and revalidates the complete no-network read-only boundary', () => {
     const args = buildParserCreateArguments({
       image,

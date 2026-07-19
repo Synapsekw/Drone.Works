@@ -187,12 +187,18 @@ export async function completeRawUpload(
   uploadId: string,
   objectVersionId: string,
   idempotencyKey: string,
+  approval: Readonly<{ approveDjiEncryptedProcessing?: boolean }> = {},
 ): Promise<ApiRawUpload> {
   return request<ApiRawUpload>(
     options,
     `/api/v1/organizations/${encodeURIComponent(organizationId)}/uploads/${encodeURIComponent(uploadId)}/completion`,
     {
-      body: JSON.stringify({ object_version_id: objectVersionId }),
+      body: JSON.stringify({
+        object_version_id: objectVersionId,
+        ...(approval.approveDjiEncryptedProcessing
+          ? { dji_encrypted_processing: 'approved' as const }
+          : {}),
+      }),
       headers: headers(options, {
         'content-type': 'application/json',
         'idempotency-key': idempotencyKey,

@@ -132,6 +132,7 @@ export const rawUploadContentSchema = Type.Object(
 export const completeRawUploadBodySchema = Type.Object(
   {
     object_version_id: uuidStringSchema,
+    dji_encrypted_processing: Type.Optional(Type.Literal('approved')),
   },
   { $id: 'CompleteRawUploadBody', additionalProperties: false },
 );

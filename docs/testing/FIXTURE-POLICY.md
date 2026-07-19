@@ -1,7 +1,7 @@
 # Flight-log fixture policy
 
 Status: active for Phase 0
-Last updated: 2026-07-12
+Last updated: 2026-07-19
 
 ## Purpose
 
@@ -170,6 +170,15 @@ Before using any fixture:
 
 ## Current Phase 0 state
 
-Three contributor-provided candidate DJI logs and one controlled truncated derivative are inventoried as local-only fixtures. Their raw bytes remain ignored by Git and local probing identifies the three source logs as encrypted DJI format version 14. The repository owner explicitly authorized controlled external processing for the first fixture on 2026-07-14; after a separate host disclosure acknowledgement on 2026-07-15, its bounded keychain request was sent to DJI and returned a valid response. External processing remains false for the other two source logs and the derivative; the derivative was decoded offline with the parent's ephemeral keychain and no derivative metadata was transmitted.
+Three contributor-provided DJI logs and one controlled truncated derivative are
+inventoried as local-only fixtures. Their raw bytes remain ignored by Git and
+all three source logs are encrypted DJI format version 14. The repository owner
+has explicitly authorized bounded external processing only for the manifest row
+used by the supported-format and A13a functional gates. Its request has passed
+the one-shot research path and the generated local application path; neither
+transmitted the raw log. External processing remains false for the other source
+logs and derivative, and controlled derivatives inherit the parent restriction.
 
-The P0-02 handling and inventory gate is satisfied for local research. Parser feasibility and confirmation that at least one candidate is a valid supported log remain P0-03 evidence.
+The handling, inventory, supported-parser, and narrow local functional uses are
+satisfied for the approved row. No fixture is approved for redistribution,
+hosted credentials, staging, production, or broader provider use.

@@ -34,8 +34,16 @@ export interface RawUploadRecord {
 }
 
 export interface CompleteRawUploadInput {
+  readonly djiKeychainAuthorization?: Readonly<{
+    readonly noticeVersion: typeof djiKeychainNoticeVersion;
+    readonly termsVersion: typeof djiKeychainTermsVersion;
+  }>;
   readonly objectVersionId: string;
 }
+
+export const djiKeychainNoticeVersion = 'dji-keychain-notice-v1' as const;
+export const djiKeychainTermsVersion =
+  'dji-flight-record-api-review-2026-07-17' as const;
 
 interface MembershipRow {
   readonly role: OrganizationRole;
@@ -141,10 +149,44 @@ export interface ImportStatus {
 }
 
 export interface ImportJobTarget {
+  readonly byteSize: number;
+  readonly contentSha256: string;
   readonly importId: string;
+  readonly mediaType: string;
+  readonly objectKey: string;
+  readonly objectVersionId: string;
   readonly rawSourceId: string;
-  readonly state: 'queued';
+  readonly state: 'queued' | 'detecting' | 'parsing' | 'normalizing';
 }
+
+export const importWorkerFailureCodes = [
+  'unsupported_format',
+  'unsupported_version',
+  'boundary_violation',
+  'invalid_source',
+  'invalid_worker_output',
+  'parser_memory_limit',
+  'parser_cleanup_failed',
+  'parser_output_limit',
+  'parser_panic',
+  'parser_runtime_error',
+  'parser_wall_time_limit',
+  'private_input_invalid',
+  'private_input_limit',
+  'source_identity_mismatch',
+  'source_input_limit',
+  'source_unavailable',
+  'truncated_source',
+  'invalid_keychain_request',
+  'invalid_keychain_response',
+  'key_rejected',
+  'key_service_not_authorized',
+  'key_service_rate_limited',
+  'key_service_unavailable',
+  'keychain_use_not_authorized',
+] as const;
+
+export type ImportWorkerFailureCode = (typeof importWorkerFailureCodes)[number];
 
 function stableUuid(namespace: string, ...values: string[]): string {
   const bytes = createHash('sha256')
@@ -165,7 +207,10 @@ function requestDigest(value: unknown): string {
   return createHash('sha256').update(JSON.stringify(value)).digest('hex');
 }
 
-function objectKey(organizationId: string, uploadId: string): string {
+export function rawSourceObjectKey(
+  organizationId: string,
+  uploadId: string,
+): string {
   return `organizations/${organizationId}/raw-sources/${uploadId}/revisions/${uploadId}`;
 }
 
@@ -284,6 +329,62 @@ async function writeAudit(
   );
 }
 
+async function recordDjiKeychainAuthorization(
+  transaction: OrganizationTransaction,
+  identity: AppIdentity,
+  rawSourceId: string,
+  authorization: CompleteRawUploadInput['djiKeychainAuthorization'],
+): Promise<void> {
+  if (!authorization) return;
+  if (
+    authorization.noticeVersion !== djiKeychainNoticeVersion ||
+    authorization.termsVersion !== djiKeychainTermsVersion
+  ) {
+    throw new OrganizationAccessDeniedError();
+  }
+  await transaction.query(
+    `INSERT INTO droneworks.keychain_authorizations (
+       organization_id, raw_source_id, keychain_use_authorized,
+       external_service_processing_authorized, notice_version,
+       terms_version, approved_by_user_id, approved_at, revoked_at
+     ) VALUES ($1, $2, true, true, $3, $4, $5, now(), NULL)
+     ON CONFLICT (organization_id, raw_source_id) DO UPDATE SET
+       keychain_use_authorized = true,
+       external_service_processing_authorized = true,
+       notice_version = EXCLUDED.notice_version,
+       terms_version = EXCLUDED.terms_version,
+       approved_by_user_id = EXCLUDED.approved_by_user_id,
+       approved_at = EXCLUDED.approved_at,
+       revoked_at = NULL`,
+    [
+      transaction.organizationId,
+      rawSourceId,
+      authorization.noticeVersion,
+      authorization.termsVersion,
+      identity.userId,
+    ],
+  );
+  await transaction.query(
+    `INSERT INTO droneworks.audit_events (
+       organization_id, id, actor_kind, actor_user_id, action,
+       resource_type, resource_id, changed_fields, metadata, occurred_at
+     ) VALUES ($1, $2, 'user', $3, 'keychain.authorization_recorded',
+               'raw_source', $4, $5, '{"provider":"dji"}'::jsonb, now())`,
+    [
+      transaction.organizationId,
+      randomUUID(),
+      identity.userId,
+      rawSourceId,
+      [
+        'external_service_processing_authorized',
+        'keychain_use_authorized',
+        'notice_version',
+        'terms_version',
+      ],
+    ],
+  );
+}
+
 function descriptor(
   organizationId: string,
   uploadId: string,
@@ -291,7 +392,7 @@ function descriptor(
 ): RawUploadDescriptor {
   return {
     ...input,
-    objectKey: objectKey(organizationId, uploadId),
+    objectKey: rawSourceObjectKey(organizationId, uploadId),
     organizationId,
     uploadId,
   };
@@ -501,6 +602,12 @@ export class RawUploadRepository {
           if (row.object_revision_id !== input.objectVersionId) {
             throw new RawUploadConflictError();
           }
+          await recordDjiKeychainAuthorization(
+            transaction,
+            identity,
+            row.raw_source_id,
+            input.djiKeychainAuthorization,
+          );
           return {
             contentSha256: row.content_sha256,
             objectVersionId: row.object_revision_id,
@@ -540,6 +647,12 @@ export class RawUploadRepository {
             ],
           );
         }
+        await recordDjiKeychainAuthorization(
+          transaction,
+          identity,
+          rawSourceId,
+          input.djiKeychainAuthorization,
+        );
         await transaction.query(
           `UPDATE droneworks.import_items
               SET raw_source_id = $3,
@@ -718,22 +831,152 @@ export class ImportProcessingRepository {
       organizationId,
       async (transaction) => {
         const result = await transaction.query<{
-          readonly raw_source_id: string | null;
+          readonly byte_size: string;
+          readonly content_sha256: string;
+          readonly media_type: string;
+          readonly object_revision_id: string;
+          readonly raw_source_id: string;
           readonly state: ImportState;
         }>(
-          `SELECT raw_source_id, state
-             FROM droneworks.import_items
-            WHERE organization_id = $1
-              AND id = $2`,
+          `SELECT item.raw_source_id, item.state,
+                  source.object_revision_id, source.content_sha256,
+                  source.byte_size, source.media_type
+             FROM droneworks.import_items AS item
+             JOIN droneworks.raw_sources AS source
+               ON (source.organization_id, source.id) =
+                  (item.organization_id, item.raw_source_id)
+            WHERE item.organization_id = $1
+              AND item.id = $2
+              AND source.state = 'retained'`,
           [transaction.organizationId, importId],
         );
         const row = result.rows[0];
-        if (!row || row.state !== 'queued' || !row.raw_source_id) return null;
+        if (
+          !row ||
+          !['queued', 'detecting', 'parsing', 'normalizing'].includes(row.state)
+        ) {
+          return null;
+        }
         return {
+          byteSize: Number(row.byte_size),
+          contentSha256: row.content_sha256,
           importId,
+          mediaType: row.media_type,
+          objectKey: rawSourceObjectKey(
+            transaction.organizationId,
+            row.raw_source_id,
+          ),
+          objectVersionId: row.object_revision_id,
           rawSourceId: row.raw_source_id,
-          state: 'queued',
+          state: row.state as ImportJobTarget['state'],
         };
+      },
+    );
+  }
+
+  async markStage(
+    organizationId: string,
+    importId: string,
+    stage: 'detecting' | 'parsing' | 'normalizing',
+  ): Promise<boolean> {
+    return withOrganizationTransaction(
+      this.#pool,
+      organizationId,
+      async (transaction) => {
+        const result = await transaction.query(
+          `UPDATE droneworks.import_items
+              SET state = $3, updated_at = now()
+            WHERE organization_id = $1
+              AND id = $2
+              AND state = ANY($4::text[])`,
+          [
+            transaction.organizationId,
+            importId,
+            stage,
+            ['queued', 'detecting', 'parsing', 'normalizing'],
+          ],
+        );
+        return result.rowCount === 1;
+      },
+    );
+  }
+
+  async fail(
+    organizationId: string,
+    importId: string,
+    failureCode: ImportWorkerFailureCode,
+  ): Promise<boolean> {
+    if (!importWorkerFailureCodes.includes(failureCode)) {
+      throw new TypeError('The import failure code is not allowlisted.');
+    }
+    return withOrganizationTransaction(
+      this.#pool,
+      organizationId,
+      async (transaction) => {
+        await transaction.query(
+          'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+          [`${transaction.organizationId}:import-failure:${importId}`],
+        );
+        const item = await transaction.query<{ readonly state: ImportState }>(
+          `SELECT state FROM droneworks.import_items
+            WHERE organization_id = $1 AND id = $2`,
+          [transaction.organizationId, importId],
+        );
+        const state = item.rows[0]?.state;
+        if (
+          !state ||
+          [
+            'awaiting_review',
+            'completed',
+            'failed',
+            'cancelled',
+            'skipped_duplicate',
+          ].includes(state)
+        ) {
+          return false;
+        }
+        const attempt = await transaction.query<{ readonly attempt: number }>(
+          `SELECT coalesce(max(attempt_number), 0)::integer + 1 AS attempt
+             FROM droneworks.import_attempts
+            WHERE organization_id = $1 AND import_item_id = $2`,
+          [transaction.organizationId, importId],
+        );
+        const attemptNumber = attempt.rows[0]?.attempt ?? 1;
+        await transaction.query(
+          `INSERT INTO droneworks.import_attempts (
+             organization_id, id, import_item_id, attempt_number, state,
+             parser_revision, failure_code, started_at, finished_at
+           ) VALUES ($1, $2, $3, $4, 'failed',
+                     'dji-log-parser@0.5.7', $5, now(), now())`,
+          [
+            transaction.organizationId,
+            stableUuid(
+              'droneworks-failed-import-attempt-v1',
+              transaction.organizationId,
+              importId,
+              String(attemptNumber),
+            ),
+            importId,
+            attemptNumber,
+            failureCode,
+          ],
+        );
+        await transaction.query(
+          `UPDATE droneworks.import_items
+              SET state = 'failed', failure_code = $3, updated_at = now()
+            WHERE organization_id = $1 AND id = $2`,
+          [transaction.organizationId, importId, failureCode],
+        );
+        await transaction.query(
+          `INSERT INTO droneworks.audit_events (
+             organization_id, id, actor_kind, action, resource_type,
+             resource_id, changed_fields, metadata, occurred_at
+           ) VALUES ($1, $2, 'system', 'import.processing_failed',
+                     'import_item', $3, ARRAY['state'],
+                     '{"schema_version":1}'::jsonb, now())`,
+          [transaction.organizationId, randomUUID(), importId],
+        );
+        return true;
       },
     );
   }

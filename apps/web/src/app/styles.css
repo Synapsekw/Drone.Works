@@ -262,6 +262,34 @@ summary {
   font-size: 0.82rem;
   font-weight: 500;
 }
+.consent-control {
+  display: flex;
+  grid-column: 1;
+  gap: 11px;
+  align-items: start;
+  color: #46524c;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+.consent-control input {
+  width: 18px;
+  min-height: 18px;
+  margin-top: 2px;
+  padding: 0;
+}
+.consent-control span {
+  display: grid;
+  gap: 3px;
+}
+.consent-control small {
+  max-width: 720px;
+  color: #606a65;
+  font-size: 0.76rem;
+}
+.upload-form > button {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
 .progress-panel {
   display: flex;
   gap: 13px;
@@ -409,7 +437,7 @@ summary {
   gap: 7px;
   min-height: 170px;
   padding: 28px;
-  color: #6d7671;
+  color: #626b66;
   text-align: center;
 }
 .map-empty strong {
@@ -475,6 +503,10 @@ summary {
   .form-grid,
   .upload-form {
     grid-template-columns: 1fr;
+  }
+  .upload-form > button {
+    grid-column: 1;
+    grid-row: auto;
   }
   .section-heading {
     align-items: start;

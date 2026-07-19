@@ -86,6 +86,24 @@ And the persona control is visibly identified as local development only
 And a hosted build contains neither that control nor its local rewrite
 ```
 
+### Scenario: The generated local application closes the functional path
+
+```gherkin
+Given a policy-approved supported fixture and the generated local identity harness
+And the uploader explicitly accepts the current encrypted-processing notice
+When the active worker is killed after claiming the import
+Then durable supervision makes the restartable import available to a replacement worker
+And the exact retained source is parsed and normalized into one flight
+And the browser opens its truthful summary and provider-free capability-aware track
+When the exact bytes are uploaded again
+Then the retained flight is reused without creating another canonical flight
+When a controlled corrupt derivative is uploaded
+Then only that import fails as corrupt
+And Beta cannot infer the Alpha flight by exact identifier
+And removing the generated Alpha organization leaves no Alpha customer rows or referenced object versions
+And service logs contain no redaction canary, request payload, keychain, feature-point, or coordinate value
+```
+
 ### Scenario: A known aircraft is matched by serial
 
 ```gherkin

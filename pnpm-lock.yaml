@@ -164,9 +164,18 @@ importers:
       '@drone-works/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@drone-works/database':
+        specifier: workspace:*
+        version: link:../../packages/database
       '@drone-works/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@drone-works/jobs':
+        specifier: workspace:*
+        version: link:../../packages/jobs
+      '@drone-works/parser':
+        specifier: workspace:*
+        version: link:../../packages/parser
     devDependencies:
       '@types/node':
         specifier: 'catalog:'

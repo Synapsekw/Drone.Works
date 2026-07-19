@@ -442,6 +442,15 @@ Do not share physical keychain cache entries across organizations in Phase 1. Bi
 
 Phase 0 permits one narrow research exception to the disabled application provider: an explicit one-shot local runner may contact only the exact allowlisted DJI endpoint for one individually authorized fixture. It must default to dry-run, require a separate live flag, read a temporary ignored credential only in the trusted parent, use no durable keychain store, destroy its encrypted in-memory cache before exit, and emit only sanitized evidence. This exception does not authorize an application or worker integration and does not satisfy the production secret-store, consent, retention, or deletion gates.
 
+Phase 1A A13a permits a separate generated-application exception only in a
+validated `local` or `test` environment. It requires an approved fixture,
+explicit current notice/terms acceptance recorded atomically at upload
+completion, an ignored credential reference, an ephemeral local managed-key
+file, exact parser executable digest verification, a no-network macOS parser
+sandbox, and destructive database/object cleanup. Hosted startup rejects this
+adapter and production continues to require the managed providers and hosted
+gates below.
+
 ### Consequences
 
 - Key retrieval and parsing have separate trust and failure boundaries.
@@ -691,6 +700,28 @@ development; only managed RDS is deferred to A14.
 - Better Auth integration would require changing domain authorization rather
   than replacing only the identity source.
 - The A13a functional path cannot be repeated unchanged under real sessions.
+
+### Phase 1A A13a evidence — 2026-07-19
+
+The generated local application now connects the immutable upload, durable
+outbox/pg-boss job, trusted keychain broker, exact retained object read,
+digest-pinned local native parser, normalization repository, telemetry object,
+v1 summary/track API, and MapLibre renderer. The browser records current
+source-scoped encrypted-processing approval before the trusted worker sends one
+bounded request; the raw source remains on loopback and the parser remains
+no-network. The cached response is encrypted with an ephemeral local managed
+key and is removed with the generated organization.
+
+The functional gate kills the worker in `detecting`, waits for the lease to
+expire, starts a replacement, and proves the same import reaches a retained
+flight. It then proves exact-byte duplicate reuse, independent corrupt failure,
+Alpha/Beta exact-ID denial, `/api/v1/` browser mutation boundaries,
+provider-free coordinate handling, accessible terminal states,
+redaction-canary absence, and zero generated Alpha customer rows or referenced
+raw/telemetry objects after transactional teardown. This is local functional
+evidence only: it does not prove authentication, production secret management,
+hosted containment, AWS readiness, or release readiness. The sanitized result
+matrix is retained in `../testing/A13A-FUNCTIONAL-EVIDENCE.md`.
 
 ### Phase 1A A05 evidence — 2026-07-16
 

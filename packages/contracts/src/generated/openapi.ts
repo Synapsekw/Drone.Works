@@ -312,6 +312,8 @@ export interface components {
         /** CompleteRawUploadBody */
         "def-15": {
             object_version_id: string;
+            /** @enum {string} */
+            dji_encrypted_processing?: "approved";
         };
         /** RawUpload */
         "def-16": {
@@ -996,6 +998,8 @@ export interface operations {
             content: {
                 "application/json": {
                     object_version_id: string;
+                    /** @enum {string} */
+                    dji_encrypted_processing?: "approved";
                 };
             };
         };

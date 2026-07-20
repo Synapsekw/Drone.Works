@@ -6,12 +6,14 @@ Drone.Works turns raw drone flight logs into an explainable history of flights, 
 
 ## Project status
 
-Phase 0 discovery is complete and Phase 1A implementation is underway. The
+Phase 0 discovery and the Phase 1A local/auth implementation are complete. The
 repository now has a buildable web/API/worker workspace, a Docker-free local
 runtime, a generated versioned API contract, forced PostgreSQL organization
 isolation, and verified self-hosted sessions over the completed upload through
-parser, canonical flight, and provider-free map path. A13b authentication is
-complete; A14 infrastructure is next, and no AWS staging exists yet.
+parser, canonical flight, and provider-free map path. Under D-016, AWS and
+further auth work are paused while a local flight library, dashboard, and the
+remaining product workflows are made useful enough to evaluate. No AWS staging
+exists yet.
 
 The first release is intentionally focused on small professional operators managing approximately 2–20 aircraft:
 
@@ -35,7 +37,7 @@ AI-assisted contributors should also follow the repository instructions in [AGEN
 
 The repository is also an Obsidian project-memory vault. Open [the north star](vault/00-north-star.md) for the current state, completed evidence, blockers, and next entry point. The `vault/` layer records development continuity; documents under `docs/` remain canonical.
 
-The current delivery sequence is defined in the [delivery plan](docs/roadmap/DELIVERY-PLAN.md) and [Phase 1A backlog](docs/roadmap/PHASE-1A-BACKLOG.md). See the [local-development guide](docs/operations/LOCAL-DEVELOPMENT.md) to run the generated-data foundation without Docker or AWS.
+The current delivery sequence is defined in the [delivery plan](docs/roadmap/DELIVERY-PLAN.md) and [local product backlog](docs/roadmap/LOCAL-PRODUCT-BACKLOG.md). See the [local-development guide](docs/operations/LOCAL-DEVELOPMENT.md) to run the generated-data foundation without Docker or AWS.
 
 ## Product principles
 

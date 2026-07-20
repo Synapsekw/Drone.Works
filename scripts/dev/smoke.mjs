@@ -41,6 +41,39 @@ if (
   throw new Error('The local identity-to-organization path did not pass.');
 }
 
+const flightListResponse = await fetch(
+  new URL(
+    `/api/v1/organizations/${state.alpha_organization_id}/flights`,
+    state.endpoints.api,
+  ),
+  { headers: tokenHeader(persona.token) },
+);
+const flightList = await flightListResponse.json();
+if (
+  !flightListResponse.ok ||
+  flightList.items.length < 3 ||
+  flightList.totals.active_flights < 2 ||
+  !flightList.items.some((item) => item.state === 'awaiting_review')
+) {
+  throw new Error('The local generated flight library did not pass.');
+}
+const generatedTrackFlightId = '00000000-0000-4000-8000-0000000000aa';
+const trackResponse = await fetch(
+  new URL(
+    `/api/v1/organizations/${state.alpha_organization_id}/flights/${generatedTrackFlightId}/track?mode=default`,
+    state.endpoints.api,
+  ),
+  { headers: tokenHeader(persona.token) },
+);
+const generatedTrack = await trackResponse.json();
+if (
+  !trackResponse.ok ||
+  !generatedTrack.capabilities.includes('telemetry.position') ||
+  generatedTrack.returned_sample_count < 2
+) {
+  throw new Error('The local generated capability-aware track did not pass.');
+}
+
 const rawContent = Buffer.from('generated-local-smoke-upload');
 const rawDigest = createHash('sha256').update(rawContent).digest('hex');
 const declarationResponse = await fetch(
@@ -190,5 +223,9 @@ if (!databaseProofPassed) {
 }
 
 process.stdout.write(
-  `Local smoke passed: ${[api.service, dispatcher.service, worker.service, objects.service, email.service].join(', ')}, generated identity/authorization, immutable upload/dispatch, and web/postgres.\n`,
+  `Local smoke passed: ${[api.service, dispatcher.service, worker.service, objects.service, email.service].join(', ')}, generated identity/authorization, flight library/track, immutable upload/dispatch, and web/postgres.\n`,
 );
+
+function tokenHeader(token) {
+  return { 'x-drone-works-local-persona-token': token };
+}

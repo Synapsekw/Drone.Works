@@ -29,6 +29,10 @@ const alpha = {
 const beta = {
   organizationId: '00000000-0000-4000-8000-0000000000b1',
 };
+const alphaReview = {
+  flightId: '40000000-0000-4000-8000-0000000000aa',
+  revisionId: '40000000-0000-4000-8000-0000000000ab',
+};
 const privateMarker = 'generated-private-provenance-marker';
 const telemetryCapabilities = [
   'telemetry.altitude',
@@ -202,6 +206,51 @@ beforeAll(async () => {
           telemetryCapabilities,
         ],
       );
+      await transaction.query(
+        `INSERT INTO droneworks.canonical_flights (
+           organization_id, id, import_item_id, pilot_profile_id, aircraft_id,
+           source_kind, state, takeoff_at, takeoff_timezone, duration_ms,
+           assignment_status, created_at, updated_at
+         ) VALUES (
+           $1, $2, NULL, $3, NULL, 'manual', 'awaiting_review', $4,
+           'Asia/Dubai', 120000, 'awaiting_aircraft', $4, $4
+         )`,
+        [
+          alpha.organizationId,
+          alphaReview.flightId,
+          '00000000-0000-4000-8000-0000000000a3',
+          '2026-07-17T01:00:00.000Z',
+        ],
+      );
+      await transaction.query(
+        `INSERT INTO droneworks.flight_revisions (
+           organization_id, id, canonical_flight_id, import_attempt_id,
+           revision_number, canonical_schema_version, facts, capabilities,
+           exact_normalized_fingerprint, exact_normalized_version,
+           fingerprint_status, provenance, created_at
+         ) VALUES (
+           $1, $2, $3, NULL, 1, 1, $4, '{}', NULL,
+           'exact-normalized-v1', 'insufficient_evidence', '{}', $5
+         )`,
+        [
+          alpha.organizationId,
+          alphaReview.revisionId,
+          alphaReview.flightId,
+          {
+            aircraft_model: fact('Needs assignment'),
+            aircraft_name: fact(null),
+            application_platform: fact('manual'),
+            application_version: fact(null),
+            distance_m: fact(50),
+            duration_ms: fact(120_000),
+            max_height_m: fact(10),
+            max_horizontal_speed_mps: fact(null),
+            max_vertical_speed_mps: fact(null),
+            takeoff_time_utc: fact('2026-07-17T01:00:00.000Z'),
+          },
+          '2026-07-17T01:00:00.000Z',
+        ],
+      );
     },
   );
 
@@ -247,6 +296,60 @@ afterAll(async () => {
 });
 
 describe.sequential('A11 organization-authorized flight API', () => {
+  it('lists current flights with totals, search, filters, and bounded cursor pages', async () => {
+    const first = await api.inject({
+      headers: tokenHeader(ownerToken),
+      method: 'GET',
+      url: `/api/v1/organizations/${alpha.organizationId}/flights?limit=1`,
+    });
+    expect(first.statusCode).toBe(200);
+    expect(first.headers['cache-control']).toBe('private, no-store');
+    expect(first.json()).toMatchObject({
+      items: [
+        {
+          flight_id: alphaReview.flightId,
+          state: 'awaiting_review',
+          pilot_display_name: 'Generated Pilot A',
+          aircraft_display_name: null,
+        },
+      ],
+      totals: {
+        active_flights: 1,
+        awaiting_review: 1,
+        total_distance_m: 450.5,
+        total_duration_ms: 620_800,
+      },
+    });
+    expect(first.json().next_cursor).not.toBeNull();
+
+    const second = await api.inject({
+      headers: tokenHeader(ownerToken),
+      method: 'GET',
+      url: `/api/v1/organizations/${alpha.organizationId}/flights?limit=1&cursor=${first.json().next_cursor}`,
+    });
+    expect(second.statusCode).toBe(200);
+    expect(second.json().items).toHaveLength(1);
+    expect(second.json().items[0]).toMatchObject({
+      flight_id: alpha.flightId,
+      state: 'active',
+      pilot_display_name: 'Generated Pilot A',
+      aircraft_display_name: 'Generated Aircraft A',
+    });
+    expect(second.json().next_cursor).toBeNull();
+
+    const filtered = await api.inject({
+      headers: tokenHeader(ownerToken),
+      method: 'GET',
+      url: `/api/v1/organizations/${alpha.organizationId}/flights?state=active&search=Aircraft`,
+    });
+    expect(filtered.statusCode).toBe(200);
+    expect(filtered.json().items.map((item) => item.flight_id)).toEqual([
+      alpha.flightId,
+    ]);
+    expect(JSON.stringify(metrics)).not.toContain(alpha.organizationId);
+    expect(objectReads).toBe(0);
+  });
+
   it('serves the current revision summary to every organization role without private metadata', async () => {
     const tokens = [ownerToken, ...roleTokens.values()];
     for (const token of tokens) {
@@ -294,6 +397,14 @@ describe.sequential('A11 organization-authorized flight API', () => {
 
   it('makes Alpha exact-ID denial indistinguishable in Beta and removed-member contexts', async () => {
     const beforeReads = objectReads;
+    const betaList = await api.inject({
+      headers: tokenHeader(betaToken),
+      method: 'GET',
+      url: `/api/v1/organizations/${beta.organizationId}/flights`,
+    });
+    expect(betaList.statusCode).toBe(200);
+    expect(betaList.body).not.toContain(alpha.flightId);
+    expect(betaList.body).not.toContain(alphaReview.flightId);
     const betaSummary = await api.inject({
       headers: tokenHeader(betaToken),
       method: 'GET',
@@ -329,6 +440,12 @@ describe.sequential('A11 organization-authorized flight API', () => {
       url: `/api/v1/organizations/${alpha.organizationId}/flights/${alpha.flightId}`,
     });
     expect(removed.statusCode).toBe(404);
+    const removedList = await api.inject({
+      headers: tokenHeader(removedToken),
+      method: 'GET',
+      url: `/api/v1/organizations/${alpha.organizationId}/flights`,
+    });
+    expect(removedList.statusCode).toBe(404);
   });
 
   it('returns one deterministic significant track with endpoints, extrema, and explicit gap boundaries', async () => {

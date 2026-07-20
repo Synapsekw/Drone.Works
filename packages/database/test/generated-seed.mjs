@@ -41,6 +41,20 @@ export const generatedOrganizations = Object.freeze({
   }),
 });
 
+function generatedFact(value) {
+  return {
+    base_preference: ['imported'],
+    derived: null,
+    effective: {
+      origin: value === null ? 'unavailable' : 'imported',
+      value,
+    },
+    imported:
+      value === null ? null : { value, provenance: { origin: 'generated' } },
+    user_override: null,
+  };
+}
+
 export async function seedOrganization(transaction, seed) {
   const now = `2026-07-16T0${seed.marker === 'a' ? '1' : '2'}:00:00.000Z`;
   await transaction.query(
@@ -184,8 +198,28 @@ export async function seedOrganization(transaction, seed) {
       seed.revisionId,
       seed.flightId,
       seed.attemptId,
-      { origin: 'generated', duration_ms: 60_000 },
-      ['telemetry.position'],
+      {
+        aircraft_model: generatedFact('Synthetic'),
+        aircraft_name: generatedFact(
+          `Generated Aircraft ${seed.marker.toUpperCase()}`,
+        ),
+        application_platform: generatedFact('Drone.Works demo generator'),
+        application_version: generatedFact('1'),
+        distance_m: generatedFact(seed.marker === 'a' ? 1_842.6 : 934.2),
+        duration_ms: generatedFact(60_000),
+        max_height_m: generatedFact(seed.marker === 'a' ? 78.4 : 42.1),
+        max_horizontal_speed_mps: generatedFact(12.5),
+        max_vertical_speed_mps: generatedFact(3.1),
+        takeoff_time_utc: generatedFact(now),
+      },
+      [
+        'telemetry.altitude',
+        'telemetry.battery',
+        'telemetry.gps',
+        'telemetry.position',
+        'telemetry.signal',
+        'telemetry.velocity',
+      ],
       (seed.marker === 'a' ? 'c' : 'd').repeat(64),
       now,
     ],
@@ -202,7 +236,14 @@ export async function seedOrganization(transaction, seed) {
       seed.revisionId,
       seed.telemetryObjectRevisionId,
       (seed.marker === 'a' ? 'e' : 'f').repeat(64),
-      ['telemetry.position'],
+      [
+        'telemetry.altitude',
+        'telemetry.battery',
+        'telemetry.gps',
+        'telemetry.position',
+        'telemetry.signal',
+        'telemetry.velocity',
+      ],
       now,
     ],
   );

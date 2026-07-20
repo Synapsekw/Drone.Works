@@ -2,7 +2,7 @@
 
 Status: accepted
 Owner: product and engineering
-Last updated: 2026-07-16
+Last updated: 2026-07-20
 
 ## Purpose
 
@@ -25,6 +25,11 @@ The plan is governed by:
 6. Do not begin a later increment merely because earlier code exists; satisfy its exit gate.
 
 ## Delivery sequence
+
+D-016 temporarily holds A14 and hosted rollout while product behavior advances
+through local-only, evidence-gated slices. The phase outcomes below are
+unchanged; [`LOCAL-PRODUCT-BACKLOG.md`](LOCAL-PRODUCT-BACKLOG.md) is the active
+implementation sequence until the product owner accepts the local workflow.
 
 ```mermaid
 flowchart LR

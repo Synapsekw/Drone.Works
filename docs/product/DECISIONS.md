@@ -784,6 +784,56 @@ runtime smoke proves generated persona issuance through Alpha organization
 selection. Better Auth, credentials, cookies, invitations, email, AWS, RDS, and
 uploads remain absent.
 
+## D-016 — Local product validation before cloud deployment
+
+Status: accepted
+Date: 2026-07-20
+
+### Context
+
+The Phase 1A functional and verified-session paths are complete, but the first
+web surface is still too small to validate whether Drone.Works is a useful
+daily product. Provisioning AWS staging now would add infrastructure cost and
+operational work before the flight-library, review, registry, detail, and
+export workflows have earned product confidence.
+
+### Decision
+
+Pause A14 cloud infrastructure and additional authentication work. Continue
+the accepted Phase 1B and Phase 1C product outcomes on one developer machine
+using disposable native PostgreSQL, loopback object/email services, and only
+generated or policy-approved local data. The generated persona remains an
+explicit local/test-only convenience; the completed Better Auth path remains
+in the repository and must stay green, but is not the default product-feedback
+loop.
+
+The first local product slice is a generated-client flight library: entering an
+organization loads current non-deleted flight revisions, active-flight totals,
+search and review-state filters, and direct flight opening. Local startup adds
+clearly synthetic demo flights and one checksum-verifiable bounded telemetry
+track. Organization authorization, forced RLS, `/api/v1/` boundaries, hosted
+persona exclusion, coordinate privacy, and capability/null behavior are not
+relaxed.
+
+### Consequences
+
+- `corepack pnpm dev` is the primary product-review path and requires neither
+  AWS nor external authentication or email.
+- Local slices may pull forward narrow Phase 1C behavior when it creates a
+  coherent testable workflow; this does not declare Phase 1B or Phase 1C done.
+- A14 and hosted deployment remain blocked by an explicit product decision,
+  not an implementation failure.
+- Hosted, auth, isolation, privacy, and full repository gates remain required
+  for each implementation commit.
+
+### Reconsideration triggers
+
+- The product owner accepts the local workflow as useful enough to test in a
+  hosted environment.
+- A required product behavior cannot be evaluated honestly with loopback
+  infrastructure.
+- A real pilot requires verified remote access under approved data handling.
+
 ## Open decisions
 
 The following require evidence before implementation commitment:

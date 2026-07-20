@@ -203,6 +203,21 @@ try {
     [join(repositoryRoot, 'scripts/dev/dependencies.mjs')],
     { EMAIL_PORT: String(ports.email), OBJECT_PORT: String(ports.objects) },
   );
+  const objectInternalUrl = `http://127.0.0.1:${ports.objects}`;
+  await waitForHttp(`${objectInternalUrl}/health`, 'objects');
+  await execFileAsync(
+    process.execPath,
+    [join(repositoryRoot, 'scripts/dev/seed-demo-flights.mjs')],
+    {
+      cwd: repositoryRoot,
+      env: {
+        ...process.env,
+        ...databaseEnvironment,
+        OBJECT_INTERNAL_URL: objectInternalUrl,
+        PGUSER: userInfo().username,
+      },
+    },
+  );
   spawnService(
     'api',
     process.execPath,
@@ -217,7 +232,7 @@ try {
       DRONE_WORKS_LOCAL_IDENTITY_ENABLED: String(localIdentityEnabled),
       EMAIL_INTERNAL_URL: `http://127.0.0.1:${ports.email}`,
       HOST: '127.0.0.1',
-      OBJECT_INTERNAL_URL: `http://127.0.0.1:${ports.objects}`,
+      OBJECT_INTERNAL_URL: objectInternalUrl,
       PGUSER: 'droneworks_app',
       PORT: String(ports.api),
     },
@@ -267,7 +282,7 @@ try {
       DRONE_WORKS_LOCAL_WORKER_RECOVERY_PROBE_MS:
         process.env.DRONE_WORKS_LOCAL_WORKER_RECOVERY_PROBE_MS ?? '0',
       HOST: '127.0.0.1',
-      OBJECT_INTERNAL_URL: `http://127.0.0.1:${ports.objects}`,
+      OBJECT_INTERNAL_URL: objectInternalUrl,
       PGUSER: 'droneworks_app',
       PORT: String(ports.worker),
     },

@@ -5,7 +5,8 @@ Last updated: 2026-07-20
 
 This workflow runs only on your Mac. It does not create anything in AWS, ask for
 cloud credentials, use Docker, send real email, or load customer data. The seed
-record is generated and safe to delete.
+records and telemetry track are generated, explicitly labeled synthetic, and
+safe to delete.
 
 ## One-time setup
 
@@ -87,9 +88,14 @@ record is generated and safe to delete.
    The final line prints the local web address. The port is chosen automatically
    so it does not collide with another project. Startup applies the same
    checksum-pinned customer and jobs migrations used by the database tests,
-   creates two generated organizations, and enables the server-owned Alpha/Beta
-   persona control. The
+   creates two generated organizations with three synthetic flights each,
+   including one provider-free capability-aware track, and enables the
+   server-owned Alpha/Beta persona control. The
    persona control is not a login and exists only in this local process.
+
+   In the browser, choose **Generated Alpha owner**, select **Enter
+   organization**, then use the flight table's **Open flight** action. The
+   dashboard, filters, summary, and track work without uploading a fixture.
 
 2. In the same or another Terminal window, check web, API, worker, object,
    email, and PostgreSQL together:
@@ -109,8 +115,8 @@ record is generated and safe to delete.
 
 ## What is running
 
-- `web`: the A12 local-only persona, organization, single-file upload/status,
-  flight-summary, and provider-free MapLibre path;
+- `web`: the local-only persona, organization flight library/dashboard,
+  single-file upload/status, flight-summary, and provider-free MapLibre path;
 - `api`: the versioned `/api/v1/health` contract;
 - `dispatcher`: leases payload-free outbox rows and sends stable pg-boss jobs;
 - `worker`: the durable import consumer, trusted keychain broker, exact-source

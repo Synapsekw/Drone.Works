@@ -305,8 +305,16 @@ export const flightSummarySchema = Type.Object(
     ]),
     source_kind: Type.Union([Type.Literal('imported'), Type.Literal('manual')]),
     pilot_profile_id: Type.Union([uuidStringSchema, Type.Null()]),
+    pilot_display_name: Type.Union([
+      Type.String({ minLength: 1, maxLength: 200 }),
+      Type.Null(),
+    ]),
     proposed_pilot_profile_id: Type.Union([uuidStringSchema, Type.Null()]),
     aircraft_id: Type.Union([uuidStringSchema, Type.Null()]),
+    aircraft_display_name: Type.Union([
+      Type.String({ minLength: 1, maxLength: 200 }),
+      Type.Null(),
+    ]),
     takeoff_timezone: Type.String({ minLength: 1, maxLength: 100 }),
     revision_number: Type.Integer({ minimum: 1 }),
     capabilities: Type.Array(Type.String({ minLength: 1 }), {
@@ -320,6 +328,37 @@ export const flightSummarySchema = Type.Object(
     ]),
   },
   { $id: 'FlightSummary', additionalProperties: false },
+);
+
+export const flightListQuerySchema = Type.Object(
+  {
+    cursor: Type.Optional(Type.String({ pattern: '^[A-Za-z0-9_-]{1,200}$' })),
+    limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 100 })),
+    search: Type.Optional(Type.String({ maxLength: 100 })),
+    state: Type.Optional(
+      Type.Union([Type.Literal('active'), Type.Literal('awaiting_review')]),
+    ),
+  },
+  { $id: 'FlightListQuery', additionalProperties: false },
+);
+
+export const flightListTotalsSchema = Type.Object(
+  {
+    active_flights: Type.Integer({ minimum: 0 }),
+    awaiting_review: Type.Integer({ minimum: 0 }),
+    total_distance_m: Type.Number({ minimum: 0 }),
+    total_duration_ms: Type.Number({ minimum: 0 }),
+  },
+  { $id: 'FlightListTotals', additionalProperties: false },
+);
+
+export const flightListSchema = Type.Object(
+  {
+    items: Type.Array(Type.Ref(flightSummarySchema), { maxItems: 100 }),
+    next_cursor: Type.Union([Type.String(), Type.Null()]),
+    totals: Type.Ref(flightListTotalsSchema),
+  },
+  { $id: 'FlightList', additionalProperties: false },
 );
 
 export const flightTrackQuerySchema = Type.Object(
@@ -433,4 +472,5 @@ export type DeclareRawUploadBody = Static<typeof declareRawUploadBodySchema>;
 export type CompleteRawUploadBody = Static<typeof completeRawUploadBodySchema>;
 export type ImportPath = Static<typeof importPathSchema>;
 export type FlightPath = Static<typeof flightPathSchema>;
+export type FlightListQuery = Static<typeof flightListQuerySchema>;
 export type FlightTrackQuery = Static<typeof flightTrackQuerySchema>;

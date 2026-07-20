@@ -67,6 +67,7 @@ export {
 export {
   flightFactNames,
   FlightReadRepository,
+  FlightListQueryError,
   FlightTelemetryUnavailableError,
   FlightTrackCursorError,
   type FlightFactName,
@@ -74,6 +75,9 @@ export {
   type FlightFactSummary,
   type FlightReadMetric,
   type FlightReadMetricsSink,
+  type FlightListRequest,
+  type FlightListResult,
+  type FlightListTotals,
   type FlightSummary,
   type FlightTelemetrySummary,
   type FlightTrackRequest,

@@ -49,6 +49,7 @@ export interface FlightTelemetrySummary {
 
 export interface FlightSummary {
   readonly aircraftId: string | null;
+  readonly aircraftDisplayName: string | null;
   readonly assignmentStatus:
     | 'ambiguous_aircraft'
     | 'assigned'
@@ -60,12 +61,33 @@ export interface FlightSummary {
   readonly facts: Readonly<Record<FlightFactName, FlightFactSummary>>;
   readonly flightId: string;
   readonly pilotProfileId: string | null;
+  readonly pilotDisplayName: string | null;
   readonly proposedPilotProfileId: string | null;
   readonly revisionNumber: number;
   readonly sourceKind: 'imported' | 'manual';
   readonly state: 'active' | 'awaiting_review';
   readonly takeoffTimezone: string;
   readonly telemetry: FlightTelemetrySummary | null;
+}
+
+export interface FlightListRequest {
+  readonly cursor?: string;
+  readonly limit?: number;
+  readonly search?: string;
+  readonly state?: 'active' | 'awaiting_review';
+}
+
+export interface FlightListTotals {
+  readonly activeFlights: number;
+  readonly awaitingReview: number;
+  readonly totalDistanceM: number;
+  readonly totalDurationMs: number;
+}
+
+export interface FlightListResult {
+  readonly items: readonly FlightSummary[];
+  readonly nextCursor: string | null;
+  readonly totals: FlightListTotals;
 }
 
 export interface FlightTrackRequest {
@@ -92,7 +114,7 @@ export interface FlightReadMetric {
   readonly durationMs: number;
   readonly objectOutcome:
     'error' | 'invalid' | 'missing' | 'not_read' | 'verified';
-  readonly operation: 'summary' | 'track';
+  readonly operation: 'list' | 'summary' | 'track';
   readonly replayMode: 'default' | 'full' | null;
   readonly returnedSampleCount: number;
   readonly schemaVersion: 1;
@@ -115,6 +137,15 @@ export class FlightTrackCursorError extends Error {
   }
 }
 
+export class FlightListQueryError extends Error {
+  readonly statusCode = 400;
+
+  constructor() {
+    super('The flight list query is invalid or stale.');
+    this.name = 'FlightListQueryError';
+  }
+}
+
 export class FlightTelemetryUnavailableError extends Error {
   readonly statusCode = 503;
 
@@ -126,6 +157,7 @@ export class FlightTelemetryUnavailableError extends Error {
 
 interface FlightReadRow {
   readonly aircraft_id: string | null;
+  readonly aircraft_display_name: string | null;
   readonly assignment_status: FlightSummary['assignmentStatus'];
   readonly capabilities: string[];
   readonly codec: string | null;
@@ -137,6 +169,7 @@ interface FlightReadRow {
   readonly last_elapsed_ms: string | null;
   readonly object_revision_id: string | null;
   readonly pilot_profile_id: string | null;
+  readonly pilot_display_name: string | null;
   readonly proposed_pilot_profile_id: string | null;
   readonly revision_id: string;
   readonly revision_number: number;
@@ -145,6 +178,13 @@ interface FlightReadRow {
   readonly state: FlightSummary['state'];
   readonly takeoff_timezone: string;
   readonly telemetry_capabilities: string[] | null;
+}
+
+interface FlightListTotalsRow {
+  readonly active_flights: string;
+  readonly awaiting_review: string;
+  readonly total_distance_m: string;
+  readonly total_duration_ms: string;
 }
 
 const uuidPattern =
@@ -209,6 +249,8 @@ async function loadFlight(
                 flight.pilot_profile_id,
                 flight.proposed_pilot_profile_id,
                 flight.aircraft_id,
+                pilot.display_name AS pilot_display_name,
+                aircraft.display_name AS aircraft_display_name,
                 flight.takeoff_timezone,
                 revision.id AS revision_id,
                 revision.revision_number,
@@ -237,6 +279,12 @@ async function loadFlight(
            LEFT JOIN droneworks.telemetry_objects AS telemetry
              ON (telemetry.organization_id, telemetry.flight_revision_id) =
                 (flight.organization_id, revision.id)
+           LEFT JOIN droneworks.pilot_profiles AS pilot
+             ON (pilot.organization_id, pilot.id) =
+                (flight.organization_id, flight.pilot_profile_id)
+           LEFT JOIN droneworks.aircraft AS aircraft
+             ON (aircraft.organization_id, aircraft.id) =
+                (flight.organization_id, flight.aircraft_id)
           WHERE flight.organization_id = $1
             AND flight.id = $2
             AND flight.state <> 'deleted'`,
@@ -245,6 +293,175 @@ async function loadFlight(
       const row = result.rows[0];
       if (!row) throw new OrganizationAccessDeniedError();
       return row;
+    },
+  );
+}
+
+function listOffset(cursor: string | undefined): number {
+  if (!cursor) return 0;
+  if (!cursorPattern.test(cursor)) throw new FlightListQueryError();
+  let decoded: string;
+  try {
+    decoded = Buffer.from(cursor, 'base64url').toString('utf8');
+  } catch {
+    throw new FlightListQueryError();
+  }
+  const match = /^1:(\d+)$/.exec(decoded);
+  const offset = Number(match?.[1]);
+  if (!match || !Number.isSafeInteger(offset) || offset < 0) {
+    throw new FlightListQueryError();
+  }
+  return offset;
+}
+
+function listCursor(offset: number): string {
+  return Buffer.from(`1:${offset}`, 'utf8').toString('base64url');
+}
+
+function searchPattern(search: string | undefined): string | null {
+  const normalized = search?.trim() ?? '';
+  if (normalized.length > 100) throw new FlightListQueryError();
+  if (!normalized) return null;
+  return `%${normalized.replace(/[\\%_]/g, '\\$&')}%`;
+}
+
+async function loadFlightList(
+  pool: OrganizationPool,
+  identity: AppIdentity,
+  organizationId: string,
+  request: FlightListRequest,
+): Promise<FlightListResult> {
+  const limit = request.limit ?? 25;
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
+    throw new FlightListQueryError();
+  }
+  const offset = listOffset(request.cursor);
+  const pattern = searchPattern(request.search);
+  return withOrganizationTransaction(
+    pool,
+    requireUuid(organizationId),
+    async (transaction) => {
+      await requireMembership(transaction, requireUuid(identity.userId));
+      const result = await transaction.query<FlightReadRow>(
+        `SELECT flight.id AS flight_id,
+                flight.source_kind,
+                flight.state,
+                flight.assignment_status,
+                flight.pilot_profile_id,
+                flight.proposed_pilot_profile_id,
+                flight.aircraft_id,
+                pilot.display_name AS pilot_display_name,
+                aircraft.display_name AS aircraft_display_name,
+                flight.takeoff_timezone,
+                revision.id AS revision_id,
+                revision.revision_number,
+                revision.facts,
+                revision.capabilities,
+                telemetry.object_revision_id,
+                telemetry.codec,
+                telemetry.codec_version,
+                telemetry.content_sha256,
+                telemetry.sample_count,
+                telemetry.first_elapsed_ms,
+                telemetry.last_elapsed_ms,
+                telemetry.capabilities AS telemetry_capabilities
+           FROM droneworks.canonical_flights AS flight
+           JOIN LATERAL (
+             SELECT current_revision.id,
+                    current_revision.revision_number,
+                    current_revision.facts,
+                    current_revision.capabilities
+               FROM droneworks.flight_revisions AS current_revision
+              WHERE current_revision.organization_id = flight.organization_id
+                AND current_revision.canonical_flight_id = flight.id
+              ORDER BY current_revision.revision_number DESC
+              LIMIT 1
+           ) AS revision ON true
+           LEFT JOIN droneworks.telemetry_objects AS telemetry
+             ON (telemetry.organization_id, telemetry.flight_revision_id) =
+                (flight.organization_id, revision.id)
+           LEFT JOIN droneworks.pilot_profiles AS pilot
+             ON (pilot.organization_id, pilot.id) =
+                (flight.organization_id, flight.pilot_profile_id)
+           LEFT JOIN droneworks.aircraft AS aircraft
+             ON (aircraft.organization_id, aircraft.id) =
+                (flight.organization_id, flight.aircraft_id)
+          WHERE flight.organization_id = $1
+            AND flight.state <> 'deleted'
+            AND ($2::text IS NULL OR flight.state = $2)
+            AND (
+              $3::text IS NULL
+              OR flight.id::text ILIKE $3 ESCAPE '\\'
+              OR COALESCE(pilot.display_name, '') ILIKE $3 ESCAPE '\\'
+              OR COALESCE(aircraft.display_name, '') ILIKE $3 ESCAPE '\\'
+              OR COALESCE(
+                   revision.facts->'aircraft_model'->'effective'->>'value',
+                   ''
+                 ) ILIKE $3 ESCAPE '\\'
+            )
+          ORDER BY flight.takeoff_at DESC NULLS LAST, flight.id DESC
+          LIMIT $4 OFFSET $5`,
+        [
+          transaction.organizationId,
+          request.state ?? null,
+          pattern,
+          limit + 1,
+          offset,
+        ],
+      );
+      const totalsResult = await transaction.query<FlightListTotalsRow>(
+        `SELECT count(*) FILTER (WHERE flight.state = 'active')::text
+                  AS active_flights,
+                count(*) FILTER (WHERE flight.state = 'awaiting_review')::text
+                  AS awaiting_review,
+                COALESCE(sum(
+                  CASE
+                    WHEN jsonb_typeof(
+                      revision.facts->'duration_ms'->'effective'->'value'
+                    ) = 'number'
+                    THEN (
+                      revision.facts->'duration_ms'->'effective'->>'value'
+                    )::numeric
+                    ELSE 0
+                  END
+                ), 0)::text AS total_duration_ms,
+                COALESCE(sum(
+                  CASE
+                    WHEN jsonb_typeof(
+                      revision.facts->'distance_m'->'effective'->'value'
+                    ) = 'number'
+                    THEN (
+                      revision.facts->'distance_m'->'effective'->>'value'
+                    )::numeric
+                    ELSE 0
+                  END
+                ), 0)::text AS total_distance_m
+           FROM droneworks.canonical_flights AS flight
+           JOIN LATERAL (
+             SELECT current_revision.facts
+               FROM droneworks.flight_revisions AS current_revision
+              WHERE current_revision.organization_id = flight.organization_id
+                AND current_revision.canonical_flight_id = flight.id
+              ORDER BY current_revision.revision_number DESC
+              LIMIT 1
+           ) AS revision ON true
+          WHERE flight.organization_id = $1
+            AND flight.state <> 'deleted'`,
+        [transaction.organizationId],
+      );
+      const totals = totalsResult.rows[0];
+      if (!totals) throw new TypeError('Flight totals were unavailable.');
+      const hasNextPage = result.rows.length > limit;
+      return Object.freeze({
+        items: Object.freeze(result.rows.slice(0, limit).map(summary)),
+        nextCursor: hasNextPage ? listCursor(offset + limit) : null,
+        totals: Object.freeze({
+          activeFlights: Number(totals.active_flights),
+          awaitingReview: Number(totals.awaiting_review),
+          totalDistanceM: Number(totals.total_distance_m),
+          totalDurationMs: Number(totals.total_duration_ms),
+        }),
+      });
     },
   );
 }
@@ -294,11 +511,13 @@ function summary(row: FlightReadRow): FlightSummary {
   ) as unknown as Readonly<Record<FlightFactName, FlightFactSummary>>;
   return Object.freeze({
     aircraftId: row.aircraft_id,
+    aircraftDisplayName: row.aircraft_display_name,
     assignmentStatus: row.assignment_status,
     capabilities: Object.freeze([...row.capabilities].sort()),
     facts: Object.freeze(facts),
     flightId: row.flight_id,
     pilotProfileId: row.pilot_profile_id,
+    pilotDisplayName: row.pilot_display_name,
     proposedPilotProfileId: row.proposed_pilot_profile_id,
     revisionNumber: row.revision_number,
     sourceKind: row.source_kind,
@@ -386,6 +605,29 @@ export class FlightReadRepository {
     this.#metrics = input.metrics;
     this.#objectStore = input.objectStore;
     this.#pool = input.pool;
+  }
+
+  async listFlights(
+    identity: AppIdentity,
+    organizationId: string,
+    request: FlightListRequest,
+  ): Promise<FlightListResult> {
+    const started = performance.now();
+    const result = await loadFlightList(
+      this.#pool,
+      identity,
+      organizationId,
+      request,
+    );
+    this.#metrics?.observe({
+      durationMs: performance.now() - started,
+      objectOutcome: 'not_read',
+      operation: 'list',
+      replayMode: null,
+      returnedSampleCount: result.items.length,
+      schemaVersion: 1,
+    });
+    return result;
   }
 
   async getSummary(

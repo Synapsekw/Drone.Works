@@ -1,16 +1,23 @@
 import type { FastifyInstance, FastifyReply } from 'fastify';
 
 import {
+  flightListQuerySchema,
+  flightListSchema,
   flightPathSchema,
   flightSummarySchema,
   flightTrackQuerySchema,
   flightTrackSchema,
   problemDetailSchema,
+  organizationPathSchema,
+  type FlightListQuery,
   type FlightPath,
   type FlightTrackQuery,
+  type OrganizationPath,
 } from '@drone-works/contracts/server';
 import type {
   AppIdentity,
+  FlightListRequest,
+  FlightListResult,
   FlightSummary,
   FlightTrackRequest,
   FlightTrackResult,
@@ -46,8 +53,10 @@ function summaryResponse(summary: FlightSummary) {
     assignment_status: summary.assignmentStatus,
     source_kind: summary.sourceKind,
     pilot_profile_id: summary.pilotProfileId,
+    pilot_display_name: summary.pilotDisplayName,
     proposed_pilot_profile_id: summary.proposedPilotProfileId,
     aircraft_id: summary.aircraftId,
+    aircraft_display_name: summary.aircraftDisplayName,
     takeoff_timezone: summary.takeoffTimezone,
     revision_number: summary.revisionNumber,
     capabilities: summary.capabilities,
@@ -59,6 +68,19 @@ function summaryResponse(summary: FlightSummary) {
           last_elapsed_ms: summary.telemetry.lastElapsedMs,
         }
       : null,
+  };
+}
+
+function listResponse(result: FlightListResult) {
+  return {
+    items: result.items.map(summaryResponse),
+    next_cursor: result.nextCursor,
+    totals: {
+      active_flights: result.totals.activeFlights,
+      awaiting_review: result.totals.awaitingReview,
+      total_distance_m: result.totals.totalDistanceM,
+      total_duration_ms: result.totals.totalDurationMs,
+    },
   };
 }
 
@@ -134,6 +156,11 @@ function trackResponse(track: FlightTrackResult) {
 export interface FlightRouteDependencies {
   readonly identitySource: IdentitySource;
   readonly flights: {
+    listFlights(
+      identity: AppIdentity,
+      organizationId: string,
+      request: FlightListRequest,
+    ): Promise<FlightListResult>;
     getSummary(
       identity: AppIdentity,
       organizationId: string,
@@ -152,6 +179,47 @@ export function registerFlightRoutes(
   app: FastifyInstance,
   dependencies: FlightRouteDependencies,
 ): void {
+  app.get<{ Params: OrganizationPath; Querystring: FlightListQuery }>(
+    '/api/v1/organizations/:organization_id/flights',
+    {
+      schema: {
+        operationId: 'listFlights',
+        params: organizationPathSchema,
+        querystring: flightListQuerySchema,
+        response: {
+          200: {
+            description:
+              'An authorized cursor page of current non-deleted flights and organization totals.',
+            content: { 'application/json': { schema: flightListSchema } },
+          },
+          ...problemResponses,
+        },
+        summary: 'List current flights',
+        tags: ['flights'],
+      },
+    },
+    async (request, reply) => {
+      const result = await dependencies.flights.listFlights(
+        await requireIdentity(dependencies.identitySource, request),
+        request.params.organization_id,
+        {
+          ...(request.query.cursor ? { cursor: request.query.cursor } : {}),
+          ...(request.query.limit === undefined
+            ? {}
+            : { limit: request.query.limit }),
+          ...(request.query.search === undefined
+            ? {}
+            : { search: request.query.search }),
+          ...(request.query.state === undefined
+            ? {}
+            : { state: request.query.state }),
+        },
+      );
+      privateCache(reply);
+      return listResponse(result);
+    },
+  );
+
   app.get<{ Params: FlightPath }>(
     '/api/v1/organizations/:organization_id/flights/:flight_id',
     {

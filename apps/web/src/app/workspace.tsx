@@ -11,6 +11,7 @@ import {
 
 import {
   ApiClientError,
+  type ApiFlightList,
   type ApiFlightSummary,
   type ApiFlightTrack,
   type ApiImportStatus,
@@ -23,6 +24,7 @@ import {
   getFlightSummary,
   getFlightTrack,
   getImportStatus,
+  listFlights,
   putRawUploadContent,
   selectOrganization,
 } from '@drone-works/contracts/client';
@@ -123,6 +125,20 @@ function numberFact(
   return `${new Intl.NumberFormat('en', { maximumFractionDigits: 1 }).format(value)} ${unit} · ${fact.origin.replace('_', ' ')}`;
 }
 
+function compactDuration(milliseconds: number): string {
+  const hours = milliseconds / 3_600_000;
+  return hours < 0.1
+    ? `${Math.round(milliseconds / 60_000)} min`
+    : `${hours.toFixed(1)} h`;
+}
+
+function factNumber(
+  summary: ApiFlightSummary,
+  key: 'distance_m' | 'duration_ms',
+): number | null {
+  return summary.facts[key].value;
+}
+
 async function sha256(buffer: ArrayBuffer): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', buffer);
   return [...new Uint8Array(digest)]
@@ -152,6 +168,14 @@ export function Workspace({
     useState<ApiOrganizationSelection | null>(null);
   const [organizationState, setOrganizationState] =
     useState<ActivityState>('empty');
+  const [flightLibrary, setFlightLibrary] = useState<ApiFlightList | null>(
+    null,
+  );
+  const [libraryState, setLibraryState] = useState<ActivityState>('empty');
+  const [librarySearch, setLibrarySearch] = useState('');
+  const [libraryFilter, setLibraryFilter] = useState<
+    '' | 'active' | 'awaiting_review'
+  >('');
   const [invitationMessage, setInvitationMessage] = useState<string | null>(
     null,
   );
@@ -176,6 +200,10 @@ export function Workspace({
     pollController.current?.abort();
     pollController.current = null;
     setOrganization(null);
+    setFlightLibrary(null);
+    setLibraryState('empty');
+    setLibrarySearch('');
+    setLibraryFilter('');
     setInvitationMessage(null);
     setFile(null);
     setApproveDjiProcessing(false);
@@ -196,6 +224,41 @@ export function Workspace({
     [],
   );
 
+  const loadFlightLibrary = async (
+    selectedOrganization: ApiOrganizationSelection,
+    token: string,
+    input: Readonly<{
+      append?: boolean;
+      cursor?: string;
+      search?: string;
+      state?: '' | 'active' | 'awaiting_review';
+    }> = {},
+  ) => {
+    setLibraryState('loading');
+    setError(null);
+    try {
+      const result = await listFlights(
+        apiOptions(token),
+        selectedOrganization.organization_id,
+        {
+          limit: 25,
+          ...(input.cursor ? { cursor: input.cursor } : {}),
+          ...(input.search?.trim() ? { search: input.search.trim() } : {}),
+          ...(input.state ? { state: input.state } : {}),
+        },
+      );
+      setFlightLibrary((current) =>
+        input.append && current
+          ? { ...result, items: [...current.items, ...result.items] }
+          : result,
+      );
+      setLibraryState('success');
+    } catch (libraryError) {
+      setLibraryState('error');
+      setError(publicError(libraryError));
+    }
+  };
+
   const enterOrganization = async (event: FormEvent) => {
     event.preventDefault();
     if (!activeIdentity) return;
@@ -208,6 +271,7 @@ export function Workspace({
       );
       setOrganization(selected);
       setOrganizationState('success');
+      await loadFlightLibrary(selected, activeIdentity.token);
     } catch (organizationError) {
       setOrganizationState('error');
       setError(publicError(organizationError));
@@ -232,6 +296,7 @@ export function Workspace({
       setOrganizationId(created.organization_id);
       setOrganization(created);
       setOrganizationState('success');
+      await loadFlightLibrary(created, activeIdentity.token);
     } catch (organizationError) {
       setOrganizationState('error');
       setError(publicError(organizationError));
@@ -255,6 +320,7 @@ export function Workspace({
       setOrganizationId(invitation.organizationId);
       setOrganization(selected);
       setOrganizationState('success');
+      await loadFlightLibrary(selected, activeIdentity.token);
     } catch (invitationError) {
       setOrganizationState('error');
       setError(publicError(invitationError));
@@ -348,6 +414,10 @@ export function Workspace({
             activeIdentity.token,
             organization,
           );
+          await loadFlightLibrary(organization, activeIdentity.token, {
+            search: librarySearch,
+            state: libraryFilter,
+          });
         }
         return;
       }
@@ -571,6 +641,164 @@ export function Workspace({
         </div>
       </section>
 
+      <section className="operations-card" aria-labelledby="library-heading">
+        <div className="operations-heading">
+          <div>
+            <p className="section-kicker">Operational logbook</p>
+            <h2 id="library-heading">Flights at a glance</h2>
+            <p>
+              Current retained revisions for this organization. Demo records are
+              synthetic and contain no customer coordinates.
+            </p>
+          </div>
+          <StatePill state={libraryState} />
+        </div>
+        <FlightTotals list={flightLibrary} />
+        <form
+          className="library-filters"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (activeIdentity && organization) {
+              void loadFlightLibrary(organization, activeIdentity.token, {
+                search: librarySearch,
+                state: libraryFilter,
+              });
+            }
+          }}
+        >
+          <label>
+            Search flights
+            <input
+              disabled={!organization || libraryState === 'loading'}
+              onChange={(event) => setLibrarySearch(event.currentTarget.value)}
+              placeholder="Aircraft, pilot, model, or flight ID"
+              value={librarySearch}
+            />
+          </label>
+          <label>
+            Review state
+            <select
+              disabled={!organization || libraryState === 'loading'}
+              onChange={(event) =>
+                setLibraryFilter(
+                  event.currentTarget.value as
+                    '' | 'active' | 'awaiting_review',
+                )
+              }
+              value={libraryFilter}
+            >
+              <option value="">All current flights</option>
+              <option value="active">Active</option>
+              <option value="awaiting_review">Needs review</option>
+            </select>
+          </label>
+          <button
+            disabled={!organization || libraryState === 'loading'}
+            type="submit"
+          >
+            Apply filters
+          </button>
+        </form>
+        {libraryState === 'loading' && !flightLibrary ? (
+          <div className="library-empty" role="status">
+            Loading authorized flights…
+          </div>
+        ) : flightLibrary?.items.length ? (
+          <div className="flight-table-wrap">
+            <table className="flight-table">
+              <thead>
+                <tr>
+                  <th scope="col">Takeoff</th>
+                  <th scope="col">Aircraft</th>
+                  <th scope="col">Pilot</th>
+                  <th scope="col">Duration</th>
+                  <th scope="col">Distance</th>
+                  <th scope="col">State</th>
+                  <th scope="col">
+                    <span className="visually-hidden">Open</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {flightLibrary.items.map((item) => {
+                  const duration = factNumber(item, 'duration_ms');
+                  const distance = factNumber(item, 'distance_m');
+                  return (
+                    <tr key={item.flight_id}>
+                      <td>
+                        {item.facts.takeoff_time_utc.value
+                          ? new Date(
+                              item.facts.takeoff_time_utc.value,
+                            ).toLocaleString()
+                          : 'Unavailable'}
+                      </td>
+                      <td>
+                        <strong>
+                          {item.aircraft_display_name ?? 'Unassigned'}
+                        </strong>
+                        <span>
+                          {item.facts.aircraft_model.value ??
+                            'Model unavailable'}
+                        </span>
+                      </td>
+                      <td>{item.pilot_display_name ?? 'Unassigned'}</td>
+                      <td>
+                        {duration === null ? '—' : compactDuration(duration)}
+                      </td>
+                      <td>
+                        {distance === null
+                          ? '—'
+                          : `${new Intl.NumberFormat('en', { maximumFractionDigits: 0 }).format(distance)} m`}
+                      </td>
+                      <td>
+                        <span className={`flight-state ${item.state}`}>
+                          {item.state === 'active' ? 'Active' : 'Needs review'}
+                        </span>
+                      </td>
+                      <td>
+                        <button
+                          className="table-button"
+                          onClick={() => {
+                            setFlightId(item.flight_id);
+                            void openFlight(item.flight_id);
+                          }}
+                          type="button"
+                        >
+                          Open flight
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="library-empty">
+            {organization
+              ? 'No current flights match these filters.'
+              : 'Enter an organization to load its flight logbook.'}
+          </div>
+        )}
+        {flightLibrary?.next_cursor && organization && activeIdentity ? (
+          <button
+            className="secondary-button load-more"
+            disabled={libraryState === 'loading'}
+            onClick={() =>
+              void loadFlightLibrary(organization, activeIdentity.token, {
+                append: true,
+                cursor: flightLibrary.next_cursor ?? undefined,
+                search: librarySearch,
+                state: libraryFilter,
+              })
+            }
+            type="button"
+          >
+            Load more flights
+          </button>
+        ) : null}
+      </section>
+
       <section className="step-card" aria-labelledby="upload-heading">
         <div className="step-number">03</div>
         <div className="step-content">
@@ -710,6 +938,31 @@ export function StatePill({ state }: { readonly state: ActivityState }) {
     error: 'Needs attention',
   };
   return <span className={`state-pill ${state}`}>{labels[state]}</span>;
+}
+
+function FlightTotals({ list }: { readonly list: ApiFlightList | null }) {
+  const totals = list?.totals;
+  const metrics = [
+    ['Active flights', totals ? String(totals.active_flights) : '—'],
+    ['Flight time', totals ? compactDuration(totals.total_duration_ms) : '—'],
+    [
+      'Distance',
+      totals
+        ? `${new Intl.NumberFormat('en', { maximumFractionDigits: 1 }).format(totals.total_distance_m / 1000)} km`
+        : '—',
+    ],
+    ['Needs review', totals ? String(totals.awaiting_review) : '—'],
+  ] as const;
+  return (
+    <dl className="metric-grid" data-testid="flight-totals">
+      {metrics.map(([label, value]) => (
+        <div key={label}>
+          <dt>{label}</dt>
+          <dd>{value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
 }
 
 function FlightDetail({

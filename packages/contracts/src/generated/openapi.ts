@@ -227,6 +227,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/organizations/{organization_id}/flights": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List current flights */
+        get: operations["listFlights"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/organizations/{organization_id}/flights/{flight_id}": {
         parameters: {
             query?: never;
@@ -471,22 +488,44 @@ export interface components {
             assignment_status: "assigned" | "awaiting_pilot" | "awaiting_aircraft" | "ambiguous_aircraft" | "awaiting_time" | "awaiting_multiple";
             source_kind: "imported" | "manual";
             pilot_profile_id: string | null;
+            pilot_display_name: string | null;
             proposed_pilot_profile_id: string | null;
             aircraft_id: string | null;
+            aircraft_display_name: string | null;
             takeoff_timezone: string;
             revision_number: number;
             capabilities: string[];
             facts: components["schemas"]["def-24"];
             telemetry: components["schemas"]["def-25"] | null;
         };
-        /** FlightTrackQuery */
+        /** FlightListQuery */
         "def-27": {
+            cursor?: string;
+            limit?: number;
+            search?: string;
+            state?: "active" | "awaiting_review";
+        };
+        /** FlightListTotals */
+        "def-28": {
+            active_flights: number;
+            awaiting_review: number;
+            total_distance_m: number;
+            total_duration_ms: number;
+        };
+        /** FlightList */
+        "def-29": {
+            items: components["schemas"]["def-26"][];
+            next_cursor: string | null;
+            totals: components["schemas"]["def-28"];
+        };
+        /** FlightTrackQuery */
+        "def-30": {
             mode?: "default" | "full";
             cursor?: string;
             limit?: number;
         };
         /** FlightTrackPoint */
-        "def-28": {
+        "def-31": {
             sample_index: number;
             elapsed_ms: number | null;
             position: {
@@ -504,20 +543,20 @@ export interface components {
             signal_uplink_percent: number | null;
         };
         /** FlightTelemetryRange */
-        "def-29": {
+        "def-32": {
             minimum: number | null;
             maximum: number | null;
         };
         /** FlightTrackStatistics */
-        "def-30": {
-            altitude_msl_m: components["schemas"]["def-29"];
-            battery_charge_percent: components["schemas"]["def-29"];
-            height_agl_m: components["schemas"]["def-29"];
-            horizontal_speed_mps: components["schemas"]["def-29"];
-            vertical_speed_mps: components["schemas"]["def-29"];
+        "def-33": {
+            altitude_msl_m: components["schemas"]["def-32"];
+            battery_charge_percent: components["schemas"]["def-32"];
+            height_agl_m: components["schemas"]["def-32"];
+            horizontal_speed_mps: components["schemas"]["def-32"];
+            vertical_speed_mps: components["schemas"]["def-32"];
         };
         /** FlightTrack */
-        "def-31": {
+        "def-34": {
             flight_id: string;
             revision_number: number;
             mode: "default" | "full";
@@ -527,8 +566,8 @@ export interface components {
             next_cursor: string | null;
             gap_transition_count: number;
             preserved_gap_transition_count: number;
-            statistics: components["schemas"]["def-30"];
-            samples: components["schemas"]["def-28"][];
+            statistics: components["schemas"]["def-33"];
+            samples: components["schemas"]["def-31"][];
         };
     };
     responses: never;
@@ -1511,6 +1550,71 @@ export interface operations {
             };
         };
     };
+    listFlights: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+                search?: string;
+                state?: "active" | "awaiting_review";
+            };
+            header?: never;
+            path: {
+                organization_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description An authorized cursor page of current non-deleted flights and organization totals. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["def-26"][];
+                        next_cursor: string | null;
+                        totals: components["schemas"]["def-28"];
+                    };
+                };
+            };
+            /** @description The flight was denied or the request was invalid. */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        type: string;
+                        title: string;
+                        status: number;
+                        detail: string;
+                        instance: string;
+                        correlation_id: string;
+                        errors?: components["schemas"]["def-0"][];
+                    };
+                };
+            };
+            /** @description The flight read could not be completed. */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        type: string;
+                        title: string;
+                        status: number;
+                        detail: string;
+                        instance: string;
+                        correlation_id: string;
+                        errors?: components["schemas"]["def-0"][];
+                    };
+                };
+            };
+        };
+    };
     getFlightSummary: {
         parameters: {
             query?: never;
@@ -1535,8 +1639,10 @@ export interface operations {
                         assignment_status: "assigned" | "awaiting_pilot" | "awaiting_aircraft" | "ambiguous_aircraft" | "awaiting_time" | "awaiting_multiple";
                         source_kind: "imported" | "manual";
                         pilot_profile_id: string | null;
+                        pilot_display_name: string | null;
                         proposed_pilot_profile_id: string | null;
                         aircraft_id: string | null;
+                        aircraft_display_name: string | null;
                         takeoff_timezone: string;
                         revision_number: number;
                         capabilities: string[];
@@ -1613,8 +1719,8 @@ export interface operations {
                         next_cursor: string | null;
                         gap_transition_count: number;
                         preserved_gap_transition_count: number;
-                        statistics: components["schemas"]["def-30"];
-                        samples: components["schemas"]["def-28"][];
+                        statistics: components["schemas"]["def-33"];
+                        samples: components["schemas"]["def-31"][];
                     };
                 };
             };

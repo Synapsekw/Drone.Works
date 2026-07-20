@@ -25,6 +25,9 @@ import {
   importPathSchema,
   importStatusSchema,
   flightFactsSchema,
+  flightListQuerySchema,
+  flightListSchema,
+  flightListTotalsSchema,
   flightPathSchema,
   flightSummarySchema,
   flightTelemetryRangeSchema,
@@ -96,6 +99,7 @@ export const documentedApiRoutes = new Set([
   'DELETE /api/v1/organizations/:organization_id/imports/:import_id',
   'DELETE /api/v1/organizations/:organization_id/memberships/:user_id',
   'GET /api/v1/health',
+  'GET /api/v1/organizations/:organization_id/flights',
   'GET /api/v1/organizations/:organization_id/flights/:flight_id',
   'GET /api/v1/organizations/:organization_id/flights/:flight_id/track',
   'GET /api/v1/organizations/:organization_id/imports/:import_id',
@@ -200,6 +204,9 @@ const unavailableImports: ImportRouteDependencies['imports'] = {
 };
 
 const unavailableFlights: FlightRouteDependencies['flights'] = {
+  async listFlights() {
+    throw new RawUploadServiceUnavailableError();
+  },
   async getSummary() {
     throw new RawUploadServiceUnavailableError();
   },
@@ -264,7 +271,10 @@ export interface BuildApiOptions {
   readonly email?: AuthEmailDelivery;
   readonly environment?: ServiceEnvironment;
   readonly identitySource?: IdentitySource;
-  readonly flights?: Pick<FlightReadRepository, 'getSummary' | 'getTrack'>;
+  readonly flights?: Pick<
+    FlightReadRepository,
+    'getSummary' | 'getTrack' | 'listFlights'
+  >;
   readonly imports?: Pick<ImportProcessingRepository, 'cancel' | 'getStatus'>;
   readonly organizations?: OrganizationDependencies;
   readonly publicWebUrl?: string;
@@ -350,6 +360,9 @@ export async function buildApi(options: BuildApiOptions = {}) {
   app.addSchema(flightFactsSchema);
   app.addSchema(flightTelemetrySummarySchema);
   app.addSchema(flightSummarySchema);
+  app.addSchema(flightListQuerySchema);
+  app.addSchema(flightListTotalsSchema);
+  app.addSchema(flightListSchema);
   app.addSchema(flightTrackQuerySchema);
   app.addSchema(flightTrackPointSchema);
   app.addSchema(flightTelemetryRangeSchema);

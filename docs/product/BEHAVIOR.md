@@ -102,6 +102,20 @@ Important flight fields retain provenance:
 - Reassignment, restoration, and reprocessing update affected totals consistently.
 - A displayed total identifies the unit and time basis used.
 
+### Flight library
+
+- Entering an organization loads its current non-deleted flight revisions and
+  active-flight totals; opening a listed flight does not require copying an
+  identifier.
+- The initial library supports bounded cursor pages, literal search across
+  flight identifier, pilot, aircraft, and model, plus active/review-state
+  filtering.
+- Library filters do not change organization-wide totals. Switching identity or
+  organization clears the prior list, totals, filters, open flight, and track
+  before loading the new context.
+- Missing duration, distance, pilot, aircraft, model, or takeoff values remain
+  visibly unavailable and are never represented as zero.
+
 ## 3. Fleet state
 
 ### Aircraft

@@ -22,8 +22,10 @@ const summary = {
   assignment_status: 'assigned',
   source_kind: 'imported',
   pilot_profile_id: '10000000-0000-4000-8000-000000000020',
+  pilot_display_name: 'Generated Pilot A',
   proposed_pilot_profile_id: null,
   aircraft_id: '10000000-0000-4000-8000-000000000021',
+  aircraft_display_name: 'Survey One',
   takeoff_timezone: 'Asia/Dubai',
   revision_number: 2,
   capabilities: ['telemetry.altitude', 'telemetry.position'],
@@ -175,6 +177,30 @@ async function installApi(
         updated_at: '2026-07-17T12:00:00.000Z',
       });
     }
+    if (path.endsWith('/flights') && request.method() === 'GET') {
+      const organizationId = path.split('/')[4];
+      const item = {
+        ...summary,
+        flight_id:
+          organizationId === betaOrganizationId
+            ? '10000000-0000-4000-8000-000000000099'
+            : flightId,
+        aircraft_display_name:
+          organizationId === betaOrganizationId
+            ? 'Generated Aircraft B'
+            : 'Survey One',
+      };
+      return json(route, {
+        items: [item],
+        next_cursor: null,
+        totals: {
+          active_flights: 1,
+          awaiting_review: 0,
+          total_distance_m: 1250.4,
+          total_duration_ms: 60000,
+        },
+      });
+    }
     if (path.endsWith(`/flights/${flightId}/track`)) {
       trackRequests += 1;
       return json(route, track);
@@ -200,6 +226,8 @@ async function enterAlpha(page: Page) {
   await expect(page.getByTestId('organization-state')).toContainText(
     'Generated Alpha',
   );
+  await expect(page.getByTestId('flight-totals')).toContainText('1');
+  await expect(page.getByText('Survey One').first()).toBeVisible();
 }
 
 test('uploads, polls, opens a capability-aware local track, and clears organization state', async ({
@@ -267,6 +295,8 @@ test('uploads, polls, opens a capability-aware local track, and clears organizat
     'Generated Beta',
   );
   await expect(page.getByTestId('flight-detail')).toHaveCount(0);
+  await expect(page.getByText('Generated Aircraft B')).toBeVisible();
+  await expect(page.getByText('Survey One')).toHaveCount(0);
 });
 
 for (const [reason, message] of [
@@ -307,7 +337,10 @@ test('does not request a track when position capability is absent', async ({
   const api = await installApi(page, { noPosition: true });
   await enterAlpha(page);
   await page.getByLabel('Flight ID').fill(flightId);
-  await page.getByRole('button', { name: 'Open flight' }).click();
+  await page
+    .getByRole('region', { name: 'Open the flight summary' })
+    .getByRole('button', { name: 'Open flight' })
+    .click();
   await expect(page.getByText('Track unavailable')).toBeVisible();
   expect(api.trackRequests()).toBe(0);
 });

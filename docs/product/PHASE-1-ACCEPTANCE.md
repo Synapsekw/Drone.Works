@@ -28,6 +28,19 @@ Then flight, fleet, filter, dashboard, and search results contain only Beta data
 And a previously issued Alpha download cannot be newly authorized in the Beta context
 ```
 
+### Scenario: The local flight library is immediately testable
+
+```gherkin
+Given the local generated persona harness is explicitly enabled
+And synthetic Alpha and Beta flight libraries exist
+When the Alpha owner enters Alpha
+Then current Alpha flights and organization-wide active totals are loaded through /api/v1/
+And search and review-state filters never expose Beta data
+And a listed telemetry-capable flight opens its bounded provider-free track
+When the persona changes to the Beta owner
+Then Alpha list, totals, filters, open flight, and track are cleared before Beta data loads
+```
+
 ### Scenario: Organization creation establishes accountable ownership
 
 ```gherkin

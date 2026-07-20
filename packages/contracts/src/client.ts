@@ -9,6 +9,7 @@ type DeclareRawUploadOperation = operations['declareRawUpload'];
 type PutRawUploadContentOperation = operations['putRawUploadContent'];
 type CompleteRawUploadOperation = operations['completeRawUpload'];
 type GetImportStatusOperation = operations['getImportStatus'];
+type FlightListOperation = operations['listFlights'];
 type FlightSummaryOperation = operations['getFlightSummary'];
 type FlightTrackOperation = operations['getFlightTrack'];
 
@@ -34,6 +35,8 @@ export type ApiRawUpload =
   CompleteRawUploadOperation['responses'][200]['content']['application/json'];
 export type ApiImportStatus =
   GetImportStatusOperation['responses'][200]['content']['application/json'];
+export type ApiFlightList =
+  FlightListOperation['responses'][200]['content']['application/json'];
 export type ApiFlightSummary =
   FlightSummaryOperation['responses'][200]['content']['application/json'];
 export type ApiFlightTrack =
@@ -281,6 +284,29 @@ export async function getFlightSummary(
   return request<ApiFlightSummary>(
     options,
     `/api/v1/organizations/${encodeURIComponent(organizationId)}/flights/${encodeURIComponent(flightId)}`,
+    { headers: headers(options), method: 'GET' },
+  );
+}
+
+export async function listFlights(
+  options: ApiRequestOptions,
+  organizationId: string,
+  query: Readonly<{
+    cursor?: string;
+    limit?: number;
+    search?: string;
+    state?: 'active' | 'awaiting_review';
+  }> = {},
+): Promise<ApiFlightList> {
+  const parameters = new URLSearchParams();
+  if (query.cursor) parameters.set('cursor', query.cursor);
+  if (query.limit !== undefined) parameters.set('limit', String(query.limit));
+  if (query.search) parameters.set('search', query.search);
+  if (query.state) parameters.set('state', query.state);
+  const suffix = parameters.size ? `?${parameters.toString()}` : '';
+  return request<ApiFlightList>(
+    options,
+    `/api/v1/organizations/${encodeURIComponent(organizationId)}/flights${suffix}`,
     { headers: headers(options), method: 'GET' },
   );
 }

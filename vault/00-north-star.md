@@ -1,13 +1,12 @@
 ---
 type: north-star
 status: active
-last-updated: 2026-07-20-0943
+last-updated: 2026-07-20-1125
 tags: [project/drone-works, north-star]
 related:
   - "[[project-history]]"
   - "[[memory]]"
-  - "[[2026-07-19-0827-a13a-functional-local-gate]]"
-  - "[[2026-07-20-0943-a13b-verified-auth-gate]]"
+  - "[[2026-07-20-1125-local-flight-library]]"
 ---
 
 # Drone.Works — North Star
@@ -25,21 +24,20 @@ Drone.Works is an explainable operational record for small professional drone te
 | Increment | State | Current outcome |
 |---|---|---|
 | Phase 0 — Technical discovery | Complete | Accepted evidence/decisions, safe external gates, threat model, and implementation-ready backlog. |
-| Phase 1A — Walking skeleton | In progress | A01–A13b complete; verified sessions now repeat the browser-to-parser, recovery, tenancy, privacy, and destructive-cleanup path without weakening app-owned authorization. |
-| Phase 1B — Trustworthy imports | Planned | Explain every batch outcome and reconcile uncertainty without silent loss. |
-| Phase 1C — Operational logbook | Planned | Daily flight, fleet, replay, correction, search, and export workflow. |
+| Phase 1A — Walking skeleton | In progress; hosted gate deferred | A01–A13b local/auth work is complete; A14 staging is intentionally paused under D-016. |
+| Phase 1B — Trustworthy imports | Active locally | LP02 batch truth and review inbox is the next product slice. |
+| Phase 1C — Operational logbook | Initial local slice complete | LP01 adds the flight library, dashboard totals, filters, direct detail opening, and synthetic replay. |
 | Phase 1D — Maintenance and hardening | Planned | Basic maintenance plus deletion, recovery, security, and operations gates. |
 
 ## Now
 
-- **Phase:** Phase 1A implementation is active. A01–A13b are complete. AWS begins only at A14 and remains externally gated.
-- **Branch:** `main` is synchronized with `origin/main` through A13b implementation commit `4a86db4` before this vault closeout. The unrelated `.obsidian/app.json` change and two untracked `index 2.ts` copies remain unstaged and untouched.
-- **Completed evidence:** Exact pinned Better Auth now supplies verified registration, email verification, HttpOnly-cookie sessions, recovery, revocation, and deletion safeguards. App-owned invitations and current membership remain authoritative under forced RLS; hosted artifacts exclude the generated-persona endpoint and control. Both verified-session and generated-persona replays pass the real immutable upload, durable worker, parser, canonical flight, bounded MapLibre track, Alpha/Beta isolation, API/coordinate privacy, redaction, and destructive cleanup gates.
-- **Verification baseline:** `pnpm test:auth`, both functional replays, `CI=true pnpm verify`, `pnpm build`, contract/privacy/boundary checks, browser hosted-exclusion, migration integrity, and the production dependency audit pass. Counts are auth 7, database 7, authorization 6, upload 8, jobs 8, normalization 6, flight API 6, web 7, and parser 21. Hosted verify run `29719523125` and parser-evidence run `29719523112` passed on `4a86db4`.
-- **Blocking evidence:** A14–A15 require AWS account/region/spend authority, hosted secret/KMS deployment, real email/proxy policy, and live synthetic hosted-data evidence; none is enabled now.
-- **Next technical action:** after external authority is confirmed, begin A14 with the pre-provision regional health/service-availability gate and reviewed synthetic-only staging IaC, then prove exact-digest promotion, rollback, and destroy/recreate.
-- **Next external decision:** Confirm the operational AWS account, approved region, and spend authority before A14 creates any paid resource. Hosted credentials and managed-key activation remain off until that gate passes.
-- **Parallel follow-up:** when cloud help becomes necessary, provide the first-time account owner one step at a time with purpose, cost/security effect, verification, and safe stop/rollback; never request secret values.
+- **Phase:** D-016 local product validation is active. A01–A13b remain complete; LP01 is complete, LP02 is next, and A14/cloud rollout is intentionally paused.
+- **Branch:** `main` is synchronized with `origin/main` through local flight-operations implementation commit `02c6812` before this vault closeout. The unrelated `.obsidian/app.json` change and two untracked `index 2.ts` copies remain unstaged and untouched.
+- **Completed evidence:** Entering a generated organization now loads its current flight library, active totals, search and review-state filter through the generated `/api/v1/` client. Three synthetic flights per organization make the dashboard immediately testable, and a listed flight opens a checksum-verified bounded provider-free track with truthful capabilities and gaps. Current membership, forced RLS, hosted persona exclusion, coordinate privacy, and organization-switch clearing remain enforced.
+- **Verification baseline:** Contract, flight API 7, database 7, web 7, auth 7, local smoke, full `pnpm verify`, and `pnpm build` pass. Hosted verify run `29724398981` passed workspace/build, native database/auth/authorization/upload/jobs/flight-API, and browser jobs on `02c6812`; parser evidence was not triggered because parser inputs did not change.
+- **Blocking evidence:** No product blocker exists for LP02. AWS/RDS, hosted credentials, external email, production map services, and customer data remain disabled by the accepted D-016 sequencing decision.
+- **Next technical action:** begin LP02 with a local batch-upload and review-inbox vertical slice that accounts for every file, preserves distinct terminal failures, supports safe retry, and exposes exact/probable duplicate outcomes without silent discard.
+- **Next external decision:** evaluate each local product slice for usefulness; resume A14 only after explicit acceptance that the workflow is ready for hosted testing.
 - **Privacy:** raw fixtures remain ignored and local. No raw values, coordinates, identifiers, keychain feature points, credentials, or generated parser artifacts belong in this vault.
 
 ## Workstream status
@@ -65,4 +63,4 @@ Drone.Works is an explainable operational record for small professional drone te
 - [[operations]] — repository, fixture, build, and verification procedures.
 - [[memory]] — how durable project context is organized.
 - [[project-history]] — milestone timeline backed by Git.
-- [Phase 1A backlog](../docs/roadmap/PHASE-1A-BACKLOG.md) — exact next implementation sequence.
+- [Local product backlog](../docs/roadmap/LOCAL-PRODUCT-BACKLOG.md) — active local-first implementation sequence under D-016.

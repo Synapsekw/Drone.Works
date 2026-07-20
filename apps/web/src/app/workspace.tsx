@@ -14,18 +14,21 @@ import {
   type ApiFlightList,
   type ApiFlightSummary,
   type ApiFlightTrack,
-  type ApiImportStatus,
+  type ApiImportBatch,
+  type ApiImportBatchItem,
   type ApiOrganizationSelection,
   completeRawUpload,
   acceptInvitation,
   createInvitation,
   createOrganization,
-  declareRawUpload,
+  declareImportBatch,
+  getImportBatch,
   getFlightSummary,
   getFlightTrack,
-  getImportStatus,
+  listImportBatches,
   listFlights,
   putRawUploadContent,
+  retryImport,
   selectOrganization,
 } from '@drone-works/contracts/client';
 
@@ -48,25 +51,21 @@ interface InvitationEntry {
   readonly token: string;
 }
 
-const terminalImportStates = new Set<ApiImportStatus['state']>([
-  'awaiting_review',
-  'cancelled',
-  'completed',
-  'failed',
-  'skipped_duplicate',
-]);
+type InboxFilter = 'all' | 'review' | 'errors' | 'duplicates';
 
-const importLabels: Record<ApiImportStatus['state'], string> = {
-  uploaded: 'Uploaded',
-  queued: 'Queued for isolated processing',
-  detecting: 'Detecting the source format',
-  parsing: 'Parsing in the isolated worker',
-  normalizing: 'Building the canonical flight',
-  awaiting_review: 'Flight created — review is required',
-  completed: 'Flight created',
-  failed: 'Processing failed',
-  cancelled: 'Processing cancelled',
-  skipped_duplicate: 'Exact duplicate — retained flight reused',
+const outcomeLabels: Record<
+  NonNullable<ApiImportBatchItem['outcome']>,
+  string
+> = {
+  supported_completion: 'Supported completion',
+  unsupported: 'Unsupported format',
+  corrupt: 'Corrupt source',
+  truncated: 'Truncated source',
+  key_unavailable: 'Key unavailable',
+  processing_failed: 'Processing error',
+  cancelled: 'Cancelled',
+  exact_duplicate: 'Exact duplicate',
+  probable_duplicate: 'Probable duplicate — review',
 };
 
 function apiOptions(token: string, signal?: AbortSignal) {
@@ -99,8 +98,8 @@ function publicError(error: unknown): string {
   return 'The request could not be completed. Try again.';
 }
 
-function failureMessage(reason: ApiImportStatus['failure_reason']): string {
-  switch (reason) {
+function outcomeDetail(item: ApiImportBatchItem): string {
+  switch (item.failure_reason) {
     case 'unsupported':
       return 'This file is not one of the explicitly supported DJI formats.';
     case 'corrupt':
@@ -179,14 +178,17 @@ export function Workspace({
   const [invitationMessage, setInvitationMessage] = useState<string | null>(
     null,
   );
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<readonly File[]>([]);
   const [approveDjiProcessing, setApproveDjiProcessing] = useState(false);
-  const [importStatus, setImportStatus] = useState<ApiImportStatus | null>(
-    null,
-  );
+  const [currentBatch, setCurrentBatch] = useState<ApiImportBatch | null>(null);
+  const [batches, setBatches] = useState<
+    Awaited<ReturnType<typeof listImportBatches>>['batches']
+  >([]);
+  const [inboxState, setInboxState] = useState<ActivityState>('empty');
+  const [inboxFilter, setInboxFilter] = useState<InboxFilter>('all');
   const [uploadState, setUploadState] = useState<ActivityState>('empty');
   const [uploadMessage, setUploadMessage] = useState(
-    'Choose one supported source file to begin.',
+    'Choose supported files or load a generated multi-file test batch.',
   );
   const [flightId, setFlightId] = useState('');
   const [flight, setFlight] = useState<ApiFlightSummary | null>(null);
@@ -205,11 +207,16 @@ export function Workspace({
     setLibrarySearch('');
     setLibraryFilter('');
     setInvitationMessage(null);
-    setFile(null);
+    setFiles([]);
     setApproveDjiProcessing(false);
-    setImportStatus(null);
+    setCurrentBatch(null);
+    setBatches([]);
+    setInboxState('empty');
+    setInboxFilter('all');
     setUploadState('empty');
-    setUploadMessage('Choose one supported source file to begin.');
+    setUploadMessage(
+      'Choose supported files or load a generated multi-file test batch.',
+    );
     setFlightId('');
     setFlight(null);
     setTrack(null);
@@ -259,6 +266,25 @@ export function Workspace({
     }
   };
 
+  const loadReviewInbox = async (
+    selectedOrganization: ApiOrganizationSelection,
+    token: string,
+  ) => {
+    setInboxState('loading');
+    try {
+      const result = await listImportBatches(
+        apiOptions(token),
+        selectedOrganization.organization_id,
+        10,
+      );
+      setBatches(result.batches);
+      setInboxState('success');
+    } catch (inboxError) {
+      setInboxState('error');
+      setError(publicError(inboxError));
+    }
+  };
+
   const enterOrganization = async (event: FormEvent) => {
     event.preventDefault();
     if (!activeIdentity) return;
@@ -271,7 +297,10 @@ export function Workspace({
       );
       setOrganization(selected);
       setOrganizationState('success');
-      await loadFlightLibrary(selected, activeIdentity.token);
+      await Promise.all([
+        loadFlightLibrary(selected, activeIdentity.token),
+        loadReviewInbox(selected, activeIdentity.token),
+      ]);
     } catch (organizationError) {
       setOrganizationState('error');
       setError(publicError(organizationError));
@@ -296,7 +325,10 @@ export function Workspace({
       setOrganizationId(created.organization_id);
       setOrganization(created);
       setOrganizationState('success');
-      await loadFlightLibrary(created, activeIdentity.token);
+      await Promise.all([
+        loadFlightLibrary(created, activeIdentity.token),
+        loadReviewInbox(created, activeIdentity.token),
+      ]);
     } catch (organizationError) {
       setOrganizationState('error');
       setError(publicError(organizationError));
@@ -320,7 +352,10 @@ export function Workspace({
       setOrganizationId(invitation.organizationId);
       setOrganization(selected);
       setOrganizationState('success');
-      await loadFlightLibrary(selected, activeIdentity.token);
+      await Promise.all([
+        loadFlightLibrary(selected, activeIdentity.token),
+        loadReviewInbox(selected, activeIdentity.token),
+      ]);
     } catch (invitationError) {
       setOrganizationState('error');
       setError(publicError(invitationError));
@@ -390,35 +425,42 @@ export function Workspace({
     }
   };
 
-  const pollImport = async (importId: string, controller: AbortController) => {
+  const pollBatch = async (batchId: string, controller: AbortController) => {
     if (!activeIdentity || !organization) return;
     for (let attempt = 0; attempt < 360; attempt += 1) {
-      const status = await getImportStatus(
+      const batch = await getImportBatch(
         apiOptions(activeIdentity.token, controller.signal),
         organization.organization_id,
-        importId,
+        batchId,
       );
-      setImportStatus(status);
-      setUploadMessage(importLabels[status.state]);
-      if (terminalImportStates.has(status.state)) {
-        if (status.state === 'failed') {
-          setUploadState('error');
-          setError(failureMessage(status.failure_reason));
-          return;
+      setCurrentBatch(batch);
+      setUploadMessage(
+        `${batch.summary.total - batch.summary.processing} of ${batch.summary.total} inputs have a terminal or review outcome`,
+      );
+      if (batch.state === 'completed') {
+        const singleFailure =
+          batch.items.length === 1 && batch.items[0]?.state === 'failed'
+            ? batch.items[0]
+            : null;
+        setUploadState(singleFailure ? 'error' : 'success');
+        setUploadMessage(
+          'Every input is accounted for. Review the outcomes below.',
+        );
+        const firstFlight = batch.items.find(
+          (item) => item.result_flight_id,
+        )?.result_flight_id;
+        if (firstFlight) {
+          setFlightId(firstFlight);
+          await openFlight(firstFlight, activeIdentity.token, organization);
         }
-        setUploadState('success');
-        if (status.result_flight_id) {
-          setFlightId(status.result_flight_id);
-          await openFlight(
-            status.result_flight_id,
-            activeIdentity.token,
-            organization,
-          );
-          await loadFlightLibrary(organization, activeIdentity.token, {
+        await Promise.all([
+          loadReviewInbox(organization, activeIdentity.token),
+          loadFlightLibrary(organization, activeIdentity.token, {
             search: librarySearch,
             state: libraryFilter,
-          });
-        }
+          }),
+        ]);
+        if (singleFailure) setError(outcomeDetail(singleFailure));
         return;
       }
       await new Promise<void>((resolve, reject) => {
@@ -436,53 +478,81 @@ export function Workspace({
     throw new Error('Processing did not reach a terminal state in time.');
   };
 
-  const uploadFile = async (event: FormEvent) => {
+  const uploadBatch = async (event: FormEvent) => {
     event.preventDefault();
-    if (!activeIdentity || !organization || !file) return;
+    if (!activeIdentity || !organization || files.length < 1) return;
     pollController.current?.abort();
     const controller = new AbortController();
     pollController.current = controller;
     setUploadState('loading');
-    setUploadMessage('Hashing the file locally');
-    setImportStatus(null);
+    setUploadMessage(`Hashing ${files.length} files locally`);
+    setCurrentBatch(null);
     setFlight(null);
     setTrack(null);
     setFlightState('empty');
     setError(null);
     try {
-      const content = await file.arrayBuffer();
-      const digest = await sha256(content);
-      const clientFileId = crypto.randomUUID();
-      setUploadMessage('Declaring the immutable source');
-      const declaration = await declareRawUpload(
+      const prepared = await Promise.all(
+        files.map(async (selectedFile) => {
+          const content = await selectedFile.arrayBuffer();
+          return {
+            clientFileId: crypto.randomUUID(),
+            content,
+            digest: await sha256(content),
+            file: selectedFile,
+          };
+        }),
+      );
+      const batchKey = crypto.randomUUID();
+      setUploadMessage('Declaring one organization-owned batch');
+      const declaration = await declareImportBatch(
         apiOptions(activeIdentity.token, controller.signal),
         organization.organization_id,
-        {
-          byte_size: file.size,
-          client_file_id: clientFileId,
-          content_sha256: digest,
-          original_filename: file.name,
-        },
-        `web-declare-${clientFileId}`,
+        prepared.map((item) => ({
+          byte_size: item.file.size,
+          client_file_id: item.clientFileId,
+          content_sha256: item.digest,
+          original_filename: item.file.name,
+        })),
+        `web-batch-${batchKey}`,
       );
-      setUploadMessage('Writing the exact source bytes');
-      const stored = await putRawUploadContent(
-        apiOptions(activeIdentity.token, controller.signal),
-        organization.organization_id,
-        declaration.upload_id,
-        content,
+      setCurrentBatch(
+        await getImportBatch(
+          apiOptions(activeIdentity.token, controller.signal),
+          organization.organization_id,
+          declaration.batch_id,
+        ),
       );
-      setUploadMessage('Completing the immutable upload');
-      await completeRawUpload(
-        apiOptions(activeIdentity.token, controller.signal),
-        organization.organization_id,
-        declaration.upload_id,
-        stored.object_version_id,
-        `web-complete-${clientFileId}`,
-        { approveDjiEncryptedProcessing: approveDjiProcessing },
-      );
-      setUploadMessage('Queued for isolated processing');
-      await pollImport(declaration.upload_id, controller);
+      for (const [index, item] of prepared.entries()) {
+        const declaredItem = declaration.items[index];
+        if (!declaredItem) throw new Error('A declared batch item is missing.');
+        setUploadMessage(
+          `Retaining file ${index + 1} of ${prepared.length}: ${declaredItem.original_filename}`,
+        );
+        const stored = await putRawUploadContent(
+          apiOptions(activeIdentity.token, controller.signal),
+          organization.organization_id,
+          declaredItem.import_id,
+          item.content,
+        );
+        await completeRawUpload(
+          apiOptions(activeIdentity.token, controller.signal),
+          organization.organization_id,
+          declaredItem.import_id,
+          stored.object_version_id,
+          `web-complete-${item.clientFileId}`,
+          { approveDjiEncryptedProcessing: approveDjiProcessing },
+        );
+        setCurrentBatch(
+          await getImportBatch(
+            apiOptions(activeIdentity.token, controller.signal),
+            organization.organization_id,
+            declaration.batch_id,
+          ),
+        );
+      }
+      setUploadMessage('All sources are retained; processing independently');
+      await pollBatch(declaration.batch_id, controller);
     } catch (uploadError) {
       if (!(
         uploadError instanceof DOMException && uploadError.name === 'AbortError'
@@ -495,27 +565,136 @@ export function Workspace({
     }
   };
 
-  const onFile = (event: ChangeEvent<HTMLInputElement>) => {
-    const selected = event.currentTarget.files?.[0] ?? null;
-    setFile(selected);
+  const selectFiles = (selected: readonly File[]) => {
+    setFiles(selected);
     setUploadState('empty');
     setUploadMessage(
-      selected
-        ? `${selected.name} · ${new Intl.NumberFormat('en').format(selected.size)} bytes`
-        : 'Choose one supported source file to begin.',
+      selected.length
+        ? `${selected.length} files selected · ${new Intl.NumberFormat('en').format(selected.reduce((total, file) => total + file.size, 0))} bytes`
+        : 'Choose supported files or load a generated multi-file test batch.',
     );
     setError(null);
   };
+
+  const onFiles = (event: ChangeEvent<HTMLInputElement>) => {
+    selectFiles([...Array.from(event.currentTarget.files ?? [])]);
+  };
+
+  const useGeneratedFiles = () => {
+    selectFiles(
+      ['format-candidate', 'unsupported-sample', 'duplicate-candidate'].map(
+        (name) =>
+          new File(
+            [`Drone.Works generated local test: ${name}`],
+            `${name}.txt`,
+            {
+              type: 'application/octet-stream',
+            },
+          ),
+      ),
+    );
+  };
+
+  const retryItem = async (item: ApiImportBatchItem) => {
+    if (!activeIdentity || !organization || !item.retry_eligible) return;
+    const batch = batches.find((candidate) =>
+      candidate.items.some(
+        (candidateItem) => candidateItem.import_id === item.import_id,
+      ),
+    );
+    if (!batch) return;
+    pollController.current?.abort();
+    const controller = new AbortController();
+    pollController.current = controller;
+    setInboxState('loading');
+    setError(null);
+    try {
+      await retryImport(
+        apiOptions(activeIdentity.token, controller.signal),
+        organization.organization_id,
+        item.import_id,
+      );
+      for (let attempt = 0; attempt < 120; attempt += 1) {
+        const refreshed = await getImportBatch(
+          apiOptions(activeIdentity.token, controller.signal),
+          organization.organization_id,
+          batch.batch_id,
+        );
+        setBatches((current) =>
+          current.map((candidate) =>
+            candidate.batch_id === refreshed.batch_id ? refreshed : candidate,
+          ),
+        );
+        const refreshedItem = refreshed.items.find(
+          (candidate) => candidate.import_id === item.import_id,
+        );
+        if (
+          refreshedItem &&
+          ![
+            'uploaded',
+            'queued',
+            'detecting',
+            'parsing',
+            'normalizing',
+          ].includes(refreshedItem.state)
+        ) {
+          setInboxState('success');
+          return;
+        }
+        await new Promise<void>((resolve, reject) => {
+          const timer = window.setTimeout(resolve, 500);
+          controller.signal.addEventListener(
+            'abort',
+            () => {
+              window.clearTimeout(timer);
+              reject(new DOMException('Polling aborted.', 'AbortError'));
+            },
+            { once: true },
+          );
+        });
+      }
+      throw new Error('The retry did not reach a terminal state in time.');
+    } catch (retryError) {
+      if (!(
+        retryError instanceof DOMException && retryError.name === 'AbortError'
+      )) {
+        setInboxState('error');
+        setError(publicError(retryError));
+      }
+    } finally {
+      if (pollController.current === controller) pollController.current = null;
+    }
+  };
+
+  const inboxItems = batches
+    .flatMap((batch) => batch.items)
+    .filter((item) => {
+      if (inboxFilter === 'review') {
+        return (
+          item.state === 'awaiting_review' ||
+          item.outcome === 'probable_duplicate'
+        );
+      }
+      if (inboxFilter === 'errors') return item.state === 'failed';
+      if (inboxFilter === 'duplicates') {
+        return (
+          item.outcome === 'exact_duplicate' ||
+          item.outcome === 'probable_duplicate'
+        );
+      }
+      return true;
+    });
 
   return (
     <main className="app-shell">
       <header className="masthead">
         <div>
           <p className="eyebrow">Drone.Works</p>
-          <h1>From source log to truthful flight</h1>
+          <h1>Every source accounted</h1>
           <p className="lede">
-            One protected path for organization entry, immutable upload,
-            processing status, and a capability-aware 2D track.
+            Submit a batch, follow each file independently, resolve review work,
+            and open the retained flight without leaving the organization
+            boundary.
           </p>
         </div>
         <div className="environment-badge" role="note">
@@ -805,23 +984,32 @@ export function Workspace({
           <div className="section-heading">
             <div>
               <p className="section-kicker">Immutable source</p>
-              <h2 id="upload-heading">Upload one supported file</h2>
+              <h2 id="upload-heading">Submit a multi-file batch</h2>
             </div>
             <StatePill state={uploadState} />
           </div>
           <form
             className="upload-form"
-            onSubmit={(event) => void uploadFile(event)}
+            onSubmit={(event) => void uploadBatch(event)}
           >
             <label className="file-drop">
-              <span>Select a DJI source log</span>
+              <span>Select a DJI source log or a multi-file batch</span>
               <input
                 accept=".txt,.bin,application/octet-stream,text/plain"
                 disabled={!organization || uploadState === 'loading'}
-                onChange={onFile}
+                multiple
+                onChange={onFiles}
                 type="file"
               />
             </label>
+            <button
+              className="secondary-button"
+              disabled={!organization || uploadState === 'loading'}
+              onClick={useGeneratedFiles}
+              type="button"
+            >
+              Use generated test batch
+            </button>
             <label className="consent-control">
               <input
                 checked={approveDjiProcessing}
@@ -842,10 +1030,14 @@ export function Workspace({
               </span>
             </label>
             <button
-              disabled={!file || !organization || uploadState === 'loading'}
+              disabled={
+                files.length < 1 || !organization || uploadState === 'loading'
+              }
               type="submit"
             >
-              {uploadState === 'loading' ? 'Processing…' : 'Upload and process'}
+              {uploadState === 'loading'
+                ? 'Processing batch…'
+                : 'Upload and process batch'}
             </button>
           </form>
           <div className="progress-panel" role="status" aria-live="polite">
@@ -859,20 +1051,75 @@ export function Workspace({
             <div>
               <strong>{uploadMessage}</strong>
               <span>
-                {importStatus
-                  ? `Import ${importStatus.import_id} · updated ${new Date(importStatus.updated_at).toLocaleTimeString()}`
+                {currentBatch
+                  ? `Batch ${currentBatch.batch_id.slice(0, 8)} · ${currentBatch.summary.processing} still processing`
                   : 'No processing attempt yet.'}
               </span>
             </div>
           </div>
+          {currentBatch ? (
+            <BatchSummary batch={currentBatch} />
+          ) : (
+            <div className="empty-panel">No active batch.</div>
+          )}
         </div>
+      </section>
+
+      <section className="operations-card" aria-labelledby="inbox-heading">
+        <div className="operations-heading">
+          <div>
+            <p className="section-kicker">Review inbox</p>
+            <h2 id="inbox-heading">Import outcomes and attempt history</h2>
+            <p>
+              Supported, failed, cancelled, exact-duplicate, and
+              probable-duplicate inputs remain visible. Generated local examples
+              contain no customer data.
+            </p>
+          </div>
+          <StatePill state={inboxState} />
+        </div>
+        <label className="inbox-filter">
+          Inbox filter
+          <select
+            disabled={!organization || inboxState === 'loading'}
+            onChange={(event) =>
+              setInboxFilter(event.currentTarget.value as InboxFilter)
+            }
+            value={inboxFilter}
+          >
+            <option value="all">Every recent input</option>
+            <option value="review">Needs review</option>
+            <option value="errors">Errors</option>
+            <option value="duplicates">Duplicates</option>
+          </select>
+        </label>
+        {inboxState === 'loading' ? (
+          <div className="library-empty" role="status">
+            Loading the organization review inbox…
+          </div>
+        ) : inboxItems.length ? (
+          <BatchItems
+            items={inboxItems}
+            onOpen={(requestedFlightId) => {
+              setFlightId(requestedFlightId);
+              void openFlight(requestedFlightId);
+            }}
+            onRetry={(item) => void retryItem(item)}
+          />
+        ) : (
+          <div className="library-empty">
+            {organization
+              ? 'No recent inputs match this inbox filter.'
+              : 'Enter an organization to load its review inbox.'}
+          </div>
+        )}
       </section>
 
       <section
         className="step-card flight-card"
         aria-labelledby="flight-heading"
       >
-        <div className="step-number">04</div>
+        <div className="step-number">05</div>
         <div className="step-content">
           <div className="section-heading">
             <div>
@@ -962,6 +1209,127 @@ function FlightTotals({ list }: { readonly list: ApiFlightList | null }) {
         </div>
       ))}
     </dl>
+  );
+}
+
+function BatchSummary({ batch }: { readonly batch: ApiImportBatch }) {
+  const metrics = [
+    ['Inputs', batch.summary.total],
+    ['Processing', batch.summary.processing],
+    ['Completed', batch.summary.completed],
+    ['Review', batch.summary.awaiting_review],
+    ['Duplicates', batch.summary.duplicates],
+    ['Failed', batch.summary.failed],
+    ['Cancelled', batch.summary.cancelled],
+  ] as const;
+  return (
+    <div className="batch-summary" data-testid="current-batch">
+      <dl className="batch-metrics">
+        {metrics.map(([label, value]) => (
+          <div key={label}>
+            <dt>{label}</dt>
+            <dd>{value}</dd>
+          </div>
+        ))}
+      </dl>
+      <BatchItems items={batch.items} />
+    </div>
+  );
+}
+
+function BatchItems({
+  items,
+  onOpen,
+  onRetry,
+}: {
+  readonly items: readonly ApiImportBatchItem[];
+  readonly onOpen?: (flightId: string) => void;
+  readonly onRetry?: (item: ApiImportBatchItem) => void;
+}) {
+  return (
+    <ul className="batch-items" aria-label="Import items">
+      {items.map((item) => {
+        const label = item.outcome
+          ? outcomeLabels[item.outcome]
+          : item.state.replaceAll('_', ' ');
+        return (
+          <li className={`batch-item ${item.state}`} key={item.import_id}>
+            <div className="batch-item-main">
+              <div>
+                <strong>{item.original_filename}</strong>
+                <span className="outcome-label">{label}</span>
+              </div>
+              <span>{item.progress_percent}%</span>
+            </div>
+            <progress
+              aria-label={`${item.original_filename} processing progress`}
+              max={100}
+              value={item.progress_percent}
+            />
+            <div className="batch-item-detail">
+              <span>
+                {item.failure_reason
+                  ? `Reason: ${item.failure_reason.replaceAll('_', ' ')}`
+                  : item.duplicate_kind
+                    ? `Duplicate evidence: ${item.duplicate_kind.replaceAll('_', ' ')}`
+                    : `State: ${item.state.replaceAll('_', ' ')}`}
+              </span>
+              <span>
+                Updated {new Date(item.updated_at).toLocaleTimeString()}
+              </span>
+            </div>
+            <div className="batch-actions">
+              {onOpen && item.result_flight_id ? (
+                <button
+                  className="table-button"
+                  onClick={() => onOpen(item.result_flight_id ?? '')}
+                  type="button"
+                >
+                  {item.outcome === 'exact_duplicate'
+                    ? 'Open retained flight'
+                    : 'Open candidate flight'}
+                </button>
+              ) : null}
+              {onOpen && item.related_flight_id ? (
+                <button
+                  className="secondary-button table-button"
+                  onClick={() => onOpen(item.related_flight_id ?? '')}
+                  type="button"
+                >
+                  Open possible match
+                </button>
+              ) : null}
+              {onRetry && item.retry_eligible ? (
+                <button
+                  className="secondary-button table-button"
+                  onClick={() => onRetry(item)}
+                  type="button"
+                >
+                  Retry safely
+                </button>
+              ) : null}
+            </div>
+            <details className="attempt-history">
+              <summary>Attempt history ({item.attempts.length})</summary>
+              {item.attempts.length ? (
+                <ol>
+                  {item.attempts.map((attempt) => (
+                    <li key={attempt.attempt_number}>
+                      Attempt {attempt.attempt_number}: {attempt.state}
+                      {attempt.failure_reason
+                        ? ` — ${attempt.failure_reason.replaceAll('_', ' ')}`
+                        : ''}
+                    </li>
+                  ))}
+                </ol>
+              ) : (
+                <p>No worker attempt has started.</p>
+              )}
+            </details>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 

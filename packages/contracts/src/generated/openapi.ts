@@ -209,6 +209,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/organizations/{organization_id}/import-batches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List recent import batches */
+        get: operations["listImportBatches"];
+        put?: never;
+        /** Declare a multi-file import batch */
+        post: operations["declareImportBatch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organizations/{organization_id}/import-batches/{batch_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get import batch truth */
+        get: operations["getImportBatch"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/organizations/{organization_id}/imports/{import_id}": {
         parameters: {
             query?: never;
@@ -222,6 +257,23 @@ export interface paths {
         post?: never;
         /** Cancel pending import processing */
         delete: operations["cancelImport"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organizations/{organization_id}/imports/{import_id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Retry an eligible failed import */
+        post: operations["retryImport"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -427,13 +479,94 @@ export interface components {
             /** Format: date-time */
             updated_at: string;
         };
-        /** FlightPath */
+        /** ImportBatchPath */
         "def-23": {
+            organization_id: string;
+            batch_id: string;
+        };
+        /** ImportBatchListQuery */
+        "def-24": {
+            limit?: number;
+        };
+        /** DeclareImportBatchBody */
+        "def-25": {
+            files: {
+                client_file_id: string;
+                original_filename: string;
+                content_sha256: string;
+                byte_size: number;
+                /** @enum {string} */
+                media_type: "application/octet-stream";
+            }[];
+        };
+        /** ImportBatchDeclarationItem */
+        "def-26": {
+            import_id: string;
+            client_file_id: string;
+            original_filename: string;
+            content_sha256: string;
+            /** @enum {string} */
+            state: "uploaded";
+        };
+        /** ImportBatchDeclaration */
+        "def-27": {
+            batch_id: string;
+            items: components["schemas"]["def-26"][];
+        };
+        /** ImportAttempt */
+        "def-28": {
+            attempt_number: number;
+            state: "queued" | "running" | "succeeded" | "failed" | "cancelled";
+            failure_reason: ("unsupported" | "corrupt" | "truncated" | "key_unavailable" | "processing_failed") | null;
+            started_at: string | null;
+            finished_at: string | null;
+        };
+        /** ImportBatchItem */
+        "def-29": {
+            import_id: string;
+            original_filename: string;
+            state: "uploaded" | "queued" | "detecting" | "parsing" | "normalizing" | "awaiting_review" | "completed" | "failed" | "cancelled" | "skipped_duplicate";
+            progress_percent: number;
+            outcome: ("supported_completion" | "unsupported" | "corrupt" | "truncated" | "key_unavailable" | "processing_failed" | "cancelled" | "exact_duplicate" | "probable_duplicate") | null;
+            failure_reason: ("unsupported" | "corrupt" | "truncated" | "key_unavailable" | "processing_failed") | null;
+            duplicate_kind: ("exact_file" | "exact_normalized" | "probable") | null;
+            result_flight_id: string | null;
+            related_flight_id: string | null;
+            retry_eligible: boolean;
+            attempts: components["schemas"]["def-28"][];
+            /** Format: date-time */
+            updated_at: string;
+        };
+        /** ImportBatchSummary */
+        "def-30": {
+            total: number;
+            processing: number;
+            completed: number;
+            awaiting_review: number;
+            duplicates: number;
+            failed: number;
+            cancelled: number;
+        };
+        /** ImportBatch */
+        "def-31": {
+            batch_id: string;
+            state: "processing" | "completed";
+            /** Format: date-time */
+            created_at: string;
+            summary: components["schemas"]["def-30"];
+            items: components["schemas"]["def-29"][];
+        };
+        /** ImportBatchList */
+        "def-32": {
+            batches: components["schemas"]["def-31"][];
+        };
+        /** FlightPath */
+        "def-33": {
             organization_id: string;
             flight_id: string;
         };
         /** FlightFacts */
-        "def-24": {
+        "def-34": {
             aircraft_model: {
                 origin: "imported" | "derived" | "user_override" | "unavailable";
                 value: string | null;
@@ -476,13 +609,13 @@ export interface components {
             };
         };
         /** FlightTelemetrySummary */
-        "def-25": {
+        "def-35": {
             sample_count: number;
             first_elapsed_ms: number | null;
             last_elapsed_ms: number | null;
         };
         /** FlightSummary */
-        "def-26": {
+        "def-36": {
             flight_id: string;
             state: "active" | "awaiting_review";
             assignment_status: "assigned" | "awaiting_pilot" | "awaiting_aircraft" | "ambiguous_aircraft" | "awaiting_time" | "awaiting_multiple";
@@ -495,37 +628,37 @@ export interface components {
             takeoff_timezone: string;
             revision_number: number;
             capabilities: string[];
-            facts: components["schemas"]["def-24"];
-            telemetry: components["schemas"]["def-25"] | null;
+            facts: components["schemas"]["def-34"];
+            telemetry: components["schemas"]["def-35"] | null;
         };
         /** FlightListQuery */
-        "def-27": {
+        "def-37": {
             cursor?: string;
             limit?: number;
             search?: string;
             state?: "active" | "awaiting_review";
         };
         /** FlightListTotals */
-        "def-28": {
+        "def-38": {
             active_flights: number;
             awaiting_review: number;
             total_distance_m: number;
             total_duration_ms: number;
         };
         /** FlightList */
-        "def-29": {
-            items: components["schemas"]["def-26"][];
+        "def-39": {
+            items: components["schemas"]["def-36"][];
             next_cursor: string | null;
-            totals: components["schemas"]["def-28"];
+            totals: components["schemas"]["def-38"];
         };
         /** FlightTrackQuery */
-        "def-30": {
+        "def-40": {
             mode?: "default" | "full";
             cursor?: string;
             limit?: number;
         };
         /** FlightTrackPoint */
-        "def-31": {
+        "def-41": {
             sample_index: number;
             elapsed_ms: number | null;
             position: {
@@ -543,20 +676,20 @@ export interface components {
             signal_uplink_percent: number | null;
         };
         /** FlightTelemetryRange */
-        "def-32": {
+        "def-42": {
             minimum: number | null;
             maximum: number | null;
         };
         /** FlightTrackStatistics */
-        "def-33": {
-            altitude_msl_m: components["schemas"]["def-32"];
-            battery_charge_percent: components["schemas"]["def-32"];
-            height_agl_m: components["schemas"]["def-32"];
-            horizontal_speed_mps: components["schemas"]["def-32"];
-            vertical_speed_mps: components["schemas"]["def-32"];
+        "def-43": {
+            altitude_msl_m: components["schemas"]["def-42"];
+            battery_charge_percent: components["schemas"]["def-42"];
+            height_agl_m: components["schemas"]["def-42"];
+            horizontal_speed_mps: components["schemas"]["def-42"];
+            vertical_speed_mps: components["schemas"]["def-42"];
         };
         /** FlightTrack */
-        "def-34": {
+        "def-44": {
             flight_id: string;
             revision_number: number;
             mode: "default" | "full";
@@ -566,8 +699,8 @@ export interface components {
             next_cursor: string | null;
             gap_transition_count: number;
             preserved_gap_transition_count: number;
-            statistics: components["schemas"]["def-33"];
-            samples: components["schemas"]["def-31"][];
+            statistics: components["schemas"]["def-43"];
+            samples: components["schemas"]["def-41"][];
         };
     };
     responses: never;
@@ -1422,6 +1555,204 @@ export interface operations {
             };
         };
     };
+    listImportBatches: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                organization_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Recent authorized batches and complete item truth. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        batches: components["schemas"]["def-31"][];
+                    };
+                };
+            };
+            /** @description The import was denied or could not be changed. */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        type: string;
+                        title: string;
+                        status: number;
+                        detail: string;
+                        instance: string;
+                        correlation_id: string;
+                        errors?: components["schemas"]["def-0"][];
+                    };
+                };
+            };
+            /** @description The import operation could not be completed. */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        type: string;
+                        title: string;
+                        status: number;
+                        detail: string;
+                        instance: string;
+                        correlation_id: string;
+                        errors?: components["schemas"]["def-0"][];
+                    };
+                };
+            };
+        };
+    };
+    declareImportBatch: {
+        parameters: {
+            query?: never;
+            header: {
+                "idempotency-key": string;
+            };
+            path: {
+                organization_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    files: {
+                        client_file_id: string;
+                        original_filename: string;
+                        content_sha256: string;
+                        byte_size: number;
+                        /** @enum {string} */
+                        media_type: "application/octet-stream";
+                    }[];
+                };
+            };
+        };
+        responses: {
+            /** @description One organization-owned batch and item per file. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        batch_id: string;
+                        items: components["schemas"]["def-26"][];
+                    };
+                };
+            };
+            /** @description The import was denied or could not be changed. */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        type: string;
+                        title: string;
+                        status: number;
+                        detail: string;
+                        instance: string;
+                        correlation_id: string;
+                        errors?: components["schemas"]["def-0"][];
+                    };
+                };
+            };
+            /** @description The import operation could not be completed. */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        type: string;
+                        title: string;
+                        status: number;
+                        detail: string;
+                        instance: string;
+                        correlation_id: string;
+                        errors?: components["schemas"]["def-0"][];
+                    };
+                };
+            };
+        };
+    };
+    getImportBatch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                organization_id: string;
+                batch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One authorized batch with attempts and outcomes. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        batch_id: string;
+                        state: "processing" | "completed";
+                        /** Format: date-time */
+                        created_at: string;
+                        summary: components["schemas"]["def-30"];
+                        items: components["schemas"]["def-29"][];
+                    };
+                };
+            };
+            /** @description The import was denied or could not be changed. */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        type: string;
+                        title: string;
+                        status: number;
+                        detail: string;
+                        instance: string;
+                        correlation_id: string;
+                        errors?: components["schemas"]["def-0"][];
+                    };
+                };
+            };
+            /** @description The import operation could not be completed. */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        type: string;
+                        title: string;
+                        status: number;
+                        detail: string;
+                        instance: string;
+                        correlation_id: string;
+                        errors?: components["schemas"]["def-0"][];
+                    };
+                };
+            };
+        };
+    };
     getImportStatus: {
         parameters: {
             query?: never;
@@ -1550,6 +1881,70 @@ export interface operations {
             };
         };
     };
+    retryImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                organization_id: string;
+                import_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A new attempt was queued under the retained item. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        import_id: string;
+                        state: "uploaded" | "queued" | "detecting" | "parsing" | "normalizing" | "awaiting_review" | "completed" | "failed" | "cancelled" | "skipped_duplicate";
+                        failure_reason: ("unsupported" | "corrupt" | "truncated" | "key_unavailable" | "processing_failed") | null;
+                        result_flight_id: string | null;
+                        /** Format: date-time */
+                        updated_at: string;
+                    };
+                };
+            };
+            /** @description The import was denied or could not be changed. */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        type: string;
+                        title: string;
+                        status: number;
+                        detail: string;
+                        instance: string;
+                        correlation_id: string;
+                        errors?: components["schemas"]["def-0"][];
+                    };
+                };
+            };
+            /** @description The import operation could not be completed. */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        type: string;
+                        title: string;
+                        status: number;
+                        detail: string;
+                        instance: string;
+                        correlation_id: string;
+                        errors?: components["schemas"]["def-0"][];
+                    };
+                };
+            };
+        };
+    };
     listFlights: {
         parameters: {
             query?: {
@@ -1573,9 +1968,9 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        items: components["schemas"]["def-26"][];
+                        items: components["schemas"]["def-36"][];
                         next_cursor: string | null;
-                        totals: components["schemas"]["def-28"];
+                        totals: components["schemas"]["def-38"];
                     };
                 };
             };
@@ -1646,8 +2041,8 @@ export interface operations {
                         takeoff_timezone: string;
                         revision_number: number;
                         capabilities: string[];
-                        facts: components["schemas"]["def-24"];
-                        telemetry: components["schemas"]["def-25"] | null;
+                        facts: components["schemas"]["def-34"];
+                        telemetry: components["schemas"]["def-35"] | null;
                     };
                 };
             };
@@ -1719,8 +2114,8 @@ export interface operations {
                         next_cursor: string | null;
                         gap_transition_count: number;
                         preserved_gap_transition_count: number;
-                        statistics: components["schemas"]["def-33"];
-                        samples: components["schemas"]["def-31"][];
+                        statistics: components["schemas"]["def-43"];
+                        samples: components["schemas"]["def-41"][];
                     };
                 };
             };

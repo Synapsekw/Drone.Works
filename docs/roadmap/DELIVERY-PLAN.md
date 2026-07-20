@@ -30,6 +30,8 @@ D-016 temporarily holds A14 and hosted rollout while product behavior advances
 through local-only, evidence-gated slices. The phase outcomes below are
 unchanged; [`LOCAL-PRODUCT-BACKLOG.md`](LOCAL-PRODUCT-BACKLOG.md) is the active
 implementation sequence until the product owner accepts the local workflow.
+LP01 and LP02 are complete in that local sequence; LP03 is the next bounded
+slice. This evidence does not pass the broader Phase 1B exit gate.
 
 ```mermaid
 flowchart LR

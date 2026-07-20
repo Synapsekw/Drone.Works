@@ -16,9 +16,13 @@ organization, privacy, provenance, and generated-contract boundaries.
    current-flight list, active totals, search, review-state filter, direct
    detail opening, and clearly synthetic local demo flights with one truthful
    capability-aware track.
-2. **LP02 — Batch truth and review inbox:** multi-file selection, per-file
-   progress and terminal outcome, safe retry, exact/probable duplicate clarity,
-   and no silent discard.
+2. **LP02 — Batch truth and review inbox (complete):** atomic multi-file batch
+   declaration, batch and per-file progress, complete terminal-outcome
+   accounting, auditable attempt history, eligible safe retry, direct retained
+   or candidate flight opening, and exact/probable duplicate clarity without
+   silent discard. The local generated review batch and browser workflow cover
+   supported completion, unsupported, corrupt, truncated, key-unavailable,
+   cancelled, exact-duplicate, and probable-duplicate results.
 3. **LP03 — Fleet and people:** useful aircraft, pilot, and battery registries
    with active-flight totals and visible reconciliation state.
 4. **LP04 — Flight workspace:** synchronized replay and essential charts,

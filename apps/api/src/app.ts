@@ -18,12 +18,22 @@ import {
   createInvitationBodySchema,
   acceptInvitationBodySchema,
   completeRawUploadBodySchema,
+  declareImportBatchBodySchema,
   declareRawUploadBodySchema,
   healthQuerySchema,
   healthResponseSchema,
   idempotencyHeadersSchema,
   importPathSchema,
   importStatusSchema,
+  importAttemptSchema,
+  importBatchDeclarationItemSchema,
+  importBatchDeclarationSchema,
+  importBatchItemSchema,
+  importBatchListQuerySchema,
+  importBatchListSchema,
+  importBatchPathSchema,
+  importBatchSchema,
+  importBatchSummarySchema,
   flightFactsSchema,
   flightListQuerySchema,
   flightListSchema,
@@ -103,6 +113,10 @@ export const documentedApiRoutes = new Set([
   'GET /api/v1/organizations/:organization_id/flights/:flight_id',
   'GET /api/v1/organizations/:organization_id/flights/:flight_id/track',
   'GET /api/v1/organizations/:organization_id/imports/:import_id',
+  'POST /api/v1/organizations/:organization_id/imports/:import_id/retry',
+  'GET /api/v1/organizations/:organization_id/import-batches',
+  'GET /api/v1/organizations/:organization_id/import-batches/:batch_id',
+  'POST /api/v1/organizations/:organization_id/import-batches',
   'GET /api/v1/organizations/:organization_id/memberships',
   'DELETE /api/v1/organizations/:organization_id/invitations/:invitation_id',
   'POST /api/v1/organizations',
@@ -198,7 +212,19 @@ const unavailableImports: ImportRouteDependencies['imports'] = {
   async cancel() {
     throw new RawUploadServiceUnavailableError();
   },
+  async declareBatch() {
+    throw new RawUploadServiceUnavailableError();
+  },
+  async getBatch() {
+    throw new RawUploadServiceUnavailableError();
+  },
   async getStatus() {
+    throw new RawUploadServiceUnavailableError();
+  },
+  async listBatches() {
+    throw new RawUploadServiceUnavailableError();
+  },
+  async retry() {
     throw new RawUploadServiceUnavailableError();
   },
 };
@@ -275,7 +301,15 @@ export interface BuildApiOptions {
     FlightReadRepository,
     'getSummary' | 'getTrack' | 'listFlights'
   >;
-  readonly imports?: Pick<ImportProcessingRepository, 'cancel' | 'getStatus'>;
+  readonly imports?: Pick<
+    ImportProcessingRepository,
+    | 'cancel'
+    | 'declareBatch'
+    | 'getBatch'
+    | 'getStatus'
+    | 'listBatches'
+    | 'retry'
+  >;
   readonly organizations?: OrganizationDependencies;
   readonly publicWebUrl?: string;
   readonly objectStore?: ImmutableObjectStore;
@@ -356,6 +390,16 @@ export async function buildApi(options: BuildApiOptions = {}) {
   app.addSchema(rawUploadSchema);
   app.addSchema(importPathSchema);
   app.addSchema(importStatusSchema);
+  app.addSchema(importBatchPathSchema);
+  app.addSchema(importBatchListQuerySchema);
+  app.addSchema(declareImportBatchBodySchema);
+  app.addSchema(importBatchDeclarationItemSchema);
+  app.addSchema(importBatchDeclarationSchema);
+  app.addSchema(importAttemptSchema);
+  app.addSchema(importBatchItemSchema);
+  app.addSchema(importBatchSummarySchema);
+  app.addSchema(importBatchSchema);
+  app.addSchema(importBatchListSchema);
   app.addSchema(flightPathSchema);
   app.addSchema(flightFactsSchema);
   app.addSchema(flightTelemetrySummarySchema);

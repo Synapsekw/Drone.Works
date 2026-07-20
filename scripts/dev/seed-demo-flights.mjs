@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import pg from '../../packages/database/node_modules/pg/esm/index.mjs';
 
 import { encodeTelemetryV1 } from '../../packages/telemetry/dist/index.js';
@@ -104,6 +106,33 @@ async function storeTelemetry(seed) {
   return { encoded, versionId };
 }
 
+async function storeGeneratedRawSource(seed) {
+  const content = Buffer.from(
+    `Drone.Works generated local source ${seed.marker.toUpperCase()}`,
+  );
+  const contentSha256 = createHash('sha256').update(content).digest('hex');
+  const key = `organizations/${seed.organizationId}/raw-sources/${seed.rawSourceId}/revisions/${seed.rawSourceId}`;
+  const response = await fetch(
+    new URL(
+      `/objects/${encodeURIComponent(key)}`,
+      process.env.OBJECT_INTERNAL_URL,
+    ),
+    {
+      body: content,
+      headers: {
+        'content-type': 'application/octet-stream',
+        'x-content-sha256': contentSha256,
+      },
+      method: 'PUT',
+    },
+  );
+  if (!response.ok)
+    throw new Error('Generated raw source could not be stored.');
+  const versionId = response.headers.get('x-version-id');
+  if (!versionId) throw new Error('Generated raw source version is missing.');
+  return { byteSize: content.byteLength, contentSha256, versionId };
+}
+
 const demoRows = [
   {
     suffix: '1',
@@ -127,11 +156,28 @@ const demoRows = [
 
 try {
   for (const seed of Object.values(generatedOrganizations)) {
-    const stored = await storeTelemetry(seed);
+    const [stored, rawSource] = await Promise.all([
+      storeTelemetry(seed),
+      storeGeneratedRawSource(seed),
+    ]);
     await withOrganizationTransaction(
       pool,
       seed.organizationId,
       async (transaction) => {
+        await transaction.query(
+          `UPDATE droneworks.raw_sources
+              SET object_revision_id = $3,
+                  content_sha256 = $4,
+                  byte_size = $5
+            WHERE organization_id = $1 AND id = $2`,
+          [
+            seed.organizationId,
+            seed.rawSourceId,
+            rawSource.versionId,
+            rawSource.contentSha256,
+            rawSource.byteSize,
+          ],
+        );
         await transaction.query(
           `UPDATE droneworks.telemetry_objects
               SET object_revision_id = $3,
@@ -202,6 +248,176 @@ try {
             ],
           );
         }
+
+        await transaction.query(
+          `UPDATE droneworks.import_items
+              SET result_flight_id = $3
+            WHERE organization_id = $1 AND id = $2`,
+          [seed.organizationId, seed.itemId, seed.flightId],
+        );
+
+        const reviewBatchId = `40000000-0000-4000-8000-0000000000${seed.marker}0`;
+        const candidateFlightId = `30000000-0000-4000-8000-0000000000${seed.marker}2`;
+        const createdAt = '2026-07-20T08:00:00.000Z';
+        await transaction.query(
+          `INSERT INTO droneworks.import_batches (
+             organization_id, id, uploaded_by_user_id, state, created_at,
+             completed_at
+           ) VALUES ($1, $2, $3, 'completed', $4, $4)`,
+          [seed.organizationId, reviewBatchId, seed.userId, createdAt],
+        );
+        const outcomes = [
+          {
+            suffix: '1',
+            filename: 'generated-supported.txt',
+            state: 'completed',
+            failureCode: null,
+            duplicateKind: null,
+            resultFlightId: seed.flightId,
+            duplicateFlightId: null,
+            reviewFlightId: null,
+            attemptState: 'succeeded',
+          },
+          {
+            suffix: '2',
+            filename: 'generated-unsupported.dat',
+            state: 'failed',
+            failureCode: 'unsupported_format',
+            duplicateKind: null,
+            resultFlightId: null,
+            duplicateFlightId: null,
+            reviewFlightId: null,
+            attemptState: 'failed',
+          },
+          {
+            suffix: '3',
+            filename: 'generated-corrupt.txt',
+            state: 'failed',
+            failureCode: 'invalid_source',
+            duplicateKind: null,
+            resultFlightId: null,
+            duplicateFlightId: null,
+            reviewFlightId: null,
+            attemptState: 'failed',
+          },
+          {
+            suffix: '4',
+            filename: 'generated-truncated.txt',
+            state: 'failed',
+            failureCode: 'truncated_source',
+            duplicateKind: null,
+            resultFlightId: null,
+            duplicateFlightId: null,
+            reviewFlightId: null,
+            attemptState: 'failed',
+          },
+          {
+            suffix: '5',
+            filename: 'generated-key-unavailable.txt',
+            state: 'failed',
+            failureCode: 'key_service_unavailable',
+            duplicateKind: null,
+            resultFlightId: null,
+            duplicateFlightId: null,
+            reviewFlightId: null,
+            attemptState: 'failed',
+          },
+          {
+            suffix: '6',
+            filename: 'generated-cancelled.txt',
+            state: 'cancelled',
+            failureCode: null,
+            duplicateKind: null,
+            resultFlightId: null,
+            duplicateFlightId: null,
+            reviewFlightId: null,
+            attemptState: 'cancelled',
+          },
+          {
+            suffix: '7',
+            filename: 'generated-exact-duplicate.txt',
+            state: 'skipped_duplicate',
+            failureCode: null,
+            duplicateKind: 'exact_file',
+            resultFlightId: null,
+            duplicateFlightId: seed.flightId,
+            reviewFlightId: null,
+            attemptState: 'succeeded',
+          },
+          {
+            suffix: '8',
+            filename: 'generated-probable-duplicate.txt',
+            state: 'awaiting_review',
+            failureCode: null,
+            duplicateKind: 'probable',
+            resultFlightId: candidateFlightId,
+            duplicateFlightId: null,
+            reviewFlightId: seed.flightId,
+            attemptState: 'succeeded',
+          },
+        ];
+        for (const outcome of outcomes) {
+          const itemId = `40000000-0000-4000-8000-0000000000${seed.marker}${outcome.suffix}`;
+          const attemptId = `41000000-0000-4000-8000-0000000000${seed.marker}${outcome.suffix}`;
+          await transaction.query(
+            `INSERT INTO droneworks.import_items (
+               organization_id, id, import_batch_id, raw_source_id, client_file_id,
+               original_filename, state, failure_code, result_flight_id,
+               duplicate_of_flight_id, duplicate_kind, review_flight_id,
+               outcome_reason, created_at, updated_at
+             ) VALUES (
+               $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
+               'generated_local_review', $13, $13
+             )`,
+            [
+              seed.organizationId,
+              itemId,
+              reviewBatchId,
+              outcome.suffix === '5' ? seed.rawSourceId : null,
+              `generated-review-${outcome.suffix}`,
+              outcome.filename,
+              outcome.state,
+              outcome.failureCode,
+              outcome.resultFlightId,
+              outcome.duplicateFlightId,
+              outcome.duplicateKind,
+              outcome.reviewFlightId,
+              createdAt,
+            ],
+          );
+          await transaction.query(
+            `INSERT INTO droneworks.import_attempts (
+               organization_id, id, import_item_id, attempt_number, state,
+               parser_revision, failure_code, started_at, finished_at
+             ) VALUES ($1, $2, $3, 1, $4, 'generated-review-v1', $5, $6, $6)`,
+            [
+              seed.organizationId,
+              attemptId,
+              itemId,
+              outcome.attemptState,
+              outcome.failureCode,
+              createdAt,
+            ],
+          );
+        }
+        const retryItemId = `40000000-0000-4000-8000-0000000000${seed.marker}5`;
+        await transaction.query(
+          `INSERT INTO droneworks_jobs.outbox (
+             organization_id, id, job_type, payload_version, resource_id,
+             state, available_at, created_at, attempt_count, queue_job_id,
+             dispatched_at
+           ) VALUES (
+             $1, $2, 'raw-source-processing-v1', 1, $3, 'dispatched',
+             $4, $4, 1, $5, $4
+           )`,
+          [
+            seed.organizationId,
+            `42000000-0000-4000-8000-0000000000${seed.marker}5`,
+            retryItemId,
+            createdAt,
+            `43000000-0000-4000-8000-0000000000${seed.marker}5`,
+          ],
+        );
       },
     );
   }

@@ -116,6 +116,31 @@ Important flight fields retain provenance:
 - Missing duration, distance, pilot, aircraft, model, or takeoff values remain
   visibly unavailable and are never represented as zero.
 
+### Local batch and review workspace
+
+- The local product-validation workspace may declare one batch containing up
+  to 20 files. The declaration creates one organization-owned item per input
+  atomically; each item then follows the existing checksum-bound immutable
+  content and completion operations independently.
+- Recent authorized batches expose bounded item lists, derived batch counts,
+  progress, public outcome, duplicate classification, retained or candidate
+  flight links, and ordered processing-attempt history. Owners and admins may
+  read organization batches; a pilot sees only batches they uploaded; viewers
+  cannot enter the import inbox.
+- The review inbox distinguishes supported completion, unsupported, corrupt,
+  truncated, key-unavailable, processing-failed, cancelled, exact-duplicate,
+  and probable-duplicate outcomes. A probable duplicate remains an
+  `awaiting_review` candidate and links the possible retained match; it is not
+  silently discarded.
+- Only failed key-unavailable or other isolated processing failures are
+  immediately retryable in this slice. Retry retains prior attempts, moves the
+  same item back to `queued`, creates a fresh stable dispatch reference, and
+  records an audit event. Unsupported, corrupt, and truncated inputs require a
+  different source rather than a misleading identical retry.
+- Changing identity or organization aborts batch polling and clears selected
+  files, current batch, recent batches, inbox filter, retry state, open flight,
+  and all cached organization-bound results before another context loads.
+
 ## 3. Fleet state
 
 ### Aircraft
@@ -168,8 +193,9 @@ An imported identifier results in one of four visible outcomes:
 
 - Before bytes are accepted, an authorized owner, admin, or pilot declares the
   original display filename, exact byte size, media type, and SHA-256 digest.
-- Phase 1A currently accepts one file of `application/octet-stream` content up
-  to 32 MiB through the authenticated API. A client-supplied storage key is
+- Each item currently accepts one file of `application/octet-stream` content up
+  to 32 MiB through the authenticated API, and a batch contains at most 20
+  items. A client-supplied storage key is
   rejected, and the display filename is reduced to a safe leaf name.
 - Raw bytes become a retained source only after the immutable stored object's
   exact version, digest, size, and media type match the declaration. Identical
@@ -316,9 +342,11 @@ An imported identifier results in one of four visible outcomes:
   new exception requires an accepted entry in `DECISIONS.md`.
 - The local generated-persona control is the D-015 identity-harness exception,
   not a domain operation. Every browser domain read or mutation, including
-  organization selection, upload, status, summary, and track, uses the generated
+  organization selection, batch declaration, upload, status, retry, summary,
+  and track, uses the generated
   `/api/v1/` client. Switching persona or organization aborts polling and clears
-  all organization-bound upload, status, summary, track, and error state.
+  all organization-bound upload, batch, review-filter, polling, retry, status,
+  summary, track, and error state.
 - The hosted web uses an online verified session for the same generated
   `/api/v1/` client operations. Signing out, switching user, or switching
   organization clears the same organization-bound browser state and cache.

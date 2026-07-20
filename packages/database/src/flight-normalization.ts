@@ -272,6 +272,7 @@ async function recordExactSource(
         `UPDATE droneworks.import_items
           SET state = 'skipped_duplicate',
               duplicate_of_flight_id = $3,
+              duplicate_kind = 'exact_file',
               outcome_reason = 'exact_source',
               updated_at = now()
         WHERE organization_id = $1
@@ -703,6 +704,7 @@ export class FlightNormalizationRepository {
             `UPDATE droneworks.import_items
               SET state = 'skipped_duplicate',
                   duplicate_of_flight_id = $3,
+                  duplicate_kind = 'exact_file',
                   outcome_reason = 'exact_source',
                   updated_at = now()
             WHERE organization_id = $1 AND id = $2`,
@@ -718,16 +720,33 @@ export class FlightNormalizationRepository {
         }
 
         const now = new Date();
+        const nextAttempt = await transaction.query<{
+          readonly attempt_number: number;
+        }>(
+          `SELECT coalesce(max(attempt_number), 0)::integer + 1
+                    AS attempt_number
+             FROM droneworks.import_attempts
+            WHERE organization_id = $1 AND import_item_id = $2`,
+          [transaction.organizationId, importItemId],
+        );
+        const attemptNumber = nextAttempt.rows[0]?.attempt_number ?? 1;
+        const attemptId = stableUuid(
+          'droneworks-import-attempt-v1',
+          transaction.organizationId,
+          importItemId,
+          String(attemptNumber),
+        );
         await transaction.query(
           `INSERT INTO droneworks.import_attempts (
            organization_id, id, import_item_id, attempt_number, state,
            parser_revision, started_at, finished_at
-         ) VALUES ($1, $2, $3, 1, 'succeeded', $4, $5, $5)
+         ) VALUES ($1, $2, $3, $4, 'succeeded', $5, $6, $6)
          ON CONFLICT (organization_id, id) DO NOTHING`,
           [
             transaction.organizationId,
-            prepared.identity.attemptId,
+            attemptId,
             importItemId,
+            attemptNumber,
             prepared.parserRevision,
             now,
           ],
@@ -763,6 +782,7 @@ export class FlightNormalizationRepository {
               `UPDATE droneworks.import_items
                 SET state = 'skipped_duplicate',
                     duplicate_of_flight_id = $3,
+                    duplicate_kind = 'exact_normalized',
                     outcome_reason = 'exact_normalized',
                     updated_at = now()
               WHERE organization_id = $1 AND id = $2`,
@@ -840,7 +860,7 @@ export class FlightNormalizationRepository {
             transaction.organizationId,
             prepared.identity.revisionId,
             prepared.identity.canonicalFlightId,
-            prepared.identity.attemptId,
+            attemptId,
             prepared.flight.facts,
             prepared.flight.capabilities,
             prepared.flight.fingerprint.digest,

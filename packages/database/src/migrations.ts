@@ -103,6 +103,17 @@ const manifest: readonly MigrationManifestEntry[] = Object.freeze([
     expectedTables: verifiedAuthCustomerTables,
     url: new URL('../sql/migrations/004_verified_auth.sql', import.meta.url),
   }),
+  Object.freeze({
+    id: '005_batch_review_truth',
+    sha256: 'cc8ab9216e20f83c6ffd14c4a6493fb48100a8f8d86e5251e4cdade8d7455edd',
+    isolationSha256:
+      'fc65745bfc3c6e986754f1705cce5921d0916ca0e8bde1b47b8f81b1ff97f270',
+    expectedTables: verifiedAuthCustomerTables,
+    url: new URL(
+      '../sql/migrations/005_batch_review_truth.sql',
+      import.meta.url,
+    ),
+  }),
 ]);
 
 function sha256(value: string): string {

@@ -839,6 +839,645 @@
         "type": "object",
         "required": [
           "organization_id",
+          "batch_id"
+        ],
+        "properties": {
+          "organization_id": {
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+            "type": "string"
+          },
+          "batch_id": {
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+            "type": "string"
+          }
+        },
+        "title": "ImportBatchPath"
+      },
+      "def-24": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {
+          "limit": {
+            "minimum": 1,
+            "maximum": 20,
+            "type": "integer"
+          }
+        },
+        "title": "ImportBatchListQuery"
+      },
+      "def-25": {
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "files"
+        ],
+        "properties": {
+          "files": {
+            "minItems": 1,
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "additionalProperties": false,
+              "type": "object",
+              "required": [
+                "client_file_id",
+                "original_filename",
+                "content_sha256",
+                "byte_size",
+                "media_type"
+              ],
+              "properties": {
+                "client_file_id": {
+                  "minLength": 1,
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                "original_filename": {
+                  "minLength": 1,
+                  "maxLength": 500,
+                  "type": "string"
+                },
+                "content_sha256": {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "byte_size": {
+                  "minimum": 1,
+                  "maximum": 33554432,
+                  "type": "integer"
+                },
+                "media_type": {
+                  "type": "string",
+                  "enum": [
+                    "application/octet-stream"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "title": "DeclareImportBatchBody"
+      },
+      "def-26": {
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "import_id",
+          "client_file_id",
+          "original_filename",
+          "content_sha256",
+          "state"
+        ],
+        "properties": {
+          "import_id": {
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+            "type": "string"
+          },
+          "client_file_id": {
+            "minLength": 1,
+            "maxLength": 200,
+            "type": "string"
+          },
+          "original_filename": {
+            "minLength": 1,
+            "maxLength": 500,
+            "type": "string"
+          },
+          "content_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "uploaded"
+            ]
+          }
+        },
+        "title": "ImportBatchDeclarationItem"
+      },
+      "def-27": {
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "batch_id",
+          "items"
+        ],
+        "properties": {
+          "batch_id": {
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+            "type": "string"
+          },
+          "items": {
+            "minItems": 1,
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/def-26"
+            }
+          }
+        },
+        "title": "ImportBatchDeclaration"
+      },
+      "def-28": {
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "attempt_number",
+          "state",
+          "failure_reason",
+          "started_at",
+          "finished_at"
+        ],
+        "properties": {
+          "attempt_number": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "queued"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "running"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "succeeded"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "failed"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "cancelled"
+                ]
+              }
+            ]
+          },
+          "failure_reason": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "unsupported"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "corrupt"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "truncated"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "key_unavailable"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "processing_failed"
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "ImportAttempt"
+      },
+      "def-29": {
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "import_id",
+          "original_filename",
+          "state",
+          "progress_percent",
+          "outcome",
+          "failure_reason",
+          "duplicate_kind",
+          "result_flight_id",
+          "related_flight_id",
+          "retry_eligible",
+          "attempts",
+          "updated_at"
+        ],
+        "properties": {
+          "import_id": {
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+            "type": "string"
+          },
+          "original_filename": {
+            "minLength": 1,
+            "maxLength": 500,
+            "type": "string"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "uploaded"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "queued"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "detecting"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "parsing"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "normalizing"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "awaiting_review"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "completed"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "failed"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "cancelled"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "skipped_duplicate"
+                ]
+              }
+            ]
+          },
+          "progress_percent": {
+            "minimum": 0,
+            "maximum": 100,
+            "type": "integer"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "supported_completion"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "unsupported"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "corrupt"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "truncated"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "key_unavailable"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "processing_failed"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "cancelled"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "exact_duplicate"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "probable_duplicate"
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "failure_reason": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "unsupported"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "corrupt"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "truncated"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "key_unavailable"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "processing_failed"
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "duplicate_kind": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "exact_file"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "exact_normalized"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "probable"
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "result_flight_id": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "related_flight_id": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "retry_eligible": {
+            "type": "boolean"
+          },
+          "attempts": {
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/def-28"
+            }
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "title": "ImportBatchItem"
+      },
+      "def-30": {
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "total",
+          "processing",
+          "completed",
+          "awaiting_review",
+          "duplicates",
+          "failed",
+          "cancelled"
+        ],
+        "properties": {
+          "total": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "processing": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "completed": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "awaiting_review": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "duplicates": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "failed": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "cancelled": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "title": "ImportBatchSummary"
+      },
+      "def-31": {
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "batch_id",
+          "state",
+          "created_at",
+          "summary",
+          "items"
+        ],
+        "properties": {
+          "batch_id": {
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+            "type": "string"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "processing"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "completed"
+                ]
+              }
+            ]
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/def-30"
+          },
+          "items": {
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/def-29"
+            }
+          }
+        },
+        "title": "ImportBatch"
+      },
+      "def-32": {
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "batches"
+        ],
+        "properties": {
+          "batches": {
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/def-31"
+            }
+          }
+        },
+        "title": "ImportBatchList"
+      },
+      "def-33": {
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "organization_id",
           "flight_id"
         ],
         "properties": {
@@ -853,7 +1492,7 @@
         },
         "title": "FlightPath"
       },
-      "def-24": {
+      "def-34": {
         "additionalProperties": false,
         "type": "object",
         "required": [
@@ -1357,7 +1996,7 @@
         },
         "title": "FlightFacts"
       },
-      "def-25": {
+      "def-35": {
         "additionalProperties": false,
         "type": "object",
         "required": [
@@ -1395,7 +2034,7 @@
         },
         "title": "FlightTelemetrySummary"
       },
-      "def-26": {
+      "def-36": {
         "additionalProperties": false,
         "type": "object",
         "required": [
@@ -1567,12 +2206,12 @@
             }
           },
           "facts": {
-            "$ref": "#/components/schemas/def-24"
+            "$ref": "#/components/schemas/def-34"
           },
           "telemetry": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/def-25"
+                "$ref": "#/components/schemas/def-35"
               },
               {
                 "type": "null"
@@ -1582,7 +2221,7 @@
         },
         "title": "FlightSummary"
       },
-      "def-27": {
+      "def-37": {
         "additionalProperties": false,
         "type": "object",
         "properties": {
@@ -1618,7 +2257,7 @@
         },
         "title": "FlightListQuery"
       },
-      "def-28": {
+      "def-38": {
         "additionalProperties": false,
         "type": "object",
         "required": [
@@ -1647,7 +2286,7 @@
         },
         "title": "FlightListTotals"
       },
-      "def-29": {
+      "def-39": {
         "additionalProperties": false,
         "type": "object",
         "required": [
@@ -1660,7 +2299,7 @@
             "maxItems": 100,
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/def-26"
+              "$ref": "#/components/schemas/def-36"
             }
           },
           "next_cursor": {
@@ -1674,12 +2313,12 @@
             ]
           },
           "totals": {
-            "$ref": "#/components/schemas/def-28"
+            "$ref": "#/components/schemas/def-38"
           }
         },
         "title": "FlightList"
       },
-      "def-30": {
+      "def-40": {
         "additionalProperties": false,
         "type": "object",
         "properties": {
@@ -1711,7 +2350,7 @@
         },
         "title": "FlightTrackQuery"
       },
-      "def-31": {
+      "def-41": {
         "additionalProperties": false,
         "type": "object",
         "required": [
@@ -1866,7 +2505,7 @@
         },
         "title": "FlightTrackPoint"
       },
-      "def-32": {
+      "def-42": {
         "additionalProperties": false,
         "type": "object",
         "required": [
@@ -1897,7 +2536,7 @@
         },
         "title": "FlightTelemetryRange"
       },
-      "def-33": {
+      "def-43": {
         "additionalProperties": false,
         "type": "object",
         "required": [
@@ -1909,24 +2548,24 @@
         ],
         "properties": {
           "altitude_msl_m": {
-            "$ref": "#/components/schemas/def-32"
+            "$ref": "#/components/schemas/def-42"
           },
           "battery_charge_percent": {
-            "$ref": "#/components/schemas/def-32"
+            "$ref": "#/components/schemas/def-42"
           },
           "height_agl_m": {
-            "$ref": "#/components/schemas/def-32"
+            "$ref": "#/components/schemas/def-42"
           },
           "horizontal_speed_mps": {
-            "$ref": "#/components/schemas/def-32"
+            "$ref": "#/components/schemas/def-42"
           },
           "vertical_speed_mps": {
-            "$ref": "#/components/schemas/def-32"
+            "$ref": "#/components/schemas/def-42"
           }
         },
         "title": "FlightTrackStatistics"
       },
-      "def-34": {
+      "def-44": {
         "additionalProperties": false,
         "type": "object",
         "required": [
@@ -2004,13 +2643,13 @@
             "type": "integer"
           },
           "statistics": {
-            "$ref": "#/components/schemas/def-33"
+            "$ref": "#/components/schemas/def-43"
           },
           "samples": {
             "maxItems": 2000,
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/def-31"
+              "$ref": "#/components/schemas/def-41"
             }
           }
         },
@@ -4439,6 +5078,546 @@
         }
       }
     },
+    "/api/v1/organizations/{organization_id}/import-batches": {
+      "post": {
+        "operationId": "declareImportBatch",
+        "summary": "Declare a multi-file import batch",
+        "tags": [
+          "imports"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "type": "object",
+                "required": [
+                  "files"
+                ],
+                "properties": {
+                  "files": {
+                    "minItems": 1,
+                    "maxItems": 20,
+                    "type": "array",
+                    "items": {
+                      "additionalProperties": false,
+                      "type": "object",
+                      "required": [
+                        "client_file_id",
+                        "original_filename",
+                        "content_sha256",
+                        "byte_size",
+                        "media_type"
+                      ],
+                      "properties": {
+                        "client_file_id": {
+                          "minLength": 1,
+                          "maxLength": 200,
+                          "type": "string"
+                        },
+                        "original_filename": {
+                          "minLength": 1,
+                          "maxLength": 500,
+                          "type": "string"
+                        },
+                        "content_sha256": {
+                          "pattern": "^[0-9a-f]{64}$",
+                          "type": "string"
+                        },
+                        "byte_size": {
+                          "minimum": 1,
+                          "maximum": 33554432,
+                          "type": "integer"
+                        },
+                        "media_type": {
+                          "type": "string",
+                          "enum": [
+                            "application/octet-stream"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "type": "string"
+            },
+            "in": "path",
+            "name": "organization_id",
+            "required": true
+          },
+          {
+            "schema": {
+              "minLength": 1,
+              "maxLength": 200,
+              "type": "string"
+            },
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "One organization-owned batch and item per file.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "batch_id",
+                    "items"
+                  ],
+                  "properties": {
+                    "batch_id": {
+                      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+                      "type": "string"
+                    },
+                    "items": {
+                      "minItems": 1,
+                      "maxItems": 20,
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/def-26"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "The import was denied or could not be changed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "instance",
+                    "correlation_id"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "minimum": 400,
+                      "maximum": 599,
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "correlation_id": {
+                      "type": "string"
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/def-0"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "The import operation could not be completed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "instance",
+                    "correlation_id"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "minimum": 400,
+                      "maximum": 599,
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "correlation_id": {
+                      "type": "string"
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/def-0"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "listImportBatches",
+        "summary": "List recent import batches",
+        "tags": [
+          "imports"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "minimum": 1,
+              "maximum": 20,
+              "type": "integer"
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false
+          },
+          {
+            "schema": {
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "type": "string"
+            },
+            "in": "path",
+            "name": "organization_id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Recent authorized batches and complete item truth.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "batches"
+                  ],
+                  "properties": {
+                    "batches": {
+                      "maxItems": 20,
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/def-31"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "The import was denied or could not be changed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "instance",
+                    "correlation_id"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "minimum": 400,
+                      "maximum": 599,
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "correlation_id": {
+                      "type": "string"
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/def-0"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "The import operation could not be completed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "instance",
+                    "correlation_id"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "minimum": 400,
+                      "maximum": 599,
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "correlation_id": {
+                      "type": "string"
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/def-0"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organizations/{organization_id}/import-batches/{batch_id}": {
+      "get": {
+        "operationId": "getImportBatch",
+        "summary": "Get import batch truth",
+        "tags": [
+          "imports"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "type": "string"
+            },
+            "in": "path",
+            "name": "organization_id",
+            "required": true
+          },
+          {
+            "schema": {
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "type": "string"
+            },
+            "in": "path",
+            "name": "batch_id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One authorized batch with attempts and outcomes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "batch_id",
+                    "state",
+                    "created_at",
+                    "summary",
+                    "items"
+                  ],
+                  "properties": {
+                    "batch_id": {
+                      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+                      "type": "string"
+                    },
+                    "state": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "processing"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "completed"
+                          ]
+                        }
+                      ]
+                    },
+                    "created_at": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "summary": {
+                      "$ref": "#/components/schemas/def-30"
+                    },
+                    "items": {
+                      "maxItems": 20,
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/def-29"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "The import was denied or could not be changed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "instance",
+                    "correlation_id"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "minimum": 400,
+                      "maximum": 599,
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "correlation_id": {
+                      "type": "string"
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/def-0"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "The import operation could not be completed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "instance",
+                    "correlation_id"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "minimum": 400,
+                      "maximum": 599,
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "correlation_id": {
+                      "type": "string"
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/def-0"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/organizations/{organization_id}/imports/{import_id}": {
       "get": {
         "operationId": "getImportStatus",
@@ -4975,6 +6154,275 @@
         }
       }
     },
+    "/api/v1/organizations/{organization_id}/imports/{import_id}/retry": {
+      "post": {
+        "operationId": "retryImport",
+        "summary": "Retry an eligible failed import",
+        "tags": [
+          "imports"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "type": "string"
+            },
+            "in": "path",
+            "name": "organization_id",
+            "required": true
+          },
+          {
+            "schema": {
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "type": "string"
+            },
+            "in": "path",
+            "name": "import_id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A new attempt was queued under the retained item.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "import_id",
+                    "state",
+                    "failure_reason",
+                    "result_flight_id",
+                    "updated_at"
+                  ],
+                  "properties": {
+                    "import_id": {
+                      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+                      "type": "string"
+                    },
+                    "state": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "uploaded"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "queued"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "detecting"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "parsing"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "normalizing"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "awaiting_review"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "completed"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "failed"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "cancelled"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "skipped_duplicate"
+                          ]
+                        }
+                      ]
+                    },
+                    "failure_reason": {
+                      "anyOf": [
+                        {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "unsupported"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "corrupt"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "truncated"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "key_unavailable"
+                              ]
+                            },
+                            {
+                              "type": "string",
+                              "enum": [
+                                "processing_failed"
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "result_flight_id": {
+                      "anyOf": [
+                        {
+                          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "updated_at": {
+                      "format": "date-time",
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "The import was denied or could not be changed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "instance",
+                    "correlation_id"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "minimum": 400,
+                      "maximum": 599,
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "correlation_id": {
+                      "type": "string"
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/def-0"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "The import operation could not be completed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "instance",
+                    "correlation_id"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "minimum": 400,
+                      "maximum": 599,
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "correlation_id": {
+                      "type": "string"
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/def-0"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/organizations/{organization_id}/flights": {
       "get": {
         "operationId": "listFlights",
@@ -5060,7 +6508,7 @@
                       "maxItems": 100,
                       "type": "array",
                       "items": {
-                        "$ref": "#/components/schemas/def-26"
+                        "$ref": "#/components/schemas/def-36"
                       }
                     },
                     "next_cursor": {
@@ -5074,7 +6522,7 @@
                       ]
                     },
                     "totals": {
-                      "$ref": "#/components/schemas/def-28"
+                      "$ref": "#/components/schemas/def-38"
                     }
                   }
                 }
@@ -5382,12 +6830,12 @@
                       }
                     },
                     "facts": {
-                      "$ref": "#/components/schemas/def-24"
+                      "$ref": "#/components/schemas/def-34"
                     },
                     "telemetry": {
                       "anyOf": [
                         {
-                          "$ref": "#/components/schemas/def-25"
+                          "$ref": "#/components/schemas/def-35"
                         },
                         {
                           "type": "null"
@@ -5646,13 +7094,13 @@
                       "type": "integer"
                     },
                     "statistics": {
-                      "$ref": "#/components/schemas/def-33"
+                      "$ref": "#/components/schemas/def-43"
                     },
                     "samples": {
                       "maxItems": 2000,
                       "type": "array",
                       "items": {
-                        "$ref": "#/components/schemas/def-31"
+                        "$ref": "#/components/schemas/def-41"
                       }
                     }
                   }

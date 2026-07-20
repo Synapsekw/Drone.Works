@@ -1,7 +1,7 @@
 # Phase 1B outcome outline — Trustworthy imports
 
-Status: planned after Phase 1A
-Last updated: 2026-07-16
+Status: active locally under D-016
+Last updated: 2026-07-20
 
 Phase 1B turns the single-file walking skeleton into a workflow where a team can
 upload a real batch and understand or resolve every file outcome without silent
@@ -27,6 +27,12 @@ loss. Detailed issue sizing waits for Phase 1A evidence.
    key failure taxonomy, audited automated/reviewer reasons, expanded lawful
    fixture matrix, and usability sessions with people who did not build the
    parser.
+
+LP02 implements the first local vertical through batch truth, public attempt
+history, bounded recent-batch reads, retry eligibility, and exact/probable
+duplicate presentation. It does not close duplicate resolution, asset/pilot/
+timezone reconciliation, reprocessing, fixture expansion, usability learning,
+or the Phase 1B exit gate.
 
 ## Entry gate
 
@@ -54,4 +60,3 @@ loss. Detailed issue sizing waits for Phase 1A evidence.
 Phase 1B does not add manual entry, full logbook search/filter, complete replay
 charts, bulk flight operations, exports, maintenance, billing, public API keys,
 or webhooks. Those remain in their accepted later increments.
-

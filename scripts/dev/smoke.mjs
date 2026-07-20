@@ -74,6 +74,36 @@ if (
   throw new Error('The local generated capability-aware track did not pass.');
 }
 
+const batchListResponse = await fetch(
+  new URL(
+    `/api/v1/organizations/${state.alpha_organization_id}/import-batches?limit=10`,
+    state.endpoints.api,
+  ),
+  { headers: tokenHeader(persona.token) },
+);
+const batchList = await batchListResponse.json();
+const reviewItems = batchList.batches?.flatMap((batch) => batch.items) ?? [];
+const expectedOutcomes = new Set([
+  'supported_completion',
+  'unsupported',
+  'corrupt',
+  'truncated',
+  'key_unavailable',
+  'cancelled',
+  'exact_duplicate',
+  'probable_duplicate',
+]);
+if (
+  !batchListResponse.ok ||
+  ![...expectedOutcomes].every((outcome) =>
+    reviewItems.some((item) => item.outcome === outcome),
+  ) ||
+  !reviewItems.every((item) => Array.isArray(item.attempts)) ||
+  !reviewItems.some((item) => item.retry_eligible)
+) {
+  throw new Error('The local generated batch/review inbox did not pass.');
+}
+
 const rawContent = Buffer.from('generated-local-smoke-upload');
 const rawDigest = createHash('sha256').update(rawContent).digest('hex');
 const declarationResponse = await fetch(
@@ -157,8 +187,11 @@ const importStatus = await importStatusResponse.json();
 if (
   !importStatusResponse.ok ||
   importStatus.import_id !== declaration.upload_id ||
-  importStatus.state !== 'queued' ||
-  importStatus.failure_reason !== null ||
+  !['queued', 'detecting', 'parsing', 'normalizing', 'failed'].includes(
+    importStatus.state,
+  ) ||
+  (importStatus.state === 'failed') !==
+    (importStatus.failure_reason !== null) ||
   importStatus.result_flight_id !== null
 ) {
   throw new Error('The local import-status path did not pass.');
@@ -171,11 +204,7 @@ const [api, dispatcher, worker, objects, email, , proxiedApi] =
     waitForHttp(state.endpoints.worker, 'worker', 5_000),
     waitForHttp(state.endpoints.objects, 'objects', 5_000),
     waitForHttp(state.endpoints.email, 'email', 5_000),
-    waitForPage(
-      state.endpoints.web,
-      'From source log to truthful flight',
-      5_000,
-    ),
+    waitForPage(state.endpoints.web, 'Every source accounted', 5_000),
     waitForHttp(`${state.endpoints.web}/api/v1/health`, 'api', 5_000),
   ]);
 
@@ -209,9 +238,9 @@ for (let attempt = 0; attempt < 50; attempt += 1) {
     databaseProof.split(':').map(Number);
   databaseProofPassed =
     organizations === state.generated_organizations &&
-    customerMigrations >= 1 &&
-    jobsMigrations >= 1 &&
-    dispatched === 1;
+    customerMigrations >= 5 &&
+    jobsMigrations >= 2 &&
+    dispatched >= state.generated_organizations + 1;
   if (databaseProofPassed) break;
   await new Promise((resolve) => setTimeout(resolve, 100));
 }
@@ -223,7 +252,7 @@ if (!databaseProofPassed) {
 }
 
 process.stdout.write(
-  `Local smoke passed: ${[api.service, dispatcher.service, worker.service, objects.service, email.service].join(', ')}, generated identity/authorization, flight library/track, immutable upload/dispatch, and web/postgres.\n`,
+  `Local smoke passed: ${[api.service, dispatcher.service, worker.service, objects.service, email.service].join(', ')}, generated identity/authorization, flight library/track, batch/review truth, immutable upload/dispatch, and web/postgres.\n`,
 );
 
 function tokenHeader(token) {

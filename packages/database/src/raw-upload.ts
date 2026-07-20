@@ -33,6 +33,66 @@ export interface RawUploadRecord {
   readonly uploadId: string;
 }
 
+export interface ImportBatchDeclaration {
+  readonly batchId: string;
+  readonly items: readonly RawUploadDescriptor[];
+}
+
+export interface ImportAttemptSummary {
+  readonly attemptNumber: number;
+  readonly failureReason: ImportStatus['failureReason'];
+  readonly finishedAt: Date | null;
+  readonly startedAt: Date | null;
+  readonly state: 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled';
+}
+
+export type ImportOutcome =
+  | 'supported_completion'
+  | 'unsupported'
+  | 'corrupt'
+  | 'truncated'
+  | 'key_unavailable'
+  | 'processing_failed'
+  | 'cancelled'
+  | 'exact_duplicate'
+  | 'probable_duplicate';
+
+export type ImportDuplicateKind =
+  'exact_file' | 'exact_normalized' | 'probable';
+
+export interface ImportBatchItem {
+  readonly attempts: readonly ImportAttemptSummary[];
+  readonly duplicateKind: ImportDuplicateKind | null;
+  readonly failureReason: ImportStatus['failureReason'];
+  readonly importId: string;
+  readonly originalFilename: string;
+  readonly outcome: ImportOutcome | null;
+  readonly progressPercent: number;
+  readonly relatedFlightId: string | null;
+  readonly resultFlightId: string | null;
+  readonly retryEligible: boolean;
+  readonly state: ImportState;
+  readonly updatedAt: Date;
+}
+
+export interface ImportBatchSummary {
+  readonly awaitingReview: number;
+  readonly cancelled: number;
+  readonly completed: number;
+  readonly duplicates: number;
+  readonly failed: number;
+  readonly processing: number;
+  readonly total: number;
+}
+
+export interface ImportBatch {
+  readonly batchId: string;
+  readonly createdAt: Date;
+  readonly items: readonly ImportBatchItem[];
+  readonly state: 'processing' | 'completed';
+  readonly summary: ImportBatchSummary;
+}
+
 export interface CompleteRawUploadInput {
   readonly djiKeychainAuthorization?: Readonly<{
     readonly noticeVersion: typeof djiKeychainNoticeVersion;
@@ -60,7 +120,13 @@ interface DeclarationBody {
 
 interface IdempotencyRow {
   readonly request_sha256: string;
-  readonly response_body: DeclarationBody | CompletionBody;
+  readonly response_body:
+    BatchDeclarationBody | DeclarationBody | CompletionBody;
+}
+
+interface BatchDeclarationBody {
+  readonly batch_id: string;
+  readonly items: readonly DeclarationBody[];
 }
 
 interface CompletionBody {
@@ -72,11 +138,13 @@ interface CompletionBody {
 }
 
 interface UploadRow {
+  readonly duplicate_kind: ImportDuplicateKind | null;
   readonly byte_size: number;
   readonly client_file_id: string;
   readonly content_sha256: string;
   readonly media_type: string;
   readonly original_filename: string;
+  readonly review_flight_id: string | null;
   readonly raw_source_id: string | null;
   readonly duplicate_of_flight_id: string | null;
   readonly failure_code: string | null;
@@ -203,6 +271,19 @@ function importOutboxId(organizationId: string, importId: string): string {
   return stableUuid('droneworks-import-outbox-v1', organizationId, importId);
 }
 
+function importRetryOutboxId(
+  organizationId: string,
+  importId: string,
+  attemptNumber: number,
+): string {
+  return stableUuid(
+    'droneworks-import-retry-outbox-v1',
+    organizationId,
+    importId,
+    String(attemptNumber),
+  );
+}
+
 function requestDigest(value: unknown): string {
   return createHash('sha256').update(JSON.stringify(value)).digest('hex');
 }
@@ -254,9 +335,11 @@ async function uploadRow(
     `SELECT item.client_file_id,
             item.original_filename,
             item.raw_source_id,
+            item.duplicate_kind,
             item.failure_code,
             item.result_flight_id,
             item.duplicate_of_flight_id,
+            item.review_flight_id,
             item.state,
             item.updated_at,
             batch.uploaded_by_user_id,
@@ -282,6 +365,29 @@ async function uploadRow(
   const row = result.rows[0];
   if (!row) throw new OrganizationAccessDeniedError();
   return row;
+}
+
+interface BatchRow {
+  readonly batch_id: string;
+  readonly created_at: Date;
+  readonly import_id: string;
+  readonly original_filename: string;
+  readonly duplicate_kind: ImportDuplicateKind | null;
+  readonly failure_code: string | null;
+  readonly result_flight_id: string | null;
+  readonly duplicate_of_flight_id: string | null;
+  readonly review_flight_id: string | null;
+  readonly state: ImportState;
+  readonly updated_at: Date;
+}
+
+interface AttemptRow {
+  readonly attempt_number: number;
+  readonly failure_code: string | null;
+  readonly finished_at: Date | null;
+  readonly import_item_id: string;
+  readonly started_at: Date | null;
+  readonly state: ImportAttemptSummary['state'];
 }
 
 function publicFailureReason(
@@ -311,6 +417,166 @@ function publicFailureReason(
     return 'key_unavailable';
   }
   return 'processing_failed';
+}
+
+function progressPercent(state: ImportState): number {
+  const progress: Record<ImportState, number> = {
+    uploaded: 10,
+    queued: 25,
+    detecting: 40,
+    parsing: 60,
+    normalizing: 80,
+    awaiting_review: 100,
+    completed: 100,
+    failed: 100,
+    cancelled: 100,
+    skipped_duplicate: 100,
+  };
+  return progress[state];
+}
+
+function publicOutcome(row: BatchRow): ImportOutcome | null {
+  if (row.state === 'completed') return 'supported_completion';
+  if (row.state === 'cancelled') return 'cancelled';
+  if (row.state === 'skipped_duplicate') return 'exact_duplicate';
+  if (row.state === 'awaiting_review' && row.duplicate_kind === 'probable') {
+    return 'probable_duplicate';
+  }
+  if (row.state === 'failed') {
+    return publicFailureReason(row.state, row.failure_code);
+  }
+  return null;
+}
+
+function retryEligible(row: BatchRow): boolean {
+  const reason = publicFailureReason(row.state, row.failure_code);
+  return reason === 'key_unavailable' || reason === 'processing_failed';
+}
+
+function assembleBatch(
+  batchId: string,
+  createdAt: Date,
+  rows: readonly BatchRow[],
+  attempts: readonly AttemptRow[],
+): ImportBatch {
+  const attemptsByItem = new Map<string, ImportAttemptSummary[]>();
+  for (const attempt of attempts) {
+    const itemAttempts = attemptsByItem.get(attempt.import_item_id) ?? [];
+    itemAttempts.push({
+      attemptNumber: attempt.attempt_number,
+      failureReason: publicFailureReason(
+        attempt.state === 'failed' ? 'failed' : 'completed',
+        attempt.failure_code,
+      ),
+      finishedAt: attempt.finished_at,
+      startedAt: attempt.started_at,
+      state: attempt.state,
+    });
+    attemptsByItem.set(attempt.import_item_id, itemAttempts);
+  }
+  const items = rows.map<ImportBatchItem>((row) => ({
+    attempts: attemptsByItem.get(row.import_id) ?? [],
+    duplicateKind: row.duplicate_kind,
+    failureReason: publicFailureReason(row.state, row.failure_code),
+    importId: row.import_id,
+    originalFilename: row.original_filename,
+    outcome: publicOutcome(row),
+    progressPercent: progressPercent(row.state),
+    relatedFlightId: row.review_flight_id,
+    resultFlightId: row.result_flight_id ?? row.duplicate_of_flight_id ?? null,
+    retryEligible: retryEligible(row),
+    state: row.state,
+    updatedAt: row.updated_at,
+  }));
+  const summary: ImportBatchSummary = {
+    awaitingReview: items.filter(
+      (item) =>
+        item.state === 'awaiting_review' &&
+        item.outcome !== 'probable_duplicate',
+    ).length,
+    cancelled: items.filter((item) => item.outcome === 'cancelled').length,
+    completed: items.filter((item) => item.outcome === 'supported_completion')
+      .length,
+    duplicates: items.filter(
+      (item) =>
+        item.outcome === 'exact_duplicate' ||
+        item.outcome === 'probable_duplicate',
+    ).length,
+    failed: items.filter((item) => item.state === 'failed').length,
+    processing: items.filter((item) => item.outcome === null).length,
+    total: items.length,
+  };
+  return {
+    batchId,
+    createdAt,
+    items,
+    state: summary.processing === 0 ? 'completed' : 'processing',
+    summary,
+  };
+}
+
+async function loadBatches(
+  transaction: OrganizationTransaction,
+  identity: AppIdentity,
+  role: OrganizationRole,
+  batchId: string | null,
+  limit: number,
+): Promise<readonly ImportBatch[]> {
+  const rows = await transaction.query<BatchRow>(
+    `WITH visible_batches AS (
+       SELECT id, created_at
+         FROM droneworks.import_batches
+        WHERE organization_id = $1
+          AND ($2::boolean OR uploaded_by_user_id = $3)
+          AND ($4::uuid IS NULL OR id = $4)
+        ORDER BY created_at DESC, id DESC
+        LIMIT $5
+     )
+     SELECT batch.id AS batch_id, batch.created_at,
+            item.id AS import_id, item.original_filename,
+            item.duplicate_kind, item.failure_code,
+            item.result_flight_id, item.duplicate_of_flight_id,
+            item.review_flight_id, item.state, item.updated_at
+       FROM visible_batches AS batch
+       JOIN droneworks.import_items AS item
+         ON (item.organization_id, item.import_batch_id) = ($1, batch.id)
+      ORDER BY batch.created_at DESC, batch.id DESC,
+               item.created_at, item.id`,
+    [
+      transaction.organizationId,
+      role === 'owner' || role === 'admin',
+      identity.userId,
+      batchId,
+      limit,
+    ],
+  );
+  if (batchId && rows.rows.length === 0) {
+    throw new OrganizationAccessDeniedError();
+  }
+  const itemIds = rows.rows.map((row) => row.import_id);
+  const attempts = itemIds.length
+    ? await transaction.query<AttemptRow>(
+        `SELECT import_item_id, attempt_number, state, failure_code,
+                started_at, finished_at
+           FROM droneworks.import_attempts
+          WHERE organization_id = $1
+            AND import_item_id = ANY($2::uuid[])
+          ORDER BY import_item_id, attempt_number`,
+        [transaction.organizationId, itemIds],
+      )
+    : { rows: [] as AttemptRow[] };
+  const grouped = new Map<string, { createdAt: Date; rows: BatchRow[] }>();
+  for (const row of rows.rows) {
+    const group = grouped.get(row.batch_id) ?? {
+      createdAt: row.created_at,
+      rows: [],
+    };
+    group.rows.push(row);
+    grouped.set(row.batch_id, group);
+  }
+  return [...grouped.entries()].map(([id, group]) =>
+    assembleBatch(id, group.createdAt, group.rows, attempts.rows),
+  );
 }
 
 async function writeAudit(
@@ -730,6 +996,294 @@ export class ImportProcessingRepository {
 
   constructor(pool: OrganizationPool) {
     this.#pool = pool;
+  }
+
+  async declareBatch(
+    identity: AppIdentity,
+    organizationId: string,
+    idempotencyKey: string,
+    files: readonly DeclareRawUploadInput[],
+  ): Promise<ImportBatchDeclaration> {
+    if (files.length < 1 || files.length > 20) {
+      throw new TypeError('A batch must contain between 1 and 20 files.');
+    }
+    if (new Set(files.map((file) => file.clientFileId)).size !== files.length) {
+      throw new TypeError('Client file identifiers must be unique in a batch.');
+    }
+    return withOrganizationTransaction(
+      this.#pool,
+      organizationId,
+      async (transaction) => {
+        const role = await currentRole(transaction, identity.userId);
+        if (!canDeclare(role)) throw new OrganizationAccessDeniedError();
+        const digest = requestDigest(files);
+        await transaction.query(
+          `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`,
+          [
+            `${transaction.organizationId}:${identity.userId}:import_batch.declare:${idempotencyKey}`,
+          ],
+        );
+        const existing = await transaction.query<IdempotencyRow>(
+          `SELECT request_sha256, response_body
+             FROM droneworks.api_idempotency_requests
+            WHERE organization_id = $1
+              AND user_id = $2
+              AND operation = 'import_batch.declare'
+              AND idempotency_key = $3
+            FOR UPDATE`,
+          [transaction.organizationId, identity.userId, idempotencyKey],
+        );
+        if (existing.rows[0]) {
+          if (existing.rows[0].request_sha256 !== digest) {
+            throw new IdempotencyConflictError();
+          }
+          const body = existing.rows[0].response_body as BatchDeclarationBody;
+          return {
+            batchId: body.batch_id,
+            items: body.items.map((item) =>
+              descriptor(transaction.organizationId, item.upload_id, {
+                byteSize: item.byte_size,
+                clientFileId: item.client_file_id,
+                contentSha256: item.content_sha256,
+                mediaType: item.media_type,
+                originalFilename: item.original_filename,
+              }),
+            ),
+          };
+        }
+
+        const batchId = randomUUID();
+        await transaction.query(
+          `INSERT INTO droneworks.import_batches (
+             organization_id, id, uploaded_by_user_id, state, created_at
+           ) VALUES ($1, $2, $3, 'open', now())`,
+          [transaction.organizationId, batchId, identity.userId],
+        );
+        const items: RawUploadDescriptor[] = [];
+        const responseItems: DeclarationBody[] = [];
+        for (const [index, file] of files.entries()) {
+          const uploadId = randomUUID();
+          const response: DeclarationBody = {
+            byte_size: file.byteSize,
+            client_file_id: file.clientFileId,
+            content_sha256: file.contentSha256,
+            media_type: file.mediaType,
+            original_filename: file.originalFilename,
+            upload_id: uploadId,
+          };
+          await transaction.query(
+            `INSERT INTO droneworks.import_items (
+               organization_id, id, import_batch_id, client_file_id,
+               original_filename, state, created_at, updated_at
+             ) VALUES ($1, $2, $3, $4, $5, 'uploaded', now(), now())`,
+            [
+              transaction.organizationId,
+              uploadId,
+              batchId,
+              file.clientFileId,
+              file.originalFilename,
+            ],
+          );
+          await transaction.query(
+            `INSERT INTO droneworks.api_idempotency_requests (
+               organization_id, user_id, operation, idempotency_key,
+               request_sha256, response_status, response_body, created_at,
+               completed_at
+             ) VALUES ($1, $2, 'raw_upload.declare', $3, $4, 201, $5,
+                       now(), now())`,
+            [
+              transaction.organizationId,
+              identity.userId,
+              `batch-${requestDigest([idempotencyKey, index])}`,
+              requestDigest(file),
+              response,
+            ],
+          );
+          items.push(descriptor(transaction.organizationId, uploadId, file));
+          responseItems.push(response);
+        }
+        await transaction.query(
+          `INSERT INTO droneworks.api_idempotency_requests (
+             organization_id, user_id, operation, idempotency_key,
+             request_sha256, response_status, response_body, created_at,
+             completed_at
+           ) VALUES ($1, $2, 'import_batch.declare', $3, $4, 201, $5,
+                     now(), now())`,
+          [
+            transaction.organizationId,
+            identity.userId,
+            idempotencyKey,
+            digest,
+            { batch_id: batchId, items: responseItems },
+          ],
+        );
+        await transaction.query(
+          `INSERT INTO droneworks.audit_events (
+             organization_id, id, actor_kind, actor_user_id, action,
+             resource_type, resource_id, changed_fields, metadata, occurred_at
+           ) VALUES ($1, $2, 'user', $3, 'import_batch.declared',
+                     'import_batch', $4, ARRAY['items'],
+                     jsonb_build_object('item_count', $5::integer), now())`,
+          [
+            transaction.organizationId,
+            randomUUID(),
+            identity.userId,
+            batchId,
+            files.length,
+          ],
+        );
+        return { batchId, items };
+      },
+    );
+  }
+
+  async getBatch(
+    identity: AppIdentity,
+    organizationId: string,
+    batchId: string,
+  ): Promise<ImportBatch> {
+    return withOrganizationTransaction(
+      this.#pool,
+      organizationId,
+      async (transaction) => {
+        const role = await currentRole(transaction, identity.userId);
+        const batches = await loadBatches(
+          transaction,
+          identity,
+          role,
+          batchId,
+          1,
+        );
+        const batch = batches[0];
+        if (!batch) throw new OrganizationAccessDeniedError();
+        return batch;
+      },
+    );
+  }
+
+  async listBatches(
+    identity: AppIdentity,
+    organizationId: string,
+    limit = 10,
+  ): Promise<readonly ImportBatch[]> {
+    return withOrganizationTransaction(
+      this.#pool,
+      organizationId,
+      async (transaction) => {
+        const role = await currentRole(transaction, identity.userId);
+        if (role === 'viewer') throw new OrganizationAccessDeniedError();
+        return loadBatches(
+          transaction,
+          identity,
+          role,
+          null,
+          Math.max(1, Math.min(limit, 20)),
+        );
+      },
+    );
+  }
+
+  async retry(
+    identity: AppIdentity,
+    organizationId: string,
+    importId: string,
+  ): Promise<ImportStatus> {
+    return withOrganizationTransaction(
+      this.#pool,
+      organizationId,
+      async (transaction) => {
+        const role = await currentRole(transaction, identity.userId);
+        const item = await transaction.query<
+          BatchRow & { readonly uploaded_by_user_id: string }
+        >(
+          `SELECT batch.id AS batch_id, batch.created_at,
+                  batch.uploaded_by_user_id, item.id AS import_id,
+                  item.original_filename, item.duplicate_kind,
+                  item.failure_code, item.result_flight_id,
+                  item.duplicate_of_flight_id, item.review_flight_id,
+                  item.state, item.updated_at
+             FROM droneworks.import_items AS item
+             JOIN droneworks.import_batches AS batch
+               ON (batch.organization_id, batch.id) =
+                  (item.organization_id, item.import_batch_id)
+            WHERE item.organization_id = $1 AND item.id = $2`,
+          [transaction.organizationId, importId],
+        );
+        const row = item.rows[0];
+        if (
+          !row ||
+          !canUseUpload(role, identity.userId, row.uploaded_by_user_id)
+        ) {
+          throw new OrganizationAccessDeniedError();
+        }
+        if (!retryEligible(row)) {
+          throw new RawUploadConflictError(
+            'This failed import is not eligible for retry.',
+          );
+        }
+        await transaction.query(
+          'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+          [`${transaction.organizationId}:import-retry:${importId}`],
+        );
+        const attempt = await transaction.query<{
+          readonly attempt: number;
+        }>(
+          `SELECT coalesce(max(attempt_number), 0)::integer + 1 AS attempt
+             FROM droneworks.import_attempts
+            WHERE organization_id = $1 AND import_item_id = $2`,
+          [transaction.organizationId, importId],
+        );
+        const attemptNumber = attempt.rows[0]?.attempt ?? 1;
+        const outbox = await transaction.query<{ readonly outbox_id: string }>(
+          `SELECT droneworks_jobs.retry_import($1, $2, now()) AS outbox_id`,
+          [
+            importRetryOutboxId(
+              transaction.organizationId,
+              importId,
+              attemptNumber,
+            ),
+            importId,
+          ],
+        );
+        if (!outbox.rows[0]?.outbox_id) {
+          throw new RawUploadConflictError(
+            'The previous processing dispatch is not ready for retry.',
+          );
+        }
+        const updated = await transaction.query<{ readonly updated_at: Date }>(
+          `UPDATE droneworks.import_items
+              SET state = 'queued', failure_code = NULL, updated_at = now()
+            WHERE organization_id = $1 AND id = $2 AND state = 'failed'
+          RETURNING updated_at`,
+          [transaction.organizationId, importId],
+        );
+        if (!updated.rows[0]) {
+          throw new RawUploadConflictError();
+        }
+        await transaction.query(
+          `INSERT INTO droneworks.audit_events (
+             organization_id, id, actor_kind, actor_user_id, action,
+             resource_type, resource_id, changed_fields, metadata, occurred_at
+           ) VALUES ($1, $2, 'user', $3, 'import.retry_requested',
+                     'import_item', $4, ARRAY['state', 'attempt_number'],
+                     jsonb_build_object('attempt_number', $5::integer), now())`,
+          [
+            transaction.organizationId,
+            randomUUID(),
+            identity.userId,
+            importId,
+            attemptNumber,
+          ],
+        );
+        return {
+          failureReason: null,
+          importId,
+          resultFlightId: null,
+          state: 'queued',
+          updatedAt: updated.rows[0].updated_at,
+        };
+      },
+    );
   }
 
   async getStatus(

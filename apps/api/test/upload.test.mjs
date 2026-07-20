@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import {
   createApplicationPool,
+  ImportProcessingRepository,
   OrganizationAuthorizationRepository,
   RawUploadRepository,
   withOrganizationTransaction,
@@ -90,10 +91,12 @@ beforeAll(async () => {
   const identitySource = createIdentitySource(environment);
   const organizations = new OrganizationAuthorizationRepository(pool);
   const uploads = new RawUploadRepository(pool);
+  const imports = new ImportProcessingRepository(pool);
   app = (
     await buildApi({
       environment,
       identitySource,
+      imports,
       objectStore: new LoopbackImmutableObjectStore(
         process.env.OBJECT_INTERNAL_URL,
       ),
@@ -121,6 +124,126 @@ afterAll(async () => {
 });
 
 describe.sequential('A06 immutable raw upload', () => {
+  it('declares one atomic multi-file batch and returns every item through the authorized inbox', async () => {
+    const files = ['supported', 'corrupt', 'duplicate'].map((name, index) => {
+      const content = Buffer.from(`generated-batch-${name}`);
+      return {
+        client_file_id: `batch-client-${index}`,
+        original_filename: `../generated-${name}.txt`,
+        content_sha256: sha256(content),
+        byte_size: content.byteLength,
+        media_type: 'application/octet-stream',
+      };
+    });
+    const options = {
+      method: 'POST',
+      url: `/api/v1/organizations/${alphaOrganizationId}/import-batches`,
+      headers: { 'idempotency-key': 'generated-batch-declare' },
+      payload: { files },
+    };
+    const declared = await request('alpha_owner', options);
+    const replay = await request('alpha_owner', options);
+    expect(declared.statusCode).toBe(201);
+    expect(replay.json()).toEqual(declared.json());
+    expect(declared.json().items).toHaveLength(3);
+    expect(declared.json().items.map((item) => item.original_filename)).toEqual(
+      [
+        'generated-supported.txt',
+        'generated-corrupt.txt',
+        'generated-duplicate.txt',
+      ],
+    );
+    expect(
+      (
+        await request('alpha_viewer', {
+          ...options,
+          headers: { 'idempotency-key': 'viewer-batch' },
+        })
+      ).statusCode,
+    ).toBe(404);
+
+    const batchId = declared.json().batch_id;
+    const batch = await request('alpha_owner', {
+      method: 'GET',
+      url: `/api/v1/organizations/${alphaOrganizationId}/import-batches/${batchId}`,
+    });
+    expect(batch.statusCode).toBe(200);
+    expect(batch.json()).toMatchObject({
+      batch_id: batchId,
+      state: 'processing',
+      summary: { total: 3, processing: 3 },
+    });
+    expect(
+      batch.json().items.every((item) => item.progress_percent === 10),
+    ).toBe(true);
+    const denied = await request('beta_owner', {
+      method: 'GET',
+      url: `/api/v1/organizations/${betaOrganizationId}/import-batches/${batchId}`,
+    });
+    expect(denied.statusCode).toBe(404);
+  });
+
+  it('preserves prior attempts and requeues only an eligible failed item', async () => {
+    const importId = '50000000-0000-4000-8000-000000000005';
+    const before = await request('alpha_owner', {
+      method: 'GET',
+      url: `/api/v1/organizations/${alphaOrganizationId}/import-batches/50000000-0000-4000-8000-000000000000`,
+    });
+    expect(before.statusCode).toBe(200);
+    expect(before.json().items[0]).toMatchObject({
+      import_id: importId,
+      outcome: 'key_unavailable',
+      retry_eligible: true,
+      attempts: [{ attempt_number: 1, state: 'failed' }],
+    });
+    const retried = await request('alpha_owner', {
+      method: 'POST',
+      url: `/api/v1/organizations/${alphaOrganizationId}/imports/${importId}/retry`,
+    });
+    expect(retried.statusCode).toBe(200);
+    expect(retried.json()).toMatchObject({
+      import_id: importId,
+      state: 'queued',
+      failure_reason: null,
+    });
+    const after = await request('alpha_owner', {
+      method: 'GET',
+      url: `/api/v1/organizations/${alphaOrganizationId}/import-batches/50000000-0000-4000-8000-000000000000`,
+    });
+    expect(after.json().items[0]).toMatchObject({
+      state: 'queued',
+      retry_eligible: false,
+      attempts: [{ attempt_number: 1, state: 'failed' }],
+    });
+    expect(
+      (
+        await request('beta_owner', {
+          method: 'POST',
+          url: `/api/v1/organizations/${betaOrganizationId}/imports/${importId}/retry`,
+        })
+      ).statusCode,
+    ).toBe(404);
+    await withOrganizationTransaction(
+      pool,
+      alphaOrganizationId,
+      async (transaction) => {
+        const evidence = await transaction.query(
+          `SELECT action, changed_fields, metadata
+             FROM droneworks.audit_events
+            WHERE resource_id = $1 AND action = 'import.retry_requested'`,
+          [importId],
+        );
+        expect(evidence.rows).toEqual([
+          {
+            action: 'import.retry_requested',
+            changed_fields: ['state', 'attempt_number'],
+            metadata: { attempt_number: 2 },
+          },
+        ]);
+      },
+    );
+  });
+
   it('enforces declaration validation, role rules, idempotency, and redacted metadata', async () => {
     const content = Buffer.from('role-matrix-upload');
     for (const persona of ['alpha_owner', 'alpha_admin', 'alpha_pilot']) {

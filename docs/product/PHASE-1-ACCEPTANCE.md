@@ -188,6 +188,26 @@ And the duplicate has a skipped-duplicate result referencing the retained flight
 And the batch summary reports one of each outcome
 ```
 
+### Scenario: The local batch workspace accounts for every generated input
+
+```gherkin
+Given the local generated persona harness is explicitly enabled
+And the organization has a synthetic review inbox containing no customer data
+When the owner submits several selected or generated files as one batch
+Then one organization-owned item is created for every input through /api/v1/
+And batch-level and per-file progress remain accessible while processing
+And supported, unsupported, corrupt, truncated, key-unavailable, cancelled, exact-duplicate, and probable-duplicate outcomes remain distinguishable
+And every item exposes its ordered processing-attempt history
+When the owner retries an eligible failed item
+Then the same item is queued with a new stable dispatch reference
+And the earlier failed attempt remains visible and auditable
+And unsupported, corrupt, or truncated items are not offered an identical retry
+When the owner opens an exact duplicate or probable duplicate from the inbox
+Then the retained flight or candidate flight opens through the authorized flight API
+When the persona or organization changes
+Then prior selection, batch, review filter, open flight, polling, and cached state are cleared before the new context loads
+```
+
 ## 3. Failure clarity
 
 ### Scenario: Unsupported format

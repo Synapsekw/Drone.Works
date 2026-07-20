@@ -9,6 +9,10 @@ type DeclareRawUploadOperation = operations['declareRawUpload'];
 type PutRawUploadContentOperation = operations['putRawUploadContent'];
 type CompleteRawUploadOperation = operations['completeRawUpload'];
 type GetImportStatusOperation = operations['getImportStatus'];
+type DeclareImportBatchOperation = operations['declareImportBatch'];
+type ListImportBatchesOperation = operations['listImportBatches'];
+type GetImportBatchOperation = operations['getImportBatch'];
+type RetryImportOperation = operations['retryImport'];
 type FlightListOperation = operations['listFlights'];
 type FlightSummaryOperation = operations['getFlightSummary'];
 type FlightTrackOperation = operations['getFlightTrack'];
@@ -35,6 +39,13 @@ export type ApiRawUpload =
   CompleteRawUploadOperation['responses'][200]['content']['application/json'];
 export type ApiImportStatus =
   GetImportStatusOperation['responses'][200]['content']['application/json'];
+export type ApiImportBatchDeclaration =
+  DeclareImportBatchOperation['responses'][201]['content']['application/json'];
+export type ApiImportBatchList =
+  ListImportBatchesOperation['responses'][200]['content']['application/json'];
+export type ApiImportBatch =
+  GetImportBatchOperation['responses'][200]['content']['application/json'];
+export type ApiImportBatchItem = ApiImportBatch['items'][number];
 export type ApiFlightList =
   FlightListOperation['responses'][200]['content']['application/json'];
 export type ApiFlightSummary =
@@ -273,6 +284,76 @@ export async function getImportStatus(
     options,
     `/api/v1/organizations/${encodeURIComponent(organizationId)}/imports/${encodeURIComponent(importId)}`,
     { headers: headers(options), method: 'GET' },
+  );
+}
+
+export async function declareImportBatch(
+  options: ApiRequestOptions,
+  organizationId: string,
+  files: readonly Readonly<{
+    byte_size: number;
+    client_file_id: string;
+    content_sha256: string;
+    original_filename: string;
+  }>[],
+  idempotencyKey: string,
+): Promise<ApiImportBatchDeclaration> {
+  return request<ApiImportBatchDeclaration>(
+    options,
+    `/api/v1/organizations/${encodeURIComponent(organizationId)}/import-batches`,
+    {
+      body: JSON.stringify({
+        files: files.map((file) => ({
+          ...file,
+          media_type: 'application/octet-stream' as const,
+        })),
+      }),
+      headers: headers(options, {
+        'content-type': 'application/json',
+        'idempotency-key': idempotencyKey,
+      }),
+      method: 'POST',
+    },
+  );
+}
+
+export async function listImportBatches(
+  options: ApiRequestOptions,
+  organizationId: string,
+  limit = 10,
+): Promise<ApiImportBatchList> {
+  return request<ApiImportBatchList>(
+    options,
+    `/api/v1/organizations/${encodeURIComponent(organizationId)}/import-batches?limit=${encodeURIComponent(String(limit))}`,
+    { headers: headers(options), method: 'GET' },
+  );
+}
+
+export async function getImportBatch(
+  options: ApiRequestOptions,
+  organizationId: string,
+  batchId: string,
+): Promise<ApiImportBatch> {
+  return request<ApiImportBatch>(
+    options,
+    `/api/v1/organizations/${encodeURIComponent(organizationId)}/import-batches/${encodeURIComponent(batchId)}`,
+    { headers: headers(options), method: 'GET' },
+  );
+}
+
+export async function retryImport(
+  options: ApiRequestOptions,
+  organizationId: string,
+  importId: string,
+): Promise<
+  RetryImportOperation['responses'][200]['content']['application/json']
+> {
+  return request<
+    RetryImportOperation['responses'][200]['content']['application/json']
+  >(
+    options,
+    `/api/v1/organizations/${encodeURIComponent(organizationId)}/imports/${encodeURIComponent(importId)}/retry`,
+    { headers: headers(options), method: 'POST' },
   );
 }
 

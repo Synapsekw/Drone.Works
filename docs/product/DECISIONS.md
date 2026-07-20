@@ -815,6 +815,17 @@ track. Organization authorization, forced RLS, `/api/v1/` boundaries, hosted
 persona exclusion, coordinate privacy, and capability/null behavior are not
 relaxed.
 
+The second local product slice adds an atomic batch declaration of at most 20
+immutable-upload items, bounded recent-batch reads with public attempt history,
+and a review inbox over the same generated `/api/v1/` client. Duplicate evidence
+is additive: exact-file and exact-normalized results reference the retained
+flight, while a probable duplicate retains a candidate and a separate possible
+match. Immediate retry is limited to key-unavailable and isolated-processing
+failures; it preserves prior attempts and rotates the already-dispatched outbox
+identity back to a fresh pending reference without placing payload in the job.
+Generated local review examples cover the outcome vocabulary without claiming
+new parser-format support or using customer data.
+
 ### Consequences
 
 - `corepack pnpm dev` is the primary product-review path and requires neither
@@ -825,6 +836,9 @@ relaxed.
   not an implementation failure.
 - Hosted, auth, isolation, privacy, and full repository gates remain required
   for each implementation commit.
+- LP02 completes only the local batch-truth and review-inbox slice. Asset,
+  pilot, timezone, multi-battery reconciliation, reviewer resolution, and the
+  full Phase 1B exit gate remain open.
 
 ### Reconsideration triggers
 

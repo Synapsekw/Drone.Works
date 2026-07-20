@@ -54,6 +54,47 @@ const database = await startDisposablePostgres({
     CREATE TRIGGER reject_generated_rollback_source
       BEFORE INSERT ON droneworks.raw_sources
       FOR EACH ROW EXECUTE FUNCTION droneworks.reject_generated_rollback_source();
+    INSERT INTO droneworks.import_batches (
+      organization_id, id, uploaded_by_user_id, state, created_at, completed_at
+    ) VALUES (
+      '00000000-0000-4000-8000-0000000000a1',
+      '50000000-0000-4000-8000-000000000000',
+      '00000000-0000-4000-8000-0000000000a2',
+      'completed', '2026-07-20T08:00:00.000Z', '2026-07-20T08:00:00.000Z'
+    );
+    INSERT INTO droneworks.import_items (
+      organization_id, id, import_batch_id, client_file_id,
+      original_filename, state, failure_code, created_at, updated_at
+    ) VALUES (
+      '00000000-0000-4000-8000-0000000000a1',
+      '50000000-0000-4000-8000-000000000005',
+      '50000000-0000-4000-8000-000000000000',
+      'generated-retry', 'generated-key-unavailable.txt', 'failed',
+      'key_service_unavailable', '2026-07-20T08:00:00.000Z',
+      '2026-07-20T08:00:00.000Z'
+    );
+    INSERT INTO droneworks.import_attempts (
+      organization_id, id, import_item_id, attempt_number, state,
+      parser_revision, failure_code, started_at, finished_at
+    ) VALUES (
+      '00000000-0000-4000-8000-0000000000a1',
+      '51000000-0000-4000-8000-000000000005',
+      '50000000-0000-4000-8000-000000000005', 1, 'failed',
+      'generated-test-v1', 'key_service_unavailable',
+      '2026-07-20T08:00:00.000Z', '2026-07-20T08:00:00.000Z'
+    );
+    INSERT INTO droneworks_jobs.outbox (
+      organization_id, id, job_type, payload_version, resource_id, state,
+      available_at, created_at, attempt_count, queue_job_id, dispatched_at
+    ) VALUES (
+      '00000000-0000-4000-8000-0000000000a1',
+      '52000000-0000-4000-8000-000000000005',
+      'raw-source-processing-v1', 1,
+      '50000000-0000-4000-8000-000000000005', 'dispatched',
+      '2026-07-20T08:00:00.000Z', '2026-07-20T08:00:00.000Z', 1,
+      '53000000-0000-4000-8000-000000000005',
+      '2026-07-20T08:00:00.000Z'
+    );
   `,
 });
 const [objectPort, emailPort] = await Promise.all([

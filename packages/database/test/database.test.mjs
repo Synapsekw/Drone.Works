@@ -652,7 +652,7 @@ describe('A04 PostgreSQL organization boundary', () => {
       process.env.DRONEWORKS_PG_MIGRATION_USER,
       async (client) => {
         const migrations = await loadReviewedMigrations();
-        expect(migrations).toHaveLength(4);
+        expect(migrations).toHaveLength(5);
         expect(migrations.at(-1)).toMatchObject({
           id: process.env.DRONEWORKS_PG_MIGRATION_ID,
           sha256: process.env.DRONEWORKS_PG_MIGRATION_SHA256,
@@ -663,7 +663,7 @@ describe('A04 PostgreSQL organization boundary', () => {
           client,
           new Date('2026-07-16T00:00:00.000Z'),
         );
-        expect(replay).toHaveLength(4);
+        expect(replay).toHaveLength(5);
         expect(
           replay.every((result) => result.status === 'already_applied'),
         ).toBe(true);

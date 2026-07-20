@@ -361,9 +361,7 @@ try {
   ]);
   await waitForPage(
     state.endpoints.web,
-    verifiedAuthEnabled
-      ? 'Verified access'
-      : 'From source log to truthful flight',
+    verifiedAuthEnabled ? 'Verified access' : 'Every source accounted',
   );
   await waitForHttp(`${state.endpoints.web}/api/v1/health`, 'api');
 

@@ -99,13 +99,97 @@ async function json(route: Route, body: unknown, status = 200) {
 async function installApi(
   page: Page,
   options: {
-    failureReason?: 'unsupported' | 'corrupt' | 'key_unavailable';
+    failureReason?: 'unsupported' | 'corrupt' | 'truncated' | 'key_unavailable';
     denyOrganization?: boolean;
     noPosition?: boolean;
   } = {},
 ) {
   let polls = 0;
   let trackRequests = 0;
+  let uploadCompleted = false;
+  let inboxRetried = false;
+  const inboxItems = [
+    ['supported', 'completed', 'supported_completion', null, flightId, false],
+    ['unsupported', 'failed', 'unsupported', 'unsupported', null, false],
+    ['corrupt', 'failed', 'corrupt', 'corrupt', null, false],
+    ['truncated', 'failed', 'truncated', 'truncated', null, false],
+    [
+      'key-unavailable',
+      'failed',
+      'key_unavailable',
+      'key_unavailable',
+      null,
+      true,
+    ],
+    ['cancelled', 'cancelled', 'cancelled', null, null, false],
+    [
+      'exact-duplicate',
+      'skipped_duplicate',
+      'exact_duplicate',
+      null,
+      flightId,
+      false,
+    ],
+    [
+      'probable-duplicate',
+      'awaiting_review',
+      'probable_duplicate',
+      null,
+      flightId,
+      false,
+    ],
+  ].map(
+    (
+      [name, state, outcome, failureReason, resultFlightId, retryEligible],
+      index,
+    ) => ({
+      import_id: `20000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
+      original_filename: `generated-${name}.txt`,
+      state,
+      progress_percent: 100,
+      outcome,
+      failure_reason: failureReason,
+      duplicate_kind:
+        outcome === 'exact_duplicate'
+          ? 'exact_file'
+          : outcome === 'probable_duplicate'
+            ? 'probable'
+            : null,
+      result_flight_id: resultFlightId,
+      related_flight_id: outcome === 'probable_duplicate' ? flightId : null,
+      retry_eligible: retryEligible,
+      attempts: [
+        {
+          attempt_number: 1,
+          state:
+            state === 'failed'
+              ? 'failed'
+              : state === 'cancelled'
+                ? 'cancelled'
+                : 'succeeded',
+          failure_reason: failureReason,
+          started_at: '2026-07-20T08:00:00.000Z',
+          finished_at: '2026-07-20T08:00:01.000Z',
+        },
+      ],
+      updated_at: '2026-07-20T08:00:01.000Z',
+    }),
+  );
+  const inboxBatch = {
+    batch_id: '20000000-0000-4000-8000-000000000000',
+    state: 'completed',
+    created_at: '2026-07-20T08:00:00.000Z',
+    summary: {
+      total: 8,
+      processing: 0,
+      completed: 1,
+      awaiting_review: 0,
+      duplicates: 2,
+      failed: 4,
+      cancelled: 1,
+    },
+    items: inboxItems,
+  };
   await page.route('**/*', async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -135,13 +219,20 @@ async function installApi(
         pilot_profile_id: '10000000-0000-4000-8000-000000000020',
       });
     }
-    if (path.endsWith('/uploads') && request.method() === 'POST') {
+    if (path.endsWith('/import-batches') && request.method() === 'POST') {
       return json(
         route,
         {
-          upload_id: uploadId,
-          state: 'declared',
-          content_sha256: 'a'.repeat(64),
+          batch_id: uploadId,
+          items: [
+            {
+              import_id: uploadId,
+              client_file_id: 'browser-file',
+              original_filename: 'supported-v14.txt',
+              content_sha256: 'a'.repeat(64),
+              state: 'uploaded',
+            },
+          ],
         },
         201,
       );
@@ -157,6 +248,7 @@ async function installApi(
       path.endsWith(`/${uploadId}/completion`) &&
       request.method() === 'POST'
     ) {
+      uploadCompleted = true;
       return json(route, {
         upload_id: uploadId,
         raw_source_id: uploadId,
@@ -165,16 +257,92 @@ async function installApi(
         content_sha256: 'a'.repeat(64),
       });
     }
-    if (path.endsWith(`/imports/${uploadId}`)) {
+    if (path.endsWith(`/import-batches/${uploadId}`)) {
       polls += 1;
       const failed = options.failureReason;
-      const completed = polls > 1;
+      const completed = uploadCompleted && polls > 2;
+      const itemState = completed
+        ? failed
+          ? 'failed'
+          : 'completed'
+        : 'queued';
       return json(route, {
-        import_id: uploadId,
-        state: failed ? 'failed' : completed ? 'completed' : 'queued',
-        failure_reason: failed ?? null,
-        result_flight_id: failed || !completed ? null : flightId,
-        updated_at: '2026-07-17T12:00:00.000Z',
+        batch_id: uploadId,
+        state: completed ? 'completed' : 'processing',
+        created_at: '2026-07-17T12:00:00.000Z',
+        summary: {
+          total: 1,
+          processing: completed ? 0 : 1,
+          completed: completed && !failed ? 1 : 0,
+          awaiting_review: 0,
+          duplicates: 0,
+          failed: completed && failed ? 1 : 0,
+          cancelled: 0,
+        },
+        items: [
+          {
+            import_id: uploadId,
+            original_filename: 'supported-v14.txt',
+            state: itemState,
+            progress_percent: completed ? 100 : 25,
+            outcome: completed ? (failed ?? 'supported_completion') : null,
+            failure_reason: completed ? (failed ?? null) : null,
+            duplicate_kind: null,
+            result_flight_id: completed && !failed ? flightId : null,
+            related_flight_id: null,
+            retry_eligible: completed && failed === 'key_unavailable',
+            attempts: completed
+              ? [
+                  {
+                    attempt_number: 1,
+                    state: failed ? 'failed' : 'succeeded',
+                    failure_reason: failed ?? null,
+                    started_at: '2026-07-17T12:00:00.000Z',
+                    finished_at: '2026-07-17T12:00:01.000Z',
+                  },
+                ]
+              : [],
+            updated_at: '2026-07-17T12:00:00.000Z',
+          },
+        ],
+      });
+    }
+    if (path.endsWith(`/import-batches/${inboxBatch.batch_id}`)) {
+      const retriedItems = inboxBatch.items.map((item) =>
+        item.original_filename === 'generated-key-unavailable.txt' &&
+        inboxRetried
+          ? {
+              ...item,
+              outcome: 'unsupported',
+              failure_reason: 'unsupported',
+              retry_eligible: false,
+              attempts: [
+                ...item.attempts,
+                {
+                  attempt_number: 2,
+                  state: 'failed',
+                  failure_reason: 'unsupported',
+                  started_at: '2026-07-20T08:01:00.000Z',
+                  finished_at: '2026-07-20T08:01:01.000Z',
+                },
+              ],
+              updated_at: '2026-07-20T08:01:01.000Z',
+            }
+          : item,
+      );
+      return json(route, { ...inboxBatch, items: retriedItems });
+    }
+    if (path.endsWith('/import-batches') && request.method() === 'GET') {
+      return json(route, { batches: [inboxBatch] });
+    }
+    if (path.endsWith('/retry') && request.method() === 'POST') {
+      inboxRetried = true;
+      return json(route, {
+        import_id: path.split('/').at(-2),
+        state: 'queued',
+        failure_reason: null,
+        result_flight_id: null,
+        updated_at: '2026-07-20T08:01:00.000Z',
       });
     }
     if (path.endsWith('/flights') && request.method() === 'GET') {
@@ -302,6 +470,7 @@ test('uploads, polls, opens a capability-aware local track, and clears organizat
 for (const [reason, message] of [
   ['unsupported', 'not one of the explicitly supported DJI formats'],
   ['corrupt', 'corrupt or malformed'],
+  ['truncated', 'source is truncated'],
   ['key_unavailable', 'needs a key that is currently unavailable'],
 ] as const) {
   test(`shows the distinct ${reason} processing outcome`, async ({ page }) => {
@@ -317,6 +486,51 @@ for (const [reason, message] of [
     await expect(page.getByTestId('flight-detail')).toHaveCount(0);
   });
 }
+
+test('shows every review-inbox outcome, filters duplicates, retries safely, and opens retained truth', async ({
+  page,
+}) => {
+  const requests: string[] = [];
+  page.on('request', (request) => requests.push(request.url()));
+  await installApi(page);
+  await enterAlpha(page);
+  for (const outcome of [
+    'Supported completion',
+    'Unsupported format',
+    'Corrupt source',
+    'Truncated source',
+    'Key unavailable',
+    'Cancelled',
+    'Exact duplicate',
+    'Probable duplicate — review',
+  ]) {
+    await expect(page.getByText(outcome, { exact: true })).toBeVisible();
+  }
+  await page.getByLabel('Inbox filter').selectOption('duplicates');
+  await expect(
+    page.getByText('Exact duplicate', { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText('Probable duplicate — review', { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText('Unsupported format', { exact: true }),
+  ).toHaveCount(0);
+  await page.getByLabel('Inbox filter').selectOption('all');
+  const retryItem = page
+    .locator('.batch-item')
+    .filter({ hasText: 'generated-key-unavailable.txt' });
+  await retryItem.getByRole('button', { name: 'Retry safely' }).click();
+  expect(requests.some((url) => url.endsWith('/retry'))).toBe(true);
+  await expect(retryItem).toContainText('Attempt history (2)');
+  await expect(retryItem).toContainText('Unsupported format');
+  await page
+    .locator('.batch-item')
+    .filter({ hasText: 'generated-exact-duplicate.txt' })
+    .getByRole('button', { name: 'Open retained flight' })
+    .click();
+  await expect(page.getByTestId('flight-detail')).toBeVisible();
+});
 
 test('keeps authorization failure distinct and redacted', async ({ page }) => {
   await installApi(page, { denyOrganization: true });

@@ -231,6 +231,149 @@ export const importStatusSchema = Type.Object(
   { $id: 'ImportStatus', additionalProperties: false },
 );
 
+export const importBatchPathSchema = Type.Object(
+  {
+    organization_id: uuidStringSchema,
+    batch_id: uuidStringSchema,
+  },
+  { $id: 'ImportBatchPath', additionalProperties: false },
+);
+
+export const importBatchListQuerySchema = Type.Object(
+  {
+    limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 20 })),
+  },
+  { $id: 'ImportBatchListQuery', additionalProperties: false },
+);
+
+export const declareImportBatchBodySchema = Type.Object(
+  {
+    files: Type.Array(
+      Type.Object(
+        {
+          client_file_id: Type.String({ minLength: 1, maxLength: 200 }),
+          original_filename: Type.String({ minLength: 1, maxLength: 500 }),
+          content_sha256: Type.String({ pattern: '^[0-9a-f]{64}$' }),
+          byte_size: Type.Integer({ minimum: 1, maximum: 33_554_432 }),
+          media_type: Type.Literal('application/octet-stream'),
+        },
+        { additionalProperties: false },
+      ),
+      { minItems: 1, maxItems: 20 },
+    ),
+  },
+  { $id: 'DeclareImportBatchBody', additionalProperties: false },
+);
+
+export const importBatchDeclarationItemSchema = Type.Object(
+  {
+    import_id: uuidStringSchema,
+    client_file_id: Type.String({ minLength: 1, maxLength: 200 }),
+    original_filename: Type.String({ minLength: 1, maxLength: 500 }),
+    content_sha256: Type.String({ pattern: '^[0-9a-f]{64}$' }),
+    state: Type.Literal('uploaded'),
+  },
+  { $id: 'ImportBatchDeclarationItem', additionalProperties: false },
+);
+
+export const importBatchDeclarationSchema = Type.Object(
+  {
+    batch_id: uuidStringSchema,
+    items: Type.Array(Type.Ref(importBatchDeclarationItemSchema), {
+      minItems: 1,
+      maxItems: 20,
+    }),
+  },
+  { $id: 'ImportBatchDeclaration', additionalProperties: false },
+);
+
+export const importOutcomeSchema = Type.Union([
+  Type.Literal('supported_completion'),
+  Type.Literal('unsupported'),
+  Type.Literal('corrupt'),
+  Type.Literal('truncated'),
+  Type.Literal('key_unavailable'),
+  Type.Literal('processing_failed'),
+  Type.Literal('cancelled'),
+  Type.Literal('exact_duplicate'),
+  Type.Literal('probable_duplicate'),
+]);
+
+export const duplicateKindSchema = Type.Union([
+  Type.Literal('exact_file'),
+  Type.Literal('exact_normalized'),
+  Type.Literal('probable'),
+]);
+
+export const importAttemptSchema = Type.Object(
+  {
+    attempt_number: Type.Integer({ minimum: 1 }),
+    state: Type.Union([
+      Type.Literal('queued'),
+      Type.Literal('running'),
+      Type.Literal('succeeded'),
+      Type.Literal('failed'),
+      Type.Literal('cancelled'),
+    ]),
+    failure_reason: Type.Union([importFailureReasonSchema, Type.Null()]),
+    started_at: Type.Union([Type.String({ format: 'date-time' }), Type.Null()]),
+    finished_at: Type.Union([
+      Type.String({ format: 'date-time' }),
+      Type.Null(),
+    ]),
+  },
+  { $id: 'ImportAttempt', additionalProperties: false },
+);
+
+export const importBatchItemSchema = Type.Object(
+  {
+    import_id: uuidStringSchema,
+    original_filename: Type.String({ minLength: 1, maxLength: 500 }),
+    state: importStateSchema,
+    progress_percent: Type.Integer({ minimum: 0, maximum: 100 }),
+    outcome: Type.Union([importOutcomeSchema, Type.Null()]),
+    failure_reason: Type.Union([importFailureReasonSchema, Type.Null()]),
+    duplicate_kind: Type.Union([duplicateKindSchema, Type.Null()]),
+    result_flight_id: Type.Union([uuidStringSchema, Type.Null()]),
+    related_flight_id: Type.Union([uuidStringSchema, Type.Null()]),
+    retry_eligible: Type.Boolean(),
+    attempts: Type.Array(Type.Ref(importAttemptSchema), { maxItems: 20 }),
+    updated_at: Type.String({ format: 'date-time' }),
+  },
+  { $id: 'ImportBatchItem', additionalProperties: false },
+);
+
+export const importBatchSummarySchema = Type.Object(
+  {
+    total: Type.Integer({ minimum: 0 }),
+    processing: Type.Integer({ minimum: 0 }),
+    completed: Type.Integer({ minimum: 0 }),
+    awaiting_review: Type.Integer({ minimum: 0 }),
+    duplicates: Type.Integer({ minimum: 0 }),
+    failed: Type.Integer({ minimum: 0 }),
+    cancelled: Type.Integer({ minimum: 0 }),
+  },
+  { $id: 'ImportBatchSummary', additionalProperties: false },
+);
+
+export const importBatchSchema = Type.Object(
+  {
+    batch_id: uuidStringSchema,
+    state: Type.Union([Type.Literal('processing'), Type.Literal('completed')]),
+    created_at: Type.String({ format: 'date-time' }),
+    summary: Type.Ref(importBatchSummarySchema),
+    items: Type.Array(Type.Ref(importBatchItemSchema), { maxItems: 20 }),
+  },
+  { $id: 'ImportBatch', additionalProperties: false },
+);
+
+export const importBatchListSchema = Type.Object(
+  {
+    batches: Type.Array(Type.Ref(importBatchSchema), { maxItems: 20 }),
+  },
+  { $id: 'ImportBatchList', additionalProperties: false },
+);
+
 export const flightPathSchema = Type.Object(
   {
     organization_id: uuidStringSchema,
@@ -471,6 +614,11 @@ export type RawUploadPath = Static<typeof rawUploadPathSchema>;
 export type DeclareRawUploadBody = Static<typeof declareRawUploadBodySchema>;
 export type CompleteRawUploadBody = Static<typeof completeRawUploadBodySchema>;
 export type ImportPath = Static<typeof importPathSchema>;
+export type ImportBatchPath = Static<typeof importBatchPathSchema>;
+export type ImportBatchListQuery = Static<typeof importBatchListQuerySchema>;
+export type DeclareImportBatchBody = Static<
+  typeof declareImportBatchBodySchema
+>;
 export type FlightPath = Static<typeof flightPathSchema>;
 export type FlightListQuery = Static<typeof flightListQuerySchema>;
 export type FlightTrackQuery = Static<typeof flightTrackQuerySchema>;

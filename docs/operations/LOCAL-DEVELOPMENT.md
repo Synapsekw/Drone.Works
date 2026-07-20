@@ -89,13 +89,18 @@ safe to delete.
    so it does not collide with another project. Startup applies the same
    checksum-pinned customer and jobs migrations used by the database tests,
    creates two generated organizations with three synthetic flights each,
-   including one provider-free capability-aware track, and enables the
+   including one provider-free capability-aware track, plus a synthetic review
+   batch covering supported, unsupported, corrupt, truncated, key-unavailable,
+   cancelled, exact-duplicate, and probable-duplicate outcomes, and enables the
    server-owned Alpha/Beta persona control. The
    persona control is not a login and exists only in this local process.
 
    In the browser, choose **Generated Alpha owner**, select **Enter
    organization**, then use the flight table's **Open flight** action. The
    dashboard, filters, summary, and track work without uploading a fixture.
+   The review inbox opens retained/candidate flights and exposes attempt
+   history. Use **Use generated test batch** to exercise multi-file selection
+   without customer data; ordinary local processing keeps the provider off.
 
 2. In the same or another Terminal window, check web, API, worker, object,
    email, and PostgreSQL together:
@@ -116,7 +121,8 @@ safe to delete.
 ## What is running
 
 - `web`: the local-only persona, organization flight library/dashboard,
-  single-file upload/status, flight-summary, and provider-free MapLibre path;
+  multi-file batch upload, progress, review inbox, retry, flight-summary, and
+  provider-free MapLibre path;
 - `api`: the versioned `/api/v1/health` contract;
 - `dispatcher`: leases payload-free outbox rows and sends stable pg-boss jobs;
 - `worker`: the durable import consumer, trusted keychain broker, exact-source
@@ -137,6 +143,11 @@ verified-session mode; that mode generates an ephemeral local auth secret and
 uses the loopback email capture. Neither mode accepts browser user, membership,
 or role claims as authorization.
 
+Batch declaration/read, immutable item upload, status, safe retry, flight
+summary, and track remain generated-client operations under `/api/v1/`.
+Changing persona or organization aborts batch polling and clears selected
+files, recent batches, inbox filters, open-flight state, and cached coordinates.
+
 Run the complete A05 configuration, role, membership, Alpha/Beta, exact-ID, and
 pooled-connection gate against another disposable native cluster with:
 
@@ -149,6 +160,14 @@ and pooled-context gate with:
 
 ```sh
 corepack pnpm test:jobs
+```
+
+Run the immutable upload, atomic batch declaration, outcome vocabulary,
+duplicate truth, attempt-history, eligible retry, authorization, and RLS gate
+with:
+
+```sh
+corepack pnpm test:upload
 ```
 
 Run the A12 hosted-exclusion, production-browser, accessibility, CSP, API

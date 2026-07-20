@@ -3,6 +3,7 @@
 import {
   type ChangeEvent,
   type FormEvent,
+  type ReactNode,
   useEffect,
   useRef,
   useState,
@@ -15,6 +16,8 @@ import {
   type ApiImportStatus,
   type ApiOrganizationSelection,
   completeRawUpload,
+  acceptInvitation,
+  createInvitation,
   createOrganization,
   declareRawUpload,
   getFlightSummary,
@@ -26,16 +29,20 @@ import {
 
 import { FlightMap } from './flight-map';
 
-const generatedOrganizations = {
-  alpha_owner: '00000000-0000-4000-8000-0000000000a1',
-  beta_owner: '00000000-0000-4000-8000-0000000000b1',
-} as const;
-
-type PersonaName = keyof typeof generatedOrganizations;
 type ActivityState = 'empty' | 'loading' | 'success' | 'error';
 
-interface PersonaSelection {
-  readonly persona: PersonaName;
+export interface WorkspaceIdentity {
+  readonly label: string;
+  readonly token: string;
+}
+
+interface VerifiedIdentity {
+  readonly displayName: string;
+  readonly email: string;
+}
+
+interface InvitationEntry {
+  readonly organizationId: string;
   readonly token: string;
 }
 
@@ -63,9 +70,13 @@ const importLabels: Record<ApiImportStatus['state'], string> = {
 function apiOptions(token: string, signal?: AbortSignal) {
   return {
     baseUrl: window.location.origin,
-    identityHeaders: {
-      'x-drone-works-local-persona-token': token,
-    },
+    ...(token
+      ? {
+          identityHeaders: {
+            'x-drone-works-local-persona-token': token,
+          },
+        }
+      : {}),
     ...(signal ? { signal } : {}),
   };
 }
@@ -73,7 +84,7 @@ function apiOptions(token: string, signal?: AbortSignal) {
 function publicError(error: unknown): string {
   if (error instanceof ApiClientError) {
     if (error.problem.status === 401) {
-      return 'The local development identity expired. Select the persona again.';
+      return 'The current identity expired. Sign in again.';
     }
     if (error.problem.status === 403 || error.problem.status === 404) {
       return 'This resource is not available to the current organization membership.';
@@ -119,16 +130,31 @@ async function sha256(buffer: ArrayBuffer): Promise<string> {
     .join('');
 }
 
-export function LocalWorkspace() {
-  const [persona, setPersona] = useState<PersonaSelection | null>(null);
-  const [personaState, setPersonaState] = useState<ActivityState>('empty');
+export function Workspace({
+  environmentBadge,
+  identity,
+  identityPanel,
+  initialOrganizationId,
+  invitation,
+  verifiedIdentity,
+}: {
+  readonly environmentBadge: ReactNode;
+  readonly identity: WorkspaceIdentity | null;
+  readonly identityPanel: ReactNode;
+  readonly initialOrganizationId?: string;
+  readonly invitation?: InvitationEntry;
+  readonly verifiedIdentity?: VerifiedIdentity;
+}) {
   const [organizationId, setOrganizationId] = useState<string>(
-    generatedOrganizations.alpha_owner,
+    invitation?.organizationId ?? initialOrganizationId ?? '',
   );
   const [organization, setOrganization] =
     useState<ApiOrganizationSelection | null>(null);
   const [organizationState, setOrganizationState] =
     useState<ActivityState>('empty');
+  const [invitationMessage, setInvitationMessage] = useState<string | null>(
+    null,
+  );
   const [file, setFile] = useState<File | null>(null);
   const [approveDjiProcessing, setApproveDjiProcessing] = useState(false);
   const [importStatus, setImportStatus] = useState<ApiImportStatus | null>(
@@ -144,11 +170,13 @@ export function LocalWorkspace() {
   const [flightState, setFlightState] = useState<ActivityState>('empty');
   const [error, setError] = useState<string | null>(null);
   const pollController = useRef<AbortController | null>(null);
+  const activeIdentity = identity;
 
   const clearOrganizationState = () => {
     pollController.current?.abort();
     pollController.current = null;
     setOrganization(null);
+    setInvitationMessage(null);
     setFile(null);
     setApproveDjiProcessing(false);
     setImportStatus(null);
@@ -168,39 +196,14 @@ export function LocalWorkspace() {
     [],
   );
 
-  const choosePersona = async (nextPersona: PersonaName) => {
-    clearOrganizationState();
-    setPersona(null);
-    setPersonaState('loading');
-    setOrganizationId(generatedOrganizations[nextPersona]);
-    try {
-      const response = await fetch('/_local/generated-personas/select', {
-        body: JSON.stringify({ persona: nextPersona }),
-        cache: 'no-store',
-        credentials: 'same-origin',
-        headers: {
-          accept: 'application/json',
-          'content-type': 'application/json',
-        },
-        method: 'POST',
-      });
-      if (!response.ok) throw new Error('Local identity control unavailable.');
-      setPersona((await response.json()) as PersonaSelection);
-      setPersonaState('success');
-    } catch (identityError) {
-      setPersonaState('error');
-      setError(publicError(identityError));
-    }
-  };
-
   const enterOrganization = async (event: FormEvent) => {
     event.preventDefault();
-    if (!persona) return;
+    if (!activeIdentity) return;
     clearOrganizationState();
     setOrganizationState('loading');
     try {
       const selected = await selectOrganization(
-        apiOptions(persona.token),
+        apiOptions(activeIdentity.token),
         organizationId.trim(),
       );
       setOrganization(selected);
@@ -213,16 +216,19 @@ export function LocalWorkspace() {
 
   const createNewOrganization = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!persona) return;
+    if (!activeIdentity) return;
     const data = new FormData(event.currentTarget);
     clearOrganizationState();
     setOrganizationState('loading');
     try {
-      const created = await createOrganization(apiOptions(persona.token), {
-        default_timezone: String(data.get('timezone') ?? 'Asia/Dubai'),
-        name: String(data.get('name') ?? '').trim(),
-        unit_system: 'metric',
-      });
+      const created = await createOrganization(
+        apiOptions(activeIdentity.token),
+        {
+          default_timezone: String(data.get('timezone') ?? 'Asia/Dubai'),
+          name: String(data.get('name') ?? '').trim(),
+          unit_system: 'metric',
+        },
+      );
       setOrganizationId(created.organization_id);
       setOrganization(created);
       setOrganizationState('success');
@@ -232,12 +238,62 @@ export function LocalWorkspace() {
     }
   };
 
+  const acceptCurrentInvitation = async () => {
+    if (!activeIdentity || !invitation) return;
+    clearOrganizationState();
+    setOrganizationState('loading');
+    try {
+      await acceptInvitation(
+        apiOptions(activeIdentity.token),
+        invitation.organizationId,
+        invitation.token,
+      );
+      const selected = await selectOrganization(
+        apiOptions(activeIdentity.token),
+        invitation.organizationId,
+      );
+      setOrganizationId(invitation.organizationId);
+      setOrganization(selected);
+      setOrganizationState('success');
+    } catch (invitationError) {
+      setOrganizationState('error');
+      setError(publicError(invitationError));
+    }
+  };
+
+  const inviteMember = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!activeIdentity || !organization) return;
+    const data = new FormData(event.currentTarget);
+    setInvitationMessage('Sending the single-use invitation…');
+    setError(null);
+    try {
+      const created = await createInvitation(
+        apiOptions(activeIdentity.token),
+        organization.organization_id,
+        {
+          email: String(data.get('email') ?? '').trim(),
+          role: String(data.get('role') ?? 'viewer') as
+            'admin' | 'pilot' | 'viewer',
+        },
+      );
+      setInvitationMessage(
+        `Invitation ready until ${new Date(created.expires_at).toLocaleString()}.`,
+      );
+      event.currentTarget.reset();
+    } catch (invitationError) {
+      setInvitationMessage(null);
+      setError(publicError(invitationError));
+    }
+  };
+
   const openFlight = async (
     requestedFlightId: string,
-    token = persona?.token,
+    token = activeIdentity?.token,
     selectedOrganization = organization,
   ) => {
-    if (!token || !selectedOrganization || !requestedFlightId) return;
+    if (token === undefined || !selectedOrganization || !requestedFlightId)
+      return;
     setFlight(null);
     setTrack(null);
     setFlightState('loading');
@@ -269,10 +325,10 @@ export function LocalWorkspace() {
   };
 
   const pollImport = async (importId: string, controller: AbortController) => {
-    if (!persona || !organization) return;
-    for (let attempt = 0; attempt < 120; attempt += 1) {
+    if (!activeIdentity || !organization) return;
+    for (let attempt = 0; attempt < 360; attempt += 1) {
       const status = await getImportStatus(
-        apiOptions(persona.token, controller.signal),
+        apiOptions(activeIdentity.token, controller.signal),
         organization.organization_id,
         importId,
       );
@@ -289,7 +345,7 @@ export function LocalWorkspace() {
           setFlightId(status.result_flight_id);
           await openFlight(
             status.result_flight_id,
-            persona.token,
+            activeIdentity.token,
             organization,
           );
         }
@@ -312,7 +368,7 @@ export function LocalWorkspace() {
 
   const uploadFile = async (event: FormEvent) => {
     event.preventDefault();
-    if (!persona || !organization || !file) return;
+    if (!activeIdentity || !organization || !file) return;
     pollController.current?.abort();
     const controller = new AbortController();
     pollController.current = controller;
@@ -329,7 +385,7 @@ export function LocalWorkspace() {
       const clientFileId = crypto.randomUUID();
       setUploadMessage('Declaring the immutable source');
       const declaration = await declareRawUpload(
-        apiOptions(persona.token, controller.signal),
+        apiOptions(activeIdentity.token, controller.signal),
         organization.organization_id,
         {
           byte_size: file.size,
@@ -341,14 +397,14 @@ export function LocalWorkspace() {
       );
       setUploadMessage('Writing the exact source bytes');
       const stored = await putRawUploadContent(
-        apiOptions(persona.token, controller.signal),
+        apiOptions(activeIdentity.token, controller.signal),
         organization.organization_id,
         declaration.upload_id,
         content,
       );
       setUploadMessage('Completing the immutable upload');
       await completeRawUpload(
-        apiOptions(persona.token, controller.signal),
+        apiOptions(activeIdentity.token, controller.signal),
         organization.organization_id,
         declaration.upload_id,
         stored.object_version_id,
@@ -393,51 +449,13 @@ export function LocalWorkspace() {
           </p>
         </div>
         <div className="environment-badge" role="note">
-          <strong>Local development identity</strong>
-          <span>Generated personas are not authentication.</span>
-          <span>This control is excluded from hosted builds.</span>
+          {environmentBadge}
         </div>
       </header>
 
       <section className="step-card" aria-labelledby="identity-heading">
         <div className="step-number">01</div>
-        <div className="step-content">
-          <div className="section-heading">
-            <div>
-              <p className="section-kicker">Development access</p>
-              <h2 id="identity-heading">Choose a generated persona</h2>
-            </div>
-            <StatePill state={personaState} />
-          </div>
-          <p className="supporting-copy">
-            The API resolves only its server allowlist. Membership and forced
-            PostgreSQL RLS still authorize every organization operation.
-          </p>
-          <div
-            className="button-row"
-            role="group"
-            aria-label="Generated persona"
-          >
-            <button
-              type="button"
-              onClick={() => void choosePersona('alpha_owner')}
-            >
-              Generated Alpha owner
-            </button>
-            <button
-              className="secondary-button"
-              type="button"
-              onClick={() => void choosePersona('beta_owner')}
-            >
-              Generated Beta owner
-            </button>
-          </div>
-          <p className="state-line" aria-live="polite">
-            {persona
-              ? `Active persona: ${persona.persona.replace('_', ' ')}`
-              : 'No persona selected.'}
-          </p>
-        </div>
+        <div className="step-content">{identityPanel}</div>
       </section>
 
       <section className="step-card" aria-labelledby="organization-heading">
@@ -458,7 +476,7 @@ export function LocalWorkspace() {
               Organization ID
               <input
                 autoComplete="off"
-                disabled={!persona || organizationState === 'loading'}
+                disabled={!activeIdentity || organizationState === 'loading'}
                 onChange={(event) =>
                   setOrganizationId(event.currentTarget.value)
                 }
@@ -467,7 +485,7 @@ export function LocalWorkspace() {
               />
             </label>
             <button
-              disabled={!persona || organizationState === 'loading'}
+              disabled={!activeIdentity || organizationState === 'loading'}
               type="submit"
             >
               {organizationState === 'loading'
@@ -476,7 +494,7 @@ export function LocalWorkspace() {
             </button>
           </form>
           <details>
-            <summary>Create a fresh local organization</summary>
+            <summary>Create a fresh organization</summary>
             <form
               className="form-grid compact-form"
               onSubmit={(event) => void createNewOrganization(event)}
@@ -494,11 +512,53 @@ export function LocalWorkspace() {
                 Display timezone
                 <input name="timezone" required defaultValue="Asia/Dubai" />
               </label>
-              <button disabled={!persona} type="submit">
+              <button disabled={!activeIdentity} type="submit">
                 Create and enter
               </button>
             </form>
           </details>
+          {verifiedIdentity && invitation ? (
+            <div className="invitation-panel">
+              <strong>A single-use organization invitation is ready.</strong>
+              <button
+                disabled={organizationState === 'loading'}
+                onClick={() => void acceptCurrentInvitation()}
+                type="button"
+              >
+                Accept invitation
+              </button>
+            </div>
+          ) : null}
+          {verifiedIdentity &&
+          organization &&
+          (organization.role === 'owner' || organization.role === 'admin') ? (
+            <details>
+              <summary>Invite a verified member</summary>
+              <form
+                className="form-grid compact-form"
+                onSubmit={(event) => void inviteMember(event)}
+              >
+                <label>
+                  Verified email
+                  <input name="email" required type="email" />
+                </label>
+                <label>
+                  Role
+                  <select defaultValue="viewer" name="role">
+                    <option value="admin">Admin</option>
+                    <option value="pilot">Pilot</option>
+                    <option value="viewer">Viewer</option>
+                  </select>
+                </label>
+                <button type="submit">Send invitation</button>
+              </form>
+              {invitationMessage ? (
+                <p className="state-line" role="status">
+                  {invitationMessage}
+                </p>
+              ) : null}
+            </details>
+          ) : null}
           <p
             className="state-line"
             aria-live="polite"
@@ -642,7 +702,7 @@ export function LocalWorkspace() {
   );
 }
 
-function StatePill({ state }: { readonly state: ActivityState }) {
+export function StatePill({ state }: { readonly state: ActivityState }) {
   const labels: Record<ActivityState, string> = {
     empty: 'Waiting',
     loading: 'Working',

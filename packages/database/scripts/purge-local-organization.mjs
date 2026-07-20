@@ -86,6 +86,7 @@ try {
       'import_batches',
       'raw_sources',
       'api_idempotency_requests',
+      'invitations',
       'audit_events',
       'outbox_events',
       'aircraft',

@@ -44,6 +44,11 @@ const postgresData = join(runtimeRoot, 'postgres', 'data');
 const postgresSocket = join(runtimeRoot, 'postgres', 'socket');
 const logs = join(runtimeRoot, 'logs');
 const localKmsKeyFile = join(runtimeRoot, 'dji-cache-key.bin');
+const verifiedAuthEnabled = process.env.DRONE_WORKS_AUTH_ENABLED === 'true';
+const localIdentityEnabled = !verifiedAuthEnabled;
+const authSecret = verifiedAuthEnabled
+  ? randomBytes(32).toString('base64url')
+  : '';
 const processRecords = [];
 let postgresStarted = false;
 
@@ -187,8 +192,9 @@ try {
   const apiUrl = `http://127.0.0.1:${ports.api}`;
   await runPnpm(['build'], {
     API_INTERNAL_URL: apiUrl,
+    DRONE_WORKS_AUTH_ENABLED: String(verifiedAuthEnabled),
     DRONE_WORKS_ENV: 'local',
-    DRONE_WORKS_LOCAL_IDENTITY_ENABLED: 'true',
+    DRONE_WORKS_LOCAL_IDENTITY_ENABLED: String(localIdentityEnabled),
   });
 
   spawnService(
@@ -203,8 +209,13 @@ try {
     [join(repositoryRoot, 'apps/api/dist/server.js')],
     {
       ...databaseEnvironment,
+      BETTER_AUTH_SECRET: authSecret,
+      BETTER_AUTH_URL: `http://127.0.0.1:${ports.web}`,
+      DRONE_WORKS_AUTH_ENABLED: String(verifiedAuthEnabled),
+      DRONE_WORKS_AUTH_TRUSTED_ORIGINS: `http://127.0.0.1:${ports.web}`,
       DRONE_WORKS_ENV: 'local',
-      DRONE_WORKS_LOCAL_IDENTITY_ENABLED: 'true',
+      DRONE_WORKS_LOCAL_IDENTITY_ENABLED: String(localIdentityEnabled),
+      EMAIL_INTERNAL_URL: `http://127.0.0.1:${ports.email}`,
       HOST: '127.0.0.1',
       OBJECT_INTERNAL_URL: `http://127.0.0.1:${ports.objects}`,
       PGUSER: 'droneworks_app',
@@ -274,8 +285,9 @@ try {
     ],
     {
       API_INTERNAL_URL: apiUrl,
+      DRONE_WORKS_AUTH_ENABLED: String(verifiedAuthEnabled),
       DRONE_WORKS_ENV: 'local',
-      DRONE_WORKS_LOCAL_IDENTITY_ENABLED: 'true',
+      DRONE_WORKS_LOCAL_IDENTITY_ENABLED: String(localIdentityEnabled),
     },
     join(repositoryRoot, 'apps/web'),
   );
@@ -285,6 +297,9 @@ try {
     alpha_organization_id: '00000000-0000-4000-8000-0000000000a1',
     generated_organizations: 2,
     generated_personas: ['alpha_owner', 'beta_owner'],
+    identity_mode: verifiedAuthEnabled
+      ? 'verified-session'
+      : 'generated-persona',
     endpoints: {
       api: `${apiUrl}/api/v1/health`,
       dispatcher: `http://127.0.0.1:${ports.dispatcher}/health`,
@@ -329,7 +344,12 @@ try {
     waitForHttp(state.endpoints.objects, 'objects'),
     waitForHttp(state.endpoints.email, 'email'),
   ]);
-  await waitForPage(state.endpoints.web, 'From source log to truthful flight');
+  await waitForPage(
+    state.endpoints.web,
+    verifiedAuthEnabled
+      ? 'Verified access'
+      : 'From source log to truthful flight',
+  );
   await waitForHttp(`${state.endpoints.web}/api/v1/health`, 'api');
 
   process.stdout.write(

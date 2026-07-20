@@ -1,7 +1,7 @@
 # Local development without Docker
 
 Status: accepted Phase 1A foundation
-Last updated: 2026-07-19
+Last updated: 2026-07-20
 
 This workflow runs only on your Mac. It does not create anything in AWS, ask for
 cloud credentials, use Docker, send real email, or load customer data. The seed
@@ -117,16 +117,19 @@ record is generated and safe to delete.
   reader, parser supervisor, normalizer, and persistence boundary;
 - `objects`: a loopback versioned-object adapter for immutable raw and telemetry
   objects;
-- `email`: a loopback placeholder that never sends a message;
+- `email`: a loopback capture service for generated verification, recovery,
+  deletion, and invitation links;
 - `PostgreSQL`: a disposable native database with the reviewed customer and jobs
   schemas, their separate migration ledgers, and generated Alpha/Beta
   organization records.
 
-The API receives only an opaque token issued for a named server-owned persona.
-It resolves the generated user ID on the server, then reloads the current
-membership and role from PostgreSQL for every organization operation. The
-browser cannot provide a user ID, organization, membership, or role claim to the
-persona control. `smoke:local` exercises this identity-to-membership path.
+Ordinary `dev:up` receives only an opaque token issued for a named server-owned
+persona. It resolves the generated user ID on the server, then reloads current
+membership and role from PostgreSQL for every organization operation. Set
+`DRONE_WORKS_AUTH_ENABLED=true` to build and start the mutually exclusive
+verified-session mode; that mode generates an ephemeral local auth secret and
+uses the loopback email capture. Neither mode accepts browser user, membership,
+or role claims as authorization.
 
 Run the complete A05 configuration, role, membership, Alpha/Beta, exact-ID, and
 pooled-connection gate against another disposable native cluster with:
@@ -157,7 +160,20 @@ pinned Playwright Chromium runtime once with
 `corepack pnpm --filter @drone-works/web exec playwright install chromium` if
 the local browser binary is absent.
 
-## Run the destructive A13a functional gate
+## Run the verified-auth gate
+
+Run the real Better Auth lifecycle, reviewed-schema, secure-control, claim
+mismatch, invitation, recovery, revocation, final-owner, deletion, audit, and
+hosted-exclusion suite with:
+
+```sh
+corepack pnpm test:auth
+```
+
+This uses generated users, a native disposable PostgreSQL cluster, and local
+email capture. It makes no external email or hosted identity request.
+
+## Run the destructive A13a/A13b functional gates
 
 This separate command uses a policy-approved local-only fixture and, after the
 browser records the current notice and terms acceptance, sends its bounded
@@ -175,6 +191,12 @@ DRONE_WORKS_LOCAL_PARSER_EXECUTABLE=/absolute/path/to/droneworks-dji-parser-cli 
 DRONE_WORKS_LOCAL_PARSER_SHA256=<reviewed-64-character-sha256> \
 corepack pnpm test:e2e:functional
 ```
+
+Use the same reviewed parser inputs with `corepack pnpm test:e2e:local` to
+repeat the path under registered, verified HttpOnly-cookie sessions. Both gates
+are destructive local evidence commands; the A13b variant creates fresh users
+and organizations, signs out between Alpha and Beta, and purges its generated
+Alpha organization before shutdown.
 
 The gate verifies the private fixture manifest, builds and starts a disposable
 runtime, drives Chromium through key-unavailable and approved paths, kills and
@@ -207,14 +229,11 @@ copy durable job payloads, filenames, hashes, object keys, or customer content
 into incident logs. Restarting is safe: expired dispatcher leases are reclaimed,
 and stable queue IDs suppress a duplicate after a post-send crash.
 
-The production database schema, row-level organization isolation, and A05
-app-owned authorization boundary are now present locally. The generated
-identity cannot start or register its control in hosted modes. Better Auth is
-deliberately deferred to A13b, after the functional local application passes,
-and AWS remains deferred to A14. No AWS help is needed for this foundation. When
-A14 reaches the cloud setup, the account-owner steps will be provided one at a
-time with their purpose, expected cost/security effect, a verification check,
-and a safe stop or rollback step.
+The production database schema, forced organization isolation, app-owned
+authorization, and Better Auth identity/session schema are present locally. The
+generated identity cannot start or register its control in hosted modes. AWS
+remains deferred to A14; no cloud resource or hosted credential is required for
+these local gates.
 
 The A13a runtime connects the web, immutable source, durable queue, trusted
 keychain broker, parser, normalization, telemetry persistence, summary, and

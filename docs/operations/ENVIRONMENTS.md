@@ -1,16 +1,16 @@
 # Environments and deployment
 
 Status: accepted Phase 0 baseline
-Last updated: 2026-07-16
+Last updated: 2026-07-20
 
 ## Environment matrix
 
-| Environment | Data | Dependencies | Credentials | Lifetime |
-|---|---|---|---|---|
-| Local | generated data and authorized ignored fixtures only | native Node/pnpm, native PostgreSQL, loopback/filesystem S3 adapter, local email capture | explicit local-only generated persona before A13b; local random values; no production credential | developer controlled |
-| CI | generated repository-safe fixtures | native PostgreSQL service, loopback object/email services, OCI builder for Linux parser proof | generated test identity or short-lived CI identity; no customer account | per workflow |
-| Staging | generated synthetic organizations only by default | complete AWS shape in an approved, operational region in the non-production account | environment-scoped IAM roles and secrets | ephemeral or scheduled off |
-| Production | authorized customer data | production account, EC2, RDS, S3, ECR, KMS, Secrets Manager, CloudWatch | workload roles and federated operators | continuous |
+| Environment | Data                                                | Dependencies                                                                                  | Credentials                                                                                                      | Lifetime                   |
+| ----------- | --------------------------------------------------- | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| Local       | generated data and authorized ignored fixtures only | native Node/pnpm, native PostgreSQL, loopback/filesystem S3 adapter, local email capture      | explicit generated persona or verified-session mode, never both; ephemeral auth secret; no production credential | developer controlled       |
+| CI          | generated repository-safe fixtures                  | native PostgreSQL service, loopback object/email services, OCI builder for Linux parser proof | generated test identity or short-lived CI identity; no customer account                                          | per workflow               |
+| Staging     | generated synthetic organizations only by default   | complete AWS shape in an approved, operational region in the non-production account           | environment-scoped IAM roles and secrets                                                                         | ephemeral or scheduled off |
+| Production  | authorized customer data                            | production account, EC2, RDS, S3, ECR, KMS, Secrets Manager, CloudWatch                       | workload roles and federated operators                                                                           | continuous                 |
 
 Local development does not require Docker, a cloud account, production
 credentials, real email delivery, real map tiles, or real customer data. OCI
@@ -47,9 +47,13 @@ UI-only or use ephemeral generated data; they never connect to production.
 
 The D-015 development identity requires validated `local` or `test` mode, an
 independent explicit enable flag, and a server-owned generated persona manifest.
-Staging and production configuration reject it at startup, and their route
-inventories contain no persona control. A13b installs Better Auth and repeats the
-functional path before A14 may deploy staging.
+Staging and production configuration reject it at startup, require Better Auth,
+and their route inventories and compiled web artifacts contain no persona
+control. Verified startup requires `BETTER_AUTH_URL`, a 32+ character
+`BETTER_AUTH_SECRET`, `EMAIL_INTERNAL_URL`, and an explicit
+`DRONE_WORKS_AUTH_TRUSTED_ORIGINS` allowlist containing the base URL. A13b has
+repeated the functional path; A14 may now begin only after its separate external
+account/spend authorization.
 
 ## Build and promotion
 

@@ -1,16 +1,21 @@
 export {
   createApplicationPool,
+  createAuthPool,
   type ApplicationPool,
   type ApplicationPoolConfiguration,
+  type AuthPoolConfiguration,
 } from './application-pool.js';
 export {
+  AccountDeletionBlockedError,
   LastOwnerError,
   OrganizationAccessDeniedError,
   OrganizationAuthorizationRepository,
   organizationRoles,
   type AppIdentity,
   type CreateOrganizationInput,
+  type InvitationRole,
   type Membership,
+  type OrganizationInvitation,
   type OrganizationRole,
   type OrganizationSelection,
 } from './organization-authorization.js';

@@ -3,6 +3,8 @@ import type { operations } from './generated/openapi.js';
 type HealthOperation = operations['getApiHealth'];
 type CreateOrganizationOperation = operations['createOrganization'];
 type SelectOrganizationOperation = operations['selectOrganization'];
+type CreateInvitationOperation = operations['createInvitation'];
+type AcceptInvitationOperation = operations['acceptInvitation'];
 type DeclareRawUploadOperation = operations['declareRawUpload'];
 type PutRawUploadContentOperation = operations['putRawUploadContent'];
 type CompleteRawUploadOperation = operations['completeRawUpload'];
@@ -18,6 +20,12 @@ export type ApiOrganizationSelection =
   SelectOrganizationOperation['responses'][200]['content']['application/json'];
 export type ApiCreateOrganizationBody =
   CreateOrganizationOperation['requestBody']['content']['application/json'];
+export type ApiCreateInvitationBody =
+  CreateInvitationOperation['requestBody']['content']['application/json'];
+export type ApiInvitation =
+  CreateInvitationOperation['responses'][201]['content']['application/json'];
+export type ApiMembership =
+  AcceptInvitationOperation['responses'][200]['content']['application/json'];
 export type ApiRawUploadDeclaration =
   DeclareRawUploadOperation['responses'][201]['content']['application/json'];
 export type ApiRawUploadContent =
@@ -69,6 +77,7 @@ async function responseBody<T>(response: Response): Promise<T> {
     }
     throw new ApiClientError(problem);
   }
+  if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
 }
 
@@ -133,6 +142,50 @@ export async function selectOrganization(
     options,
     `/api/v1/organizations/${encodeURIComponent(organizationId)}/selection`,
     { headers: headers(options), method: 'PUT' },
+  );
+}
+
+export async function createInvitation(
+  options: ApiRequestOptions,
+  organizationId: string,
+  body: ApiCreateInvitationBody,
+): Promise<ApiInvitation> {
+  return request<ApiInvitation>(
+    options,
+    `/api/v1/organizations/${encodeURIComponent(organizationId)}/invitations`,
+    {
+      body: JSON.stringify(body),
+      headers: headers(options, { 'content-type': 'application/json' }),
+      method: 'POST',
+    },
+  );
+}
+
+export async function acceptInvitation(
+  options: ApiRequestOptions,
+  organizationId: string,
+  token: string,
+): Promise<ApiMembership> {
+  return request<ApiMembership>(
+    options,
+    `/api/v1/organizations/${encodeURIComponent(organizationId)}/invitations/accept`,
+    {
+      body: JSON.stringify({ token }),
+      headers: headers(options, { 'content-type': 'application/json' }),
+      method: 'POST',
+    },
+  );
+}
+
+export async function revokeInvitation(
+  options: ApiRequestOptions,
+  organizationId: string,
+  invitationId: string,
+): Promise<void> {
+  await request<undefined>(
+    options,
+    `/api/v1/organizations/${encodeURIComponent(organizationId)}/invitations/${encodeURIComponent(invitationId)}`,
+    { headers: headers(options), method: 'DELETE' },
   );
 }
 

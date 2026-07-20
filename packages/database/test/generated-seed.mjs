@@ -16,6 +16,7 @@ export const generatedOrganizations = Object.freeze({
     telemetryObjectRevisionId: '00000000-0000-4000-8000-0000000000ad',
     auditId: '00000000-0000-4000-8000-0000000000ae',
     outboxId: '00000000-0000-4000-8000-0000000000af',
+    invitationId: '10000000-0000-4000-8000-0000000000a1',
     marker: 'a',
   }),
   beta: Object.freeze({
@@ -35,6 +36,7 @@ export const generatedOrganizations = Object.freeze({
     telemetryObjectRevisionId: '00000000-0000-4000-8000-0000000000bd',
     auditId: '00000000-0000-4000-8000-0000000000be',
     outboxId: '00000000-0000-4000-8000-0000000000bf',
+    invitationId: '10000000-0000-4000-8000-0000000000b1',
     marker: 'b',
   }),
 });
@@ -52,6 +54,20 @@ export async function seedOrganization(transaction, seed) {
        organization_id, user_id, role, created_at
      ) VALUES ($1, $2, 'owner', $3)`,
     [seed.organizationId, seed.userId, now],
+  );
+  await transaction.query(
+    `INSERT INTO droneworks.invitations (
+       organization_id, id, email_normalized, role, token_sha256,
+       created_by_user_id, created_at, expires_at
+     ) VALUES ($1, $2, $3, 'viewer', $4, $5, $6, $6::timestamptz + interval '1 day')`,
+    [
+      seed.organizationId,
+      seed.invitationId,
+      `generated-invite-${seed.marker}@example.test`,
+      (seed.marker === 'a' ? '7' : '8').repeat(64),
+      seed.userId,
+      now,
+    ],
   );
   await transaction.query(
     `INSERT INTO droneworks.pilot_profiles (

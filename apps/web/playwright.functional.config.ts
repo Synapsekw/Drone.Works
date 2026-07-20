@@ -15,7 +15,7 @@ export default defineConfig({
   fullyParallel: false,
   forbidOnly: true,
   reporter: 'line',
-  timeout: 180_000,
+  timeout: 300_000,
   use: {
     baseURL: state.endpoints.web,
     screenshot: 'only-on-failure',

@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { access, readFile, readdir, writeFile } from 'node:fs/promises';
+import { access, readFile, readdir, unlink, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 
@@ -7,11 +7,20 @@ const execFileAsync = promisify(execFile);
 const repositoryRoot = resolve(import.meta.dirname, '../..');
 const statePath = join(repositoryRoot, '.drone-works/local/state.json');
 const fixturePath = join(repositoryRoot, 'fixtures/local/dji-log-003.txt');
+const verifiedSessionMode = process.env.DRONE_WORKS_AUTH_E2E === 'true';
 const reportPath = join(
   repositoryRoot,
-  '.drone-works/a13a-functional-report.json',
+  verifiedSessionMode
+    ? '.drone-works/a13b-functional-report.json'
+    : '.drone-works/a13a-functional-report.json',
 );
-const canary = 'A13A_REDACTION_CANARY_7F2C9B';
+const organizationIdPath = join(
+  repositoryRoot,
+  '.drone-works/a13b-organization-id',
+);
+const canary = verifiedSessionMode
+  ? 'A13B_REDACTION_CANARY_4E8D1C'
+  : 'A13A_REDACTION_CANARY_7F2C9B';
 const pnpm = process.env.npm_execpath;
 const parserExecutable = process.env.DRONE_WORKS_LOCAL_PARSER_EXECUTABLE;
 const parserSha256 = process.env.DRONE_WORKS_LOCAL_PARSER_SHA256;
@@ -36,6 +45,8 @@ async function runPnpm(args, environment = {}) {
 }
 
 const runtimeEnvironment = {
+  DRONE_WORKS_AUTH_E2E: String(verifiedSessionMode),
+  DRONE_WORKS_AUTH_ENABLED: String(verifiedSessionMode),
   DRONE_WORKS_DJI_PROVIDER_ENABLED: 'true',
   DRONE_WORKS_LOCAL_PARSER_EXECUTABLE: parserExecutable,
   DRONE_WORKS_LOCAL_PARSER_SHA256: parserSha256,
@@ -44,6 +55,7 @@ const runtimeEnvironment = {
 };
 
 await runPnpm(['dev:down']).catch(() => undefined);
+await unlink(reportPath).catch(() => undefined);
 let started = false;
 try {
   await execFileAsync(
@@ -83,6 +95,9 @@ try {
       );
     }
   }
+  const organizationId = verifiedSessionMode
+    ? (await readFile(organizationIdPath, 'utf8')).trim()
+    : state.alpha_organization_id;
   const purge = await execFileAsync(
     process.execPath,
     [
@@ -90,7 +105,7 @@ try {
         repositoryRoot,
         'packages/database/scripts/purge-local-organization.mjs',
       ),
-      state.alpha_organization_id,
+      organizationId,
     ],
     {
       cwd: repositoryRoot,
@@ -114,7 +129,9 @@ try {
         controlled_corrupt_source: 'passed',
         coordinate_network_privacy: 'passed',
         exact_duplicate_reuse: 'passed',
-        generated_identity_vertical_path: 'passed',
+        identity_vertical_path: verifiedSessionMode
+          ? 'verified-session'
+          : 'generated-persona',
         organization_purge: absence.status,
         redaction_canary_scan: 'passed',
         worker_recovery: 'passed',
@@ -125,8 +142,10 @@ try {
     'utf8',
   );
   process.stdout.write(
-    'A13a functional gate passed with sanitized retained evidence.\n',
+    `${verifiedSessionMode ? 'A13b' : 'A13a'} functional gate passed with sanitized retained evidence.\n`,
   );
 } finally {
+  if (verifiedSessionMode)
+    await unlink(organizationIdPath).catch(() => undefined);
   if (started) await runPnpm(['dev:down']).catch(() => undefined);
 }

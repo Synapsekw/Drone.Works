@@ -1,7 +1,7 @@
 # Authentication evaluation
 
 Status: selected for Phase 1A
-Last updated: 2026-07-16
+Last updated: 2026-07-20
 
 ## Decision
 
@@ -16,11 +16,12 @@ and role claims. The organization in the versioned API route, a current
 Drone.Works membership, repository authorization, and PostgreSQL RLS jointly
 decide access.
 
-Better Auth must be pinned exactly during A13b, after the functional local gate
-and before hosted staging. The evaluated npm release was `better-auth@1.6.23`
+Better Auth is pinned exactly by A13b, after the functional local gate and
+before hosted staging. The installed npm release is `better-auth@1.6.23`
 (MIT; registry integrity
 `sha512-4vOaRd9UiKGKm9R+ej0jjU1es3MiJIiNc9Qq3VCnYqOZ4/nb5272QqTxWYoDxyUXl5x6A2x2we5KZKQO9teTQQ==`).
-That is evaluation evidence, not permission to upgrade automatically.
+The reviewed migration, package metadata, clean production advisory audit, and
+real lifecycle evidence do not grant permission to upgrade automatically.
 
 ## Implementation sequence
 
@@ -37,11 +38,11 @@ and cannot satisfy any authentication or release gate below.
 
 ## Comparison
 
-| Candidate | Organization fit | Operations and local development | Portability and exit | Decision |
-|---|---|---|---|---|
-| Better Auth, self-hosted | Its [organization plugin](https://better-auth.com/docs/plugins/organization) demonstrates members, invitations, roles, hooks, and active-organization sessions. Drone.Works will not use those claims as authorization. | Runs with the application and a [PostgreSQL adapter](https://better-auth.com/docs/adapters/postgresql); no production identity account is required locally. The team owns email delivery, upgrades, abuse controls, and incident response. | Auth rows are in the product database and the package is MIT. The app-owned identity adapter limits replacement cost. | Selected. Use core identity/session capabilities; keep customer organization state in the canonical domain. |
-| Clerk Organizations | Mature managed [invitations](https://clerk.com/docs/guides/organizations/add-members/invitations) and [roles/permissions](https://clerk.com/docs/guides/organizations/control-access/roles-and-permissions). | Lower initial auth operations, but local and production behavior depend on a managed tenant and its product limits. | Moving users, linked accounts, sessions, organizations, and role mappings has higher exit effort. Custom-role availability is pricing-plan dependent. | Rejected as the default; viable fallback if operating self-hosted auth becomes disproportionate. |
-| First-party credentials and sessions | Complete control. | Drone.Works would own password storage, recovery, account linking, token theft defenses, session administration, and continuing security maintenance. | No vendor exit, but the largest security and maintenance burden. | Rejected for Phase 1. |
+| Candidate                            | Organization fit                                                                                                                                                                                                        | Operations and local development                                                                                                                                                                                                           | Portability and exit                                                                                                                                  | Decision                                                                                                    |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Better Auth, self-hosted             | Its [organization plugin](https://better-auth.com/docs/plugins/organization) demonstrates members, invitations, roles, hooks, and active-organization sessions. Drone.Works will not use those claims as authorization. | Runs with the application and a [PostgreSQL adapter](https://better-auth.com/docs/adapters/postgresql); no production identity account is required locally. The team owns email delivery, upgrades, abuse controls, and incident response. | Auth rows are in the product database and the package is MIT. The app-owned identity adapter limits replacement cost.                                 | Selected. Use core identity/session capabilities; keep customer organization state in the canonical domain. |
+| Clerk Organizations                  | Mature managed [invitations](https://clerk.com/docs/guides/organizations/add-members/invitations) and [roles/permissions](https://clerk.com/docs/guides/organizations/control-access/roles-and-permissions).            | Lower initial auth operations, but local and production behavior depend on a managed tenant and its product limits.                                                                                                                        | Moving users, linked accounts, sessions, organizations, and role mappings has higher exit effort. Custom-role availability is pricing-plan dependent. | Rejected as the default; viable fallback if operating self-hosted auth becomes disproportionate.            |
+| First-party credentials and sessions | Complete control.                                                                                                                                                                                                       | Drone.Works would own password storage, recovery, account linking, token theft defenses, session administration, and continuing security maintenance.                                                                                      | No vendor exit, but the largest security and maintenance burden.                                                                                      | Rejected for Phase 1.                                                                                       |
 
 ## Security and lifecycle contract
 
@@ -96,7 +97,8 @@ The 2026-07-16 run passed 34 of 34 tests with no skips or failures.
 
 ## Phase 1A integration gates
 
-Selection does not waive implementation verification. Before production use:
+Selection does not waive implementation verification. A13b completed items
+1–3 and 5 locally; A14/A15 retain hosted delivery/restore operations:
 
 1. pin Better Auth and its transitive lockfile, run license/advisory review,
    and review its generated PostgreSQL migration;
@@ -108,3 +110,9 @@ Selection does not waive implementation verification. Before production use:
 4. document auth schema backup/restore and deletion behavior; and
 5. retain the provider-neutral negative tests so replacing Better Auth cannot
    weaken organization isolation.
+
+The retained A13b matrix is in
+[`../testing/A13B-AUTH-EVIDENCE.md`](../testing/A13B-AUTH-EVIDENCE.md). Hosted
+email-provider delivery, trusted-proxy/IP rate-limit configuration and alerts,
+and a restored-instance drill remain deployment gates rather than reasons to
+weaken the local provider contract.

@@ -15,6 +15,8 @@ import { Type } from '@sinclair/typebox';
 
 import {
   createOrganizationBodySchema,
+  createInvitationBodySchema,
+  acceptInvitationBodySchema,
   completeRawUploadBodySchema,
   declareRawUploadBodySchema,
   healthQuerySchema,
@@ -34,6 +36,8 @@ import {
   membershipListSchema,
   membershipPathSchema,
   membershipSchema,
+  invitationPathSchema,
+  invitationSchema,
   organizationPathSchema,
   organizationSelectionSchema,
   problemDetailSchema,
@@ -62,6 +66,8 @@ import {
   UnavailableIdentitySource,
   type IdentitySource,
 } from './identity.js';
+import type { AuthEmailDelivery, VerifiedAuth } from './auth.js';
+import { registerAuthRoutes } from './auth-routes.js';
 import {
   registerFlightRoutes,
   type FlightRouteDependencies,
@@ -79,6 +85,10 @@ import {
   registerRawUploadRoutes,
   type RawUploadRouteDependencies,
 } from './raw-upload-routes.js';
+import {
+  registerInvitationRoutes,
+  type InvitationRouteDependencies,
+} from './invitation-routes.js';
 
 const correlationIdPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 
@@ -90,7 +100,10 @@ export const documentedApiRoutes = new Set([
   'GET /api/v1/organizations/:organization_id/flights/:flight_id/track',
   'GET /api/v1/organizations/:organization_id/imports/:import_id',
   'GET /api/v1/organizations/:organization_id/memberships',
+  'DELETE /api/v1/organizations/:organization_id/invitations/:invitation_id',
   'POST /api/v1/organizations',
+  'POST /api/v1/organizations/:organization_id/invitations',
+  'POST /api/v1/organizations/:organization_id/invitations/accept',
   'PUT /api/v1/organizations/:organization_id/memberships/:user_id',
   'PUT /api/v1/organizations/:organization_id/selection',
   'GET /api/v1/organizations/:organization_id/uploads/:upload_id',
@@ -100,6 +113,7 @@ export const documentedApiRoutes = new Set([
 ]);
 
 const defaultEnvironment: ServiceEnvironment = {
+  AUTH_ENABLED: false,
   DRONE_WORKS_ENV: 'test',
   HOST: '127.0.0.1',
   LOCAL_IDENTITY_ENABLED: false,
@@ -113,24 +127,41 @@ class OrganizationServiceUnavailableError extends Error {
   }
 }
 
-const unavailableOrganizations: OrganizationRouteDependencies['organizations'] =
-  {
-    async createOrganization() {
-      throw new OrganizationServiceUnavailableError();
-    },
-    async listMemberships() {
-      throw new OrganizationServiceUnavailableError();
-    },
-    async putMembership() {
-      throw new OrganizationServiceUnavailableError();
-    },
-    async removeMembership() {
-      throw new OrganizationServiceUnavailableError();
-    },
-    async selectOrganization() {
-      throw new OrganizationServiceUnavailableError();
-    },
-  };
+type OrganizationDependencies = OrganizationRouteDependencies['organizations'] &
+  InvitationRouteDependencies['organizations'];
+
+const unavailableOrganizations: OrganizationDependencies = {
+  async acceptInvitation() {
+    throw new OrganizationServiceUnavailableError();
+  },
+  async createInvitation() {
+    throw new OrganizationServiceUnavailableError();
+  },
+  async createOrganization() {
+    throw new OrganizationServiceUnavailableError();
+  },
+  async listMemberships() {
+    throw new OrganizationServiceUnavailableError();
+  },
+  async putMembership() {
+    throw new OrganizationServiceUnavailableError();
+  },
+  async removeMembership() {
+    throw new OrganizationServiceUnavailableError();
+  },
+  async revokeInvitation() {
+    throw new OrganizationServiceUnavailableError();
+  },
+  async selectOrganization() {
+    throw new OrganizationServiceUnavailableError();
+  },
+};
+
+const unavailableEmail: AuthEmailDelivery = {
+  async send() {
+    throw new OrganizationServiceUnavailableError();
+  },
+};
 
 class RawUploadServiceUnavailableError extends Error {
   readonly statusCode = 503;
@@ -229,11 +260,14 @@ function problem(
 }
 
 export interface BuildApiOptions {
+  readonly auth?: VerifiedAuth;
+  readonly email?: AuthEmailDelivery;
   readonly environment?: ServiceEnvironment;
   readonly identitySource?: IdentitySource;
   readonly flights?: Pick<FlightReadRepository, 'getSummary' | 'getTrack'>;
   readonly imports?: Pick<ImportProcessingRepository, 'cancel' | 'getStatus'>;
-  readonly organizations?: OrganizationRouteDependencies['organizations'];
+  readonly organizations?: OrganizationDependencies;
+  readonly publicWebUrl?: string;
   readonly objectStore?: ImmutableObjectStore;
   readonly uploads?: Pick<
     RawUploadRepository,
@@ -246,6 +280,7 @@ export async function buildApi(options: BuildApiOptions = {}) {
   const identitySource =
     options.identitySource ?? new UnavailableIdentitySource();
   assertIdentityConfiguration(environment, identitySource);
+  const authRouteInventory = new Set<string>();
   const routeInventory = new Set<string>();
   const controlRouteInventory = new Set<string>();
   const app = Fastify({
@@ -266,8 +301,11 @@ export async function buildApi(options: BuildApiOptions = {}) {
   app.addHook('onRoute', (route: RouteOptions) => {
     const methods = Array.isArray(route.method) ? route.method : [route.method];
     for (const method of methods) {
-      if (route.url.startsWith('/api/')) {
+      if (route.url.startsWith('/api/v1/')) {
         routeInventory.add(`${method} ${route.url}`);
+      }
+      if (route.url.startsWith('/api/auth/')) {
+        authRouteInventory.add(`${method} ${route.url}`);
       }
       if (route.url.startsWith('/_local/')) {
         controlRouteInventory.add(`${method} ${route.url}`);
@@ -295,6 +333,10 @@ export async function buildApi(options: BuildApiOptions = {}) {
   app.addSchema(putMembershipBodySchema);
   app.addSchema(membershipSchema);
   app.addSchema(membershipListSchema);
+  app.addSchema(invitationPathSchema);
+  app.addSchema(createInvitationBodySchema);
+  app.addSchema(acceptInvitationBodySchema);
+  app.addSchema(invitationSchema);
   app.addSchema(rawUploadPathSchema);
   app.addSchema(idempotencyHeadersSchema);
   app.addSchema(declareRawUploadBodySchema);
@@ -318,6 +360,8 @@ export async function buildApi(options: BuildApiOptions = {}) {
     reply.header('x-correlation-id', request.id);
     return payload;
   });
+
+  if (options.auth) registerAuthRoutes(app, options.auth);
 
   app.get(
     '/api/v1/health',
@@ -361,6 +405,12 @@ export async function buildApi(options: BuildApiOptions = {}) {
   registerOrganizationRoutes(app, {
     identitySource,
     organizations: options.organizations ?? unavailableOrganizations,
+  });
+  registerInvitationRoutes(app, {
+    email: options.email ?? unavailableEmail,
+    identitySource,
+    organizations: options.organizations ?? unavailableOrganizations,
+    publicWebUrl: options.publicWebUrl ?? 'http://127.0.0.1',
   });
   registerRawUploadRoutes(app, {
     identitySource,
@@ -486,5 +536,5 @@ export async function buildApi(options: BuildApiOptions = {}) {
   });
 
   await app.ready();
-  return { app, controlRouteInventory, routeInventory };
+  return { app, authRouteInventory, controlRouteInventory, routeInventory };
 }

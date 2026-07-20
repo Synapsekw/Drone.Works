@@ -33,9 +33,11 @@ local/test-versus-hosted identity configuration matrix.
 
 - `droneworks_migration_runner` can assume only the migration owner role.
 - `droneworks_app` is the API's restricted customer-data role.
-- `droneworks_queue` owns the future job schema but cannot read customer data.
-- `droneworks_dispatcher` has no customer-table access; A07 will add only the
-  narrow lease and dispatch functions it needs.
+- `droneworks_auth` can access only Better Auth core tables and payload-free auth
+  audits in `droneworks_auth`; it cannot read customer data.
+- `droneworks_queue` owns the job schema but cannot read customer data.
+- `droneworks_dispatcher` has no customer-table access and receives only narrow
+  lease and dispatch functions.
 - `droneworks_migration_auditor` owns the protected migration ledger.
 
 `bootstrap.sql` is a provider-administrator operation used to establish these
@@ -52,5 +54,7 @@ DRONE_WORKS_DATABASE_URL='postgresql://...' corepack pnpm --filter @drone-works/
 ```
 
 The runner validates both the migration file checksum and the resulting RLS,
-ownership, policy, and grant contract before recording the migration. AWS RDS
-provisioning and credentials are deliberately outside A04.
+ownership, policy, and grant contract before recording the migration. The A13b
+reviewed migration adds the separate auth schema plus the app-owned forced-RLS
+invitation table; provider schema generation must report no drift. AWS RDS
+provisioning and credentials remain outside this package.

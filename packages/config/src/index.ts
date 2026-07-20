@@ -9,6 +9,7 @@ export const serviceEnvironmentSchema = Type.Object(
       Type.Literal('staging'),
       Type.Literal('production'),
     ]),
+    AUTH_ENABLED: Type.Boolean(),
     HOST: Type.String({ minLength: 1 }),
     LOCAL_IDENTITY_ENABLED: Type.Boolean(),
     PORT: Type.Integer({ minimum: 1, maximum: 65_535 }),
@@ -23,11 +24,16 @@ export function readServiceEnvironment(
 ): ServiceEnvironment {
   const localIdentityFlag =
     source.DRONE_WORKS_LOCAL_IDENTITY_ENABLED ?? 'false';
-  if (!['false', 'true'].includes(localIdentityFlag)) {
+  const authFlag = source.DRONE_WORKS_AUTH_ENABLED ?? 'false';
+  if (
+    !['false', 'true'].includes(localIdentityFlag) ||
+    !['false', 'true'].includes(authFlag)
+  ) {
     throw new Error('Invalid service environment configuration.');
   }
 
   const candidate = {
+    AUTH_ENABLED: authFlag === 'true',
     DRONE_WORKS_ENV: source.DRONE_WORKS_ENV ?? 'local',
     HOST: source.HOST ?? '127.0.0.1',
     LOCAL_IDENTITY_ENABLED: localIdentityFlag === 'true',
@@ -39,6 +45,63 @@ export function readServiceEnvironment(
   }
 
   return candidate;
+}
+
+export type VerifiedAuthEnvironment =
+  | { readonly ENABLED: false }
+  | {
+      readonly BASE_URL: string;
+      readonly EMAIL_INTERNAL_URL: string;
+      readonly ENABLED: true;
+      readonly SECRET: string;
+      readonly TRUSTED_ORIGINS: readonly string[];
+    };
+
+function origin(value: string | undefined): string | null {
+  if (!value) return null;
+  try {
+    const parsed = new URL(value);
+    if (!['http:', 'https:'].includes(parsed.protocol)) return null;
+    if (parsed.username || parsed.password || parsed.pathname !== '/') {
+      return null;
+    }
+    return parsed.origin;
+  } catch {
+    return null;
+  }
+}
+
+export function readVerifiedAuthEnvironment(
+  source: NodeJS.ProcessEnv,
+): VerifiedAuthEnvironment {
+  if ((source.DRONE_WORKS_AUTH_ENABLED ?? 'false') === 'false') {
+    return { ENABLED: false };
+  }
+  const baseUrl = origin(source.BETTER_AUTH_URL);
+  const emailInternalUrl = origin(source.EMAIL_INTERNAL_URL);
+  const secret = source.BETTER_AUTH_SECRET;
+  const trustedOrigins = (source.DRONE_WORKS_AUTH_TRUSTED_ORIGINS ?? '')
+    .split(',')
+    .map((value) => origin(value.trim()))
+    .filter((value): value is string => value !== null);
+  if (
+    !baseUrl ||
+    !emailInternalUrl ||
+    !secret ||
+    secret.length < 32 ||
+    trustedOrigins.length === 0 ||
+    new Set(trustedOrigins).size !== trustedOrigins.length ||
+    !trustedOrigins.includes(baseUrl)
+  ) {
+    throw new Error('Invalid verified authentication configuration.');
+  }
+  return {
+    BASE_URL: baseUrl,
+    EMAIL_INTERNAL_URL: emailInternalUrl,
+    ENABLED: true,
+    SECRET: secret,
+    TRUSTED_ORIGINS: trustedOrigins,
+  };
 }
 
 export const djiKeychainEnvironmentSchema = Type.Union([

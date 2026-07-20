@@ -10,6 +10,14 @@ export interface ApplicationPoolConfiguration {
   readonly user: 'droneworks_app';
 }
 
+export interface AuthPoolConfiguration {
+  readonly database: string;
+  readonly host: string;
+  readonly max?: number;
+  readonly port: number;
+  readonly user: 'droneworks_auth';
+}
+
 export interface ApplicationPool extends OrganizationPool {
   end(): Promise<void>;
   query<Row extends QueryResultRow = QueryResultRow>(
@@ -25,6 +33,19 @@ export function createApplicationPool(
     database: configuration.database,
     host: configuration.host,
     max: configuration.max ?? 10,
+    port: configuration.port,
+    user: configuration.user,
+  });
+}
+
+export function createAuthPool(
+  configuration: AuthPoolConfiguration,
+): ApplicationPool {
+  return new Pool({
+    database: configuration.database,
+    host: configuration.host,
+    max: configuration.max ?? 10,
+    options: '-c search_path=droneworks_auth,pg_catalog',
     port: configuration.port,
     user: configuration.user,
   });

@@ -90,6 +90,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/organizations/{organization_id}/invitations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create an organization invitation */
+        post: operations["createInvitation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organizations/{organization_id}/invitations/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Accept an organization invitation */
+        post: operations["acceptInvitation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organizations/{organization_id}/invitations/{invitation_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke an organization invitation */
+        delete: operations["revokeInvitation"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/organizations/{organization_id}/uploads": {
         parameters: {
             query?: never;
@@ -276,19 +327,41 @@ export interface components {
         "def-9": {
             memberships: components["schemas"]["def-8"][];
         };
-        /** RawUploadPath */
+        /** InvitationPath */
         "def-10": {
+            organization_id: string;
+            invitation_id: string;
+        };
+        /** CreateInvitationBody */
+        "def-11": {
+            email: string;
+            role: "admin" | "pilot" | "viewer";
+        };
+        /** AcceptInvitationBody */
+        "def-12": {
+            token: string;
+        };
+        /** Invitation */
+        "def-13": {
+            invitation_id: string;
+            organization_id: string;
+            role: "admin" | "pilot" | "viewer";
+            /** Format: date-time */
+            expires_at: string;
+        };
+        /** RawUploadPath */
+        "def-14": {
             organization_id: string;
             upload_id: string;
         };
         /** IdempotencyHeaders */
-        "def-11": {
+        "def-15": {
             "idempotency-key": string;
         } & {
             [key: string]: unknown;
         };
         /** DeclareRawUploadBody */
-        "def-12": {
+        "def-16": {
             client_file_id: string;
             original_filename: string;
             content_sha256: string;
@@ -297,26 +370,26 @@ export interface components {
             media_type: "application/octet-stream";
         };
         /** RawUploadDeclaration */
-        "def-13": {
+        "def-17": {
             upload_id: string;
             /** @enum {string} */
             state: "declared";
             content_sha256: string;
         };
         /** RawUploadContent */
-        "def-14": {
+        "def-18": {
             upload_id: string;
             object_version_id: string;
             content_sha256: string;
         };
         /** CompleteRawUploadBody */
-        "def-15": {
+        "def-19": {
             object_version_id: string;
             /** @enum {string} */
             dji_encrypted_processing?: "approved";
         };
         /** RawUpload */
-        "def-16": {
+        "def-20": {
             upload_id: string;
             raw_source_id: string | null;
             object_version_id: string | null;
@@ -324,12 +397,12 @@ export interface components {
             content_sha256: string;
         };
         /** ImportPath */
-        "def-17": {
+        "def-21": {
             organization_id: string;
             import_id: string;
         };
         /** ImportStatus */
-        "def-18": {
+        "def-22": {
             import_id: string;
             state: "uploaded" | "queued" | "detecting" | "parsing" | "normalizing" | "awaiting_review" | "completed" | "failed" | "cancelled" | "skipped_duplicate";
             failure_reason: ("unsupported" | "corrupt" | "truncated" | "key_unavailable" | "processing_failed") | null;
@@ -338,12 +411,12 @@ export interface components {
             updated_at: string;
         };
         /** FlightPath */
-        "def-19": {
+        "def-23": {
             organization_id: string;
             flight_id: string;
         };
         /** FlightFacts */
-        "def-20": {
+        "def-24": {
             aircraft_model: {
                 origin: "imported" | "derived" | "user_override" | "unavailable";
                 value: string | null;
@@ -386,13 +459,13 @@ export interface components {
             };
         };
         /** FlightTelemetrySummary */
-        "def-21": {
+        "def-25": {
             sample_count: number;
             first_elapsed_ms: number | null;
             last_elapsed_ms: number | null;
         };
         /** FlightSummary */
-        "def-22": {
+        "def-26": {
             flight_id: string;
             state: "active" | "awaiting_review";
             assignment_status: "assigned" | "awaiting_pilot" | "awaiting_aircraft" | "ambiguous_aircraft" | "awaiting_time" | "awaiting_multiple";
@@ -403,17 +476,17 @@ export interface components {
             takeoff_timezone: string;
             revision_number: number;
             capabilities: string[];
-            facts: components["schemas"]["def-20"];
-            telemetry: components["schemas"]["def-21"] | null;
+            facts: components["schemas"]["def-24"];
+            telemetry: components["schemas"]["def-25"] | null;
         };
         /** FlightTrackQuery */
-        "def-23": {
+        "def-27": {
             mode?: "default" | "full";
             cursor?: string;
             limit?: number;
         };
         /** FlightTrackPoint */
-        "def-24": {
+        "def-28": {
             sample_index: number;
             elapsed_ms: number | null;
             position: {
@@ -431,20 +504,20 @@ export interface components {
             signal_uplink_percent: number | null;
         };
         /** FlightTelemetryRange */
-        "def-25": {
+        "def-29": {
             minimum: number | null;
             maximum: number | null;
         };
         /** FlightTrackStatistics */
-        "def-26": {
-            altitude_msl_m: components["schemas"]["def-25"];
-            battery_charge_percent: components["schemas"]["def-25"];
-            height_agl_m: components["schemas"]["def-25"];
-            horizontal_speed_mps: components["schemas"]["def-25"];
-            vertical_speed_mps: components["schemas"]["def-25"];
+        "def-30": {
+            altitude_msl_m: components["schemas"]["def-29"];
+            battery_charge_percent: components["schemas"]["def-29"];
+            height_agl_m: components["schemas"]["def-29"];
+            horizontal_speed_mps: components["schemas"]["def-29"];
+            vertical_speed_mps: components["schemas"]["def-29"];
         };
         /** FlightTrack */
-        "def-27": {
+        "def-31": {
             flight_id: string;
             revision_number: number;
             mode: "default" | "full";
@@ -454,8 +527,8 @@ export interface components {
             next_cursor: string | null;
             gap_transition_count: number;
             preserved_gap_transition_count: number;
-            statistics: components["schemas"]["def-26"];
-            samples: components["schemas"]["def-24"][];
+            statistics: components["schemas"]["def-30"];
+            samples: components["schemas"]["def-28"][];
         };
     };
     responses: never;
@@ -799,6 +872,198 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description The membership was removed. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description The request was denied or could not be accepted. */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        type: string;
+                        title: string;
+                        status: number;
+                        detail: string;
+                        instance: string;
+                        correlation_id: string;
+                        errors?: components["schemas"]["def-0"][];
+                    };
+                };
+            };
+            /** @description The request could not be completed. */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        type: string;
+                        title: string;
+                        status: number;
+                        detail: string;
+                        instance: string;
+                        correlation_id: string;
+                        errors?: components["schemas"]["def-0"][];
+                    };
+                };
+            };
+        };
+    };
+    createInvitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                organization_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    email: string;
+                    role: "admin" | "pilot" | "viewer";
+                };
+            };
+        };
+        responses: {
+            /** @description A single-use organization invitation was created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        invitation_id: string;
+                        organization_id: string;
+                        role: "admin" | "pilot" | "viewer";
+                        /** Format: date-time */
+                        expires_at: string;
+                    };
+                };
+            };
+            /** @description The request was denied or could not be accepted. */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        type: string;
+                        title: string;
+                        status: number;
+                        detail: string;
+                        instance: string;
+                        correlation_id: string;
+                        errors?: components["schemas"]["def-0"][];
+                    };
+                };
+            };
+            /** @description The request could not be completed. */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        type: string;
+                        title: string;
+                        status: number;
+                        detail: string;
+                        instance: string;
+                        correlation_id: string;
+                        errors?: components["schemas"]["def-0"][];
+                    };
+                };
+            };
+        };
+    };
+    acceptInvitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                organization_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    token: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The verified matching user accepted the invitation. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        user_id: string;
+                        role: "owner" | "admin" | "pilot" | "viewer";
+                        pilot_profile_id: string | null;
+                    };
+                };
+            };
+            /** @description The request was denied or could not be accepted. */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        type: string;
+                        title: string;
+                        status: number;
+                        detail: string;
+                        instance: string;
+                        correlation_id: string;
+                        errors?: components["schemas"]["def-0"][];
+                    };
+                };
+            };
+            /** @description The request could not be completed. */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": {
+                        type: string;
+                        title: string;
+                        status: number;
+                        detail: string;
+                        instance: string;
+                        correlation_id: string;
+                        errors?: components["schemas"]["def-0"][];
+                    };
+                };
+            };
+        };
+    };
+    revokeInvitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                organization_id: string;
+                invitation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The pending invitation was revoked. */
             204: {
                 headers: {
                     [name: string]: unknown;
@@ -1275,8 +1540,8 @@ export interface operations {
                         takeoff_timezone: string;
                         revision_number: number;
                         capabilities: string[];
-                        facts: components["schemas"]["def-20"];
-                        telemetry: components["schemas"]["def-21"] | null;
+                        facts: components["schemas"]["def-24"];
+                        telemetry: components["schemas"]["def-25"] | null;
                     };
                 };
             };
@@ -1348,8 +1613,8 @@ export interface operations {
                         next_cursor: string | null;
                         gap_transition_count: number;
                         preserved_gap_transition_count: number;
-                        statistics: components["schemas"]["def-26"];
-                        samples: components["schemas"]["def-24"][];
+                        statistics: components["schemas"]["def-30"];
+                        samples: components["schemas"]["def-28"][];
                     };
                 };
             };

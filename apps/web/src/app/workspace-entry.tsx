@@ -1,1 +1,1 @@
-export { LocalWorkspace as WebEntry } from './workspace';
+export { LocalWorkspace as WebEntry } from './local-workspace';

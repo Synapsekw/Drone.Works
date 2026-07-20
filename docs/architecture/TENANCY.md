@@ -1,7 +1,7 @@
 # Organization isolation
 
 Status: accepted Phase 1A boundary
-Last updated: 2026-07-16
+Last updated: 2026-07-20
 
 ## Purpose
 
@@ -22,6 +22,14 @@ queue role: its payload-free outbox and pg-boss tables remain outside the
 customer schema. The application receives only enqueue/cancel functions and the
 dispatcher only lease/complete/release/aggregate-metrics functions; neither role
 has direct outbox or customer-table access.
+
+A13b adds reviewed migration 004: Better Auth core and payload-free auth-audit
+tables live in the separate `droneworks_auth` schema, while app-owned
+invitations expand the customer isolation contract under forced RLS. The auth
+login can access only its core/audit tables. It cannot read the private
+membership locator or any customer table; account deletion crosses the boundary
+only through one app-role function that applies organization context and blocks
+final-owner removal.
 
 The A04 suite creates a fresh socket-only PostgreSQL 18 cluster, applies the
 privileged role/ledger bootstrap, migrates through the non-inheriting runner,
@@ -74,6 +82,7 @@ The reviewed database boundary defines deliberately separate roles:
 | `droneworks_migration_runner`  | Applies checksum-pinned reviewed migrations                                               | login, `NOINHERIT`, non-superuser, `NOBYPASSRLS`; may explicitly `SET ROLE` only to `droneworks_migrator`              |
 | `droneworks_migration_auditor` | Owns the operational migration ledger and its narrow functions                            | `NOLOGIN`, `NOINHERIT`, non-superuser, `NOBYPASSRLS`; no membership granted to the runner or schema owner              |
 | `droneworks_app`               | Ordinary repository, job, and export access                                               | login, `NOINHERIT`, non-owner, non-superuser, `NOBYPASSRLS`                                                            |
+| `droneworks_auth`              | Better Auth credentials, verification, and sessions only                                  | login, `NOINHERIT`, non-owner, non-superuser, `NOBYPASSRLS`; no customer-schema privileges                             |
 | `droneworks_queue`             | Owns the outbox and pg-boss infrastructure schema                                         | login, `NOINHERIT`, non-superuser, `NOBYPASSRLS`; no customer-table grants                                             |
 | `droneworks_dispatcher`        | Leases outbox references and reports aggregate metrics                                    | login, `NOINHERIT`, non-owner, non-superuser, `NOBYPASSRLS`; function execution only, no direct outbox/customer grants |
 | `droneworks_deletion_worker`   | Executes only the reviewed permanent-organization-deletion function and reads its receipt | login, `NOINHERIT`, non-owner, non-superuser, `NOBYPASSRLS`; no direct customer or receipt-table grants                |

@@ -1,5 +1,5 @@
 import { spawn, type ChildProcess } from 'node:child_process';
-import { closeSync, openSync, readFileSync } from 'node:fs';
+import { closeSync, openSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import AxeBuilder from '@axe-core/playwright';
@@ -13,6 +13,7 @@ const state = JSON.parse(
   ),
 ) as {
   readonly endpoints: {
+    readonly email: string;
     readonly objects: string;
     readonly worker: string;
   };
@@ -34,8 +35,12 @@ const state = JSON.parse(
   };
 };
 
+const verifiedSessionMode = process.env.DRONE_WORKS_AUTH_E2E === 'true';
+
 const fixturePath = resolve(repositoryRoot, 'fixtures/local/dji-log-003.txt');
-const canary = 'A13A_REDACTION_CANARY_7F2C9B';
+const canary = verifiedSessionMode
+  ? 'A13B_REDACTION_CANARY_4E8D1C'
+  : 'A13A_REDACTION_CANARY_7F2C9B';
 let replacementWorker: ChildProcess | undefined;
 
 function killWorker(pid: number) {
@@ -127,12 +132,101 @@ function startReplacementWorker(): ChildProcess {
 }
 
 async function enterAlpha(page: import('@playwright/test').Page) {
+  if (verifiedSessionMode) {
+    await registerAndSignIn(
+      page,
+      'functional-alpha@example.test',
+      'Functional Alpha',
+    );
+    const organizationId = await createOrganization(
+      page,
+      'Verified Functional Alpha',
+    );
+    writeFileSync(
+      resolve(repositoryRoot, '.drone-works/a13b-organization-id'),
+      `${organizationId}\n`,
+      'utf8',
+    );
+    return;
+  }
   await page.goto('/');
   await page.getByRole('button', { name: 'Generated Alpha owner' }).click();
   await page.getByRole('button', { name: 'Enter organization' }).click();
   await expect(page.getByTestId('organization-state')).toContainText(
     'Generated A',
   );
+}
+
+async function capturedEmailUrl(
+  recipient: string,
+  kind: 'password-reset' | 'verification',
+): Promise<string> {
+  const messagesUrl = state.endpoints.email.replace(/\/health$/, '/messages');
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const response = await fetch(messagesUrl);
+    const body = (await response.json()) as {
+      readonly messages: readonly {
+        readonly kind?: string;
+        readonly recipient?: string;
+        readonly url?: string;
+      }[];
+    };
+    const message = [...body.messages]
+      .reverse()
+      .find(
+        (candidate) =>
+          candidate.kind === kind && candidate.recipient === recipient,
+      );
+    if (message?.url) return message.url;
+    await new Promise((resolveWait) => setTimeout(resolveWait, 50));
+  }
+  throw new Error(`The local ${kind} message was not captured.`);
+}
+
+async function registerAndSignIn(
+  page: import('@playwright/test').Page,
+  email: string,
+  name: string,
+) {
+  await page.goto('/');
+  const registration = page
+    .locator('details')
+    .filter({ hasText: 'Register a verified user' });
+  await registration.getByText('Register a verified user').click();
+  await registration.getByLabel('Display name').fill(name);
+  await registration.getByLabel('Email').fill(email);
+  await registration
+    .getByLabel('Password')
+    .fill('Generated-functional-auth-password-42');
+  await registration
+    .getByRole('button', { name: 'Register and send verification' })
+    .click();
+  await expect(page.getByRole('status')).toContainText('Registration received');
+  await page.goto(await capturedEmailUrl(email, 'verification'));
+  await page.goto('/');
+  const signIn = page.locator('section').filter({ hasText: 'Sign in' });
+  await signIn.getByLabel('Verified email').fill(email);
+  await signIn
+    .getByLabel('Password')
+    .fill('Generated-functional-auth-password-42');
+  await signIn.getByRole('button', { name: 'Sign in' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Current verified user' }),
+  ).toBeVisible();
+}
+
+async function createOrganization(
+  page: import('@playwright/test').Page,
+  name: string,
+): Promise<string> {
+  const creation = page
+    .locator('details')
+    .filter({ hasText: 'Create a fresh organization' });
+  await creation.getByText('Create a fresh organization').click();
+  await creation.getByLabel('Organization name').fill(name);
+  await creation.getByRole('button', { name: 'Create and enter' }).click();
+  await expect(page.getByTestId('organization-state')).toContainText(name);
+  return page.getByLabel('Organization ID').inputValue();
 }
 
 async function selectFixture(
@@ -151,7 +245,7 @@ test.afterAll(() => {
   if (replacementWorker?.pid) killWorker(replacementWorker.pid);
 });
 
-test('proves the generated-persona browser-to-flight path and isolation', async ({
+test('proves the browser-to-flight identity path and isolation', async ({
   page,
 }) => {
   const requests: Array<{ method: string; url: string; body: string }> = [];
@@ -186,7 +280,7 @@ test('proves the generated-persona browser-to-flight path and isolation', async 
   await waitForReplacementWorker(replacementWorker);
 
   await expect(page.getByTestId('flight-detail')).toBeVisible({
-    timeout: 90_000,
+    timeout: 180_000,
   });
   await expect(page.getByTestId('flight-map')).toBeVisible();
   await expect(page.getByText('Provider-free local canvas.')).toBeVisible();
@@ -219,18 +313,73 @@ test('proves the generated-persona browser-to-flight path and isolation', async 
     { timeout: 45_000 },
   );
 
-  await page.getByRole('button', { name: 'Generated Beta owner' }).click();
+  if (verifiedSessionMode) {
+    await page
+      .getByRole('button', { name: 'Sign out and clear workspace' })
+      .click();
+    await registerAndSignIn(
+      page,
+      'functional-beta@example.test',
+      'Functional Beta',
+    );
+    await createOrganization(page, 'Verified Functional Beta');
+  } else {
+    await page.getByRole('button', { name: 'Generated Beta owner' }).click();
+  }
   await expect(page.getByTestId('flight-detail')).toHaveCount(0);
   await expect(page.getByTestId('organization-state')).toHaveText(
-    'Organization-bound data is empty.',
+    verifiedSessionMode
+      ? /Verified Functional Beta/
+      : 'Organization-bound data is empty.',
   );
-  await page.getByRole('button', { name: 'Enter organization' }).click();
+  if (!verifiedSessionMode) {
+    await page.getByRole('button', { name: 'Enter organization' }).click();
+  }
   await page.getByLabel('Flight ID').fill(flightId);
   await page.getByRole('button', { name: 'Open flight' }).click();
   await expect(page.locator('.error-banner')).toContainText(
     'not available to the current organization membership',
   );
   await expect(page.locator('.error-banner')).not.toContainText(flightId);
+
+  if (verifiedSessionMode) {
+    await page
+      .getByRole('button', { name: 'Sign out and clear workspace' })
+      .click();
+    const recovery = page
+      .locator('details')
+      .filter({ hasText: 'Recover access' });
+    await recovery.getByText('Recover access').click();
+    await recovery.getByLabel('Email').fill('functional-beta@example.test');
+    await recovery.getByRole('button', { name: 'Send recovery link' }).click();
+    await expect(page.getByRole('status')).toContainText(
+      'time-limited recovery link',
+    );
+    await page.goto(
+      await capturedEmailUrl('functional-beta@example.test', 'password-reset'),
+    );
+    await expect(
+      page.getByRole('heading', { name: 'Reset password' }),
+    ).toBeVisible();
+    await page
+      .getByLabel('New password', { exact: true })
+      .fill('Generated-functional-reset-password-84');
+    await page.getByRole('button', { name: 'Reset password' }).click();
+    await expect(page.getByRole('status')).toContainText(
+      'Password reset complete',
+    );
+    const signIn = page.locator('section').filter({ hasText: 'Sign in' });
+    await signIn
+      .getByLabel('Verified email')
+      .fill('functional-beta@example.test');
+    await signIn
+      .getByLabel('Password')
+      .fill('Generated-functional-reset-password-84');
+    await signIn.getByRole('button', { name: 'Sign in' }).click();
+    await expect(
+      page.getByRole('heading', { name: 'Current verified user' }),
+    ).toBeVisible();
+  }
 
   const mutations = requests.filter(
     ({ method }) => !['GET', 'HEAD', 'OPTIONS'].includes(method),
@@ -240,6 +389,7 @@ test('proves the generated-persona browser-to-flight path and isolation', async 
     const path = new URL(mutation.url).pathname;
     expect(
       path.startsWith('/api/v1/') ||
+        path.startsWith('/api/auth/') ||
         path === '/_local/generated-personas/select' ||
         path === '/security/csp-report',
     ).toBe(true);

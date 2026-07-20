@@ -1,7 +1,7 @@
 # Phase 1 Acceptance Specification
 
 Status: founding draft
-Last updated: 2026-07-17
+Last updated: 2026-07-20
 
 These scenarios define the minimum observable behavior of the first useful Drone.Works release. They are implementation-neutral and should become automated acceptance tests where practical.
 
@@ -84,6 +84,33 @@ And a completed or review result supplies the flight identifier without exposing
 And changing persona or organization clears every prior organization-bound status, summary, and track
 And the persona control is visibly identified as local development only
 And a hosted build contains neither that control nor its local rewrite
+```
+
+### Scenario: Verified identity remains separate from organization authorization
+
+```gherkin
+Given a registered user has verified their email and signed in
+When the user creates an organization
+Then Drone.Works creates the owner membership and linked pilot profile
+And no provider organization or role claim can elevate that membership
+When an owner sends an expiring invitation to another verified email
+Then only the matching verified user can accept it once
+And removing that membership blocks the next organization operation even while its identity session remains live
+And resetting a password revokes prior sessions
+And deleting a final-owner account is blocked until another owner exists
+And successful account deletion removes current memberships while retaining historical pilot profiles
+```
+
+### Scenario: The verified web path repeats the functional application
+
+```gherkin
+Given verified authentication is explicitly enabled with local email capture
+When a verified user enters an organization, uploads one supported file, observes processing, and opens its flight
+Then every customer-domain request uses the generated /api/v1 client
+And the HttpOnly session cookie is the only browser identity input
+And the capability-aware provider-free track sends coordinates to no unrelated request
+And signing out clears every prior organization-bound status, summary, and track
+And a staged or hosted build contains no generated-persona control or rewrite
 ```
 
 ### Scenario: The generated local application closes the functional path

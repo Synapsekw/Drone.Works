@@ -3,8 +3,10 @@ import { randomUUID } from 'node:crypto';
 import type { ServiceEnvironment } from '@drone-works/config';
 import type { AppIdentity } from '@drone-works/database';
 
+import type { VerifiedAuth } from './auth.js';
+
 export interface IdentitySource {
-  readonly kind: 'generated-persona' | 'unavailable';
+  readonly kind: 'generated-persona' | 'unavailable' | 'verified-session';
   resolve(headers: Record<string, unknown>): Promise<AppIdentity | null>;
 }
 
@@ -75,6 +77,41 @@ export class UnavailableIdentitySource implements IdentitySource {
   }
 }
 
+function standardHeaders(values: Record<string, unknown>): Headers {
+  const headers = new Headers();
+  for (const [name, value] of Object.entries(values)) {
+    if (typeof value === 'string') headers.append(name, value);
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        if (typeof item === 'string') headers.append(name, item);
+      }
+    }
+  }
+  return headers;
+}
+
+export class VerifiedSessionIdentitySource implements IdentitySource {
+  readonly kind = 'verified-session' as const;
+  readonly #auth: VerifiedAuth;
+
+  constructor(auth: VerifiedAuth) {
+    this.#auth = auth;
+  }
+
+  async resolve(headers: Record<string, unknown>): Promise<AppIdentity | null> {
+    const current = await this.#auth.api.getSession({
+      headers: standardHeaders(headers),
+    });
+    if (!current?.user.emailVerified) return null;
+    return {
+      displayName: current.user.name,
+      sessionId: current.session.id,
+      userId: current.user.id,
+      verifiedEmail: current.user.email.trim().toLowerCase(),
+    };
+  }
+}
+
 export class IdentityConfigurationError extends Error {
   constructor(message: string) {
     super(message);
@@ -84,8 +121,22 @@ export class IdentityConfigurationError extends Error {
 
 export function createIdentitySource(
   environment: ServiceEnvironment,
+  auth?: VerifiedAuth,
 ): IdentitySource {
+  if (environment.LOCAL_IDENTITY_ENABLED && environment.AUTH_ENABLED) {
+    throw new IdentityConfigurationError(
+      'Generated and verified identity cannot be enabled together.',
+    );
+  }
   if (!environment.LOCAL_IDENTITY_ENABLED) {
+    if (environment.AUTH_ENABLED && auth) {
+      return new VerifiedSessionIdentitySource(auth);
+    }
+    if (environment.AUTH_ENABLED) {
+      throw new IdentityConfigurationError(
+        'Verified authentication requires its configured provider.',
+      );
+    }
     return new UnavailableIdentitySource();
   }
   if (!['local', 'test'].includes(environment.DRONE_WORKS_ENV)) {
@@ -101,6 +152,11 @@ export function assertIdentityConfiguration(
   identitySource: IdentitySource,
 ): void {
   const localOrTest = ['local', 'test'].includes(environment.DRONE_WORKS_ENV);
+  if (environment.LOCAL_IDENTITY_ENABLED && environment.AUTH_ENABLED) {
+    throw new IdentityConfigurationError(
+      'Generated and verified identity cannot be enabled together.',
+    );
+  }
   if (
     identitySource.kind === 'generated-persona' &&
     (!localOrTest || !environment.LOCAL_IDENTITY_ENABLED)
@@ -115,6 +171,27 @@ export function assertIdentityConfiguration(
   ) {
     throw new IdentityConfigurationError(
       'The local identity flag requires the generated persona adapter.',
+    );
+  }
+  if (environment.AUTH_ENABLED && identitySource.kind !== 'verified-session') {
+    throw new IdentityConfigurationError(
+      'The verified authentication flag requires the session adapter.',
+    );
+  }
+  if (
+    identitySource.kind === 'verified-session' &&
+    (!environment.AUTH_ENABLED || environment.LOCAL_IDENTITY_ENABLED)
+  ) {
+    throw new IdentityConfigurationError(
+      'Verified sessions require the exclusive authentication flag.',
+    );
+  }
+  if (
+    ['staging', 'production'].includes(environment.DRONE_WORKS_ENV) &&
+    identitySource.kind !== 'verified-session'
+  ) {
+    throw new IdentityConfigurationError(
+      'Hosted startup requires verified sessions.',
     );
   }
 }

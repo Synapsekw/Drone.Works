@@ -18,12 +18,14 @@ import {
 const alphaOrganizationId = '00000000-0000-4000-8000-0000000000a1';
 const betaOrganizationId = '00000000-0000-4000-8000-0000000000b1';
 const localEnvironment = {
+  AUTH_ENABLED: false,
   DRONE_WORKS_ENV: 'test',
   HOST: '127.0.0.1',
   LOCAL_IDENTITY_ENABLED: true,
   PORT: 1,
 };
 const hostedEnvironment = {
+  AUTH_ENABLED: true,
   DRONE_WORKS_ENV: 'staging',
   HOST: '127.0.0.1',
   LOCAL_IDENTITY_ENABLED: false,
@@ -119,15 +121,12 @@ describe.sequential('A05 identity seam and organization authorization', () => {
     });
     expect(forgedToken.statusCode).toBe(401);
 
-    const hosted = await buildApi({
-      environment: hostedEnvironment,
-      identitySource: new UnavailableIdentitySource(),
-    });
-    expect([...hosted.controlRouteInventory]).toEqual([]);
-    expect(Object.keys(hosted.app.swagger().paths)).not.toContain(
-      '/_local/generated-personas/select',
-    );
-    await hosted.app.close();
+    await expect(
+      buildApi({
+        environment: hostedEnvironment,
+        identitySource: new UnavailableIdentitySource(),
+      }),
+    ).rejects.toBeInstanceOf(IdentityConfigurationError);
 
     expect(() =>
       createIdentitySource({

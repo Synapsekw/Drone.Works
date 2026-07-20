@@ -12,7 +12,17 @@ export type OrganizationRole = (typeof organizationRoles)[number];
 
 export interface AppIdentity {
   readonly displayName: string;
+  readonly sessionId?: string;
   readonly userId: string;
+  readonly verifiedEmail?: string;
+}
+
+export type InvitationRole = Exclude<OrganizationRole, 'owner'>;
+
+export interface OrganizationInvitation {
+  readonly expiresAt: Date;
+  readonly invitationId: string;
+  readonly role: InvitationRole;
 }
 
 export interface CreateOrganizationInput {
@@ -47,6 +57,13 @@ export class LastOwnerError extends Error {
   constructor() {
     super('An organization must retain at least one owner.');
     this.name = 'LastOwnerError';
+  }
+}
+
+export class AccountDeletionBlockedError extends Error {
+  constructor() {
+    super('Account deletion would leave an organization without an owner.');
+    this.name = 'AccountDeletionBlockedError';
   }
 }
 
@@ -412,5 +429,235 @@ export class OrganizationAuthorizationRepository {
         );
       },
     );
+  }
+
+  async createInvitation(
+    identity: AppIdentity,
+    organizationId: string,
+    input: {
+      readonly emailNormalized: string;
+      readonly expiresAt: Date;
+      readonly role: InvitationRole;
+      readonly tokenSha256: string;
+    },
+  ): Promise<OrganizationInvitation> {
+    return withOrganizationTransaction(
+      this.#pool,
+      organizationId,
+      async (transaction) => {
+        const actor = await currentMembership(transaction, identity.userId);
+        if (!canManageMembers(actor.role)) {
+          throw new OrganizationAccessDeniedError();
+        }
+        const invitationId = randomUUID();
+        await transaction.query(
+          `UPDATE droneworks.invitations
+              SET revoked_at = now()
+            WHERE organization_id = $1
+              AND email_normalized = $2
+              AND accepted_at IS NULL
+              AND revoked_at IS NULL`,
+          [transaction.organizationId, input.emailNormalized],
+        );
+        await transaction.query(
+          `INSERT INTO droneworks.invitations (
+             organization_id, id, email_normalized, role, token_sha256,
+             created_by_user_id, created_at, expires_at
+           ) VALUES ($1, $2, $3, $4, $5, $6, now(), $7)`,
+          [
+            transaction.organizationId,
+            invitationId,
+            input.emailNormalized,
+            input.role,
+            input.tokenSha256,
+            identity.userId,
+            input.expiresAt,
+          ],
+        );
+        await writeAudit(
+          transaction,
+          identity.userId,
+          'invitation.created',
+          'invitation',
+          invitationId,
+          ['email_normalized', 'expires_at', 'role'],
+        );
+        return {
+          expiresAt: input.expiresAt,
+          invitationId,
+          role: input.role,
+        };
+      },
+    );
+  }
+
+  async acceptInvitation(
+    identity: AppIdentity,
+    organizationId: string,
+    tokenSha256: string,
+  ): Promise<Membership> {
+    const verifiedEmail = identity.verifiedEmail?.trim().toLowerCase();
+    if (!verifiedEmail) throw new OrganizationAccessDeniedError();
+    return withOrganizationTransaction(
+      this.#pool,
+      organizationId,
+      async (transaction) => {
+        const result = await transaction.query<{
+          readonly accepted_at: Date | null;
+          readonly accepted_by_user_id: string | null;
+          readonly email_normalized: string;
+          readonly expires_at: Date;
+          readonly id: string;
+          readonly revoked_at: Date | null;
+          readonly role: InvitationRole;
+        }>(
+          `SELECT id, email_normalized, role, expires_at, accepted_at,
+                  accepted_by_user_id, revoked_at
+             FROM droneworks.invitations
+            WHERE organization_id = $1
+              AND token_sha256 = $2
+              FOR UPDATE`,
+          [transaction.organizationId, tokenSha256],
+        );
+        const invitation = result.rows[0];
+        if (
+          !invitation ||
+          invitation.revoked_at ||
+          invitation.accepted_at ||
+          invitation.email_normalized !== verifiedEmail ||
+          invitation.expires_at.valueOf() <= Date.now()
+        ) {
+          throw new OrganizationAccessDeniedError();
+        }
+
+        const existing = await transaction.query<MembershipRow>(
+          `SELECT membership.user_id,
+                  membership.role,
+                  pilot.id AS pilot_profile_id
+             FROM droneworks.memberships AS membership
+             LEFT JOIN droneworks.pilot_profiles AS pilot
+               ON (pilot.organization_id, pilot.membership_user_id) =
+                  (membership.organization_id, membership.user_id)
+            WHERE membership.organization_id = $1
+              AND membership.user_id = $2`,
+          [transaction.organizationId, identity.userId],
+        );
+        const current = existing.rows[0];
+        if (current && current.role !== invitation.role) {
+          throw new OrganizationAccessDeniedError();
+        }
+
+        await transaction.query(
+          `INSERT INTO droneworks.memberships (
+             organization_id, user_id, role, created_at
+           ) VALUES ($1, $2, $3, now())
+           ON CONFLICT (organization_id, user_id) DO NOTHING`,
+          [transaction.organizationId, identity.userId, invitation.role],
+        );
+        let pilotProfileId = current?.pilot_profile_id ?? null;
+        if (!pilotProfileId) {
+          pilotProfileId = randomUUID();
+          await transaction.query(
+            `INSERT INTO droneworks.pilot_profiles (
+               organization_id, id, display_name, membership_user_id,
+               created_at
+             ) VALUES ($1, $2, $3, $4, now())`,
+            [
+              transaction.organizationId,
+              pilotProfileId,
+              identity.displayName,
+              identity.userId,
+            ],
+          );
+        }
+        await transaction.query(
+          `UPDATE droneworks.invitations
+              SET accepted_at = now(), accepted_by_user_id = $3
+            WHERE organization_id = $1
+              AND id = $2`,
+          [transaction.organizationId, invitation.id, identity.userId],
+        );
+        await writeAudit(
+          transaction,
+          identity.userId,
+          'invitation.accepted',
+          'invitation',
+          invitation.id,
+          ['accepted_at', 'accepted_by_user_id'],
+        );
+        await writeAudit(
+          transaction,
+          identity.userId,
+          'membership.created_from_invitation',
+          'membership',
+          identity.userId,
+          ['role'],
+        );
+        return {
+          pilotProfileId,
+          role: invitation.role,
+          userId: identity.userId,
+        };
+      },
+    );
+  }
+
+  async revokeInvitation(
+    identity: AppIdentity,
+    organizationId: string,
+    invitationId: string,
+  ): Promise<void> {
+    return withOrganizationTransaction(
+      this.#pool,
+      organizationId,
+      async (transaction) => {
+        const actor = await currentMembership(transaction, identity.userId);
+        if (!canManageMembers(actor.role)) {
+          throw new OrganizationAccessDeniedError();
+        }
+        const revoked = await transaction.query(
+          `UPDATE droneworks.invitations
+              SET revoked_at = now()
+            WHERE organization_id = $1
+              AND id = $2
+              AND accepted_at IS NULL
+              AND revoked_at IS NULL`,
+          [transaction.organizationId, invitationId],
+        );
+        if (revoked.rowCount !== 1) throw new OrganizationAccessDeniedError();
+        await writeAudit(
+          transaction,
+          identity.userId,
+          'invitation.revoked',
+          'invitation',
+          invitationId,
+          ['revoked_at'],
+        );
+      },
+    );
+  }
+
+  async prepareAuthUserDeletion(userId: string): Promise<void> {
+    const client = await this.#pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('SELECT droneworks.prepare_auth_user_deletion($1)', [
+        userId,
+      ]);
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      if (
+        error &&
+        typeof error === 'object' &&
+        'code' in error &&
+        error.code === 'P0001'
+      ) {
+        throw new AccountDeletionBlockedError();
+      }
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 }

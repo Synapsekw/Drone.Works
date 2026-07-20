@@ -1,7 +1,7 @@
 # Decision Log — Drone.Works
 
 Status: active
-Last updated: 2026-07-17
+Last updated: 2026-07-20
 
 This file records architectural and implementation decisions. Product behavior belongs in `BEHAVIOR.md`; unresolved choices remain open here until accepted.
 
@@ -549,6 +549,26 @@ provider organization/role claims do not grant access and that revocation fails
 immediately. The comparison and remaining real-package integration gates are in
 [`../research/AUTHENTICATION-EVALUATION.md`](../research/AUTHENTICATION-EVALUATION.md).
 
+### Phase 1A A13b evidence — 2026-07-20
+
+Drone.Works pins `better-auth@1.6.23` with registry integrity and a reviewed,
+checksum-pinned PostgreSQL migration. Auth tables and payload-free auth audits
+live in `droneworks_auth`; the no-bypass auth login has no customer-schema
+authority. App-owned invitations remain forced-RLS customer records with only a
+hashed token, and a narrow app-only deletion function removes memberships while
+blocking every final-owner deletion.
+
+The real adapter requires verified email and online sessions, uses hosted
+Secure/HttpOnly/SameSite=Lax cookies, retains CSRF/origin and redirect checks,
+rate limits sensitive operations, disables implicit account linking, revokes
+sessions on recovery, and keeps authentication audit rows free of email,
+password, cookie, and token payloads. Provider active-organization/role headers
+cannot elevate access; membership revocation blocks the next domain operation
+even while the auth session remains live. Hosted artifacts contain neither the
+generated-persona endpoint nor its controls. The verified browser replay and
+the unchanged A13a replay both pass; evidence is retained in
+`../testing/A13B-AUTH-EVIDENCE.md`.
+
 ## D-014 — AWS private-beta deployment and versioned object lifecycle
 
 Status: accepted
@@ -722,6 +742,23 @@ raw/telemetry objects after transactional teardown. This is local functional
 evidence only: it does not prove authentication, production secret management,
 hosted containment, AWS readiness, or release readiness. The sanitized result
 matrix is retained in `../testing/A13A-FUNCTIONAL-EVIDENCE.md`.
+
+### Phase 1A A13b evidence — 2026-07-20
+
+The provider-neutral seam now runs both permitted modes: explicit local/test
+generated personas for disposable development and verified Better Auth sessions
+for the authenticated application. The hosted build imports only the verified
+entry and contains no generated endpoint or control string; staging/production
+startup requires the verified-session adapter. All domain reads and mutations
+remain under `/api/v1/`, with `/api/auth/` limited to identity lifecycle.
+
+The same destructive flight path passes under a verified HttpOnly-cookie
+session and again under the original generated persona. Both runs prove worker
+recovery, exact duplicate reuse, corrupt isolation, Alpha/Beta denial,
+coordinate/network privacy, payload-redacted logs, and complete organization
+purge. A13b therefore satisfies D-015's replacement/replay gate without changing
+domain authorization. It does not provision or authorize AWS; A14 remains the
+next gate.
 
 ### Phase 1A A05 evidence — 2026-07-16
 

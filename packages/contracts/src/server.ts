@@ -85,6 +85,49 @@ export const membershipListSchema = Type.Object(
   { $id: 'MembershipList', additionalProperties: false },
 );
 
+export const invitationRoleSchema = Type.Union([
+  Type.Literal('admin'),
+  Type.Literal('pilot'),
+  Type.Literal('viewer'),
+]);
+
+export const invitationPathSchema = Type.Object(
+  {
+    organization_id: uuidStringSchema,
+    invitation_id: uuidStringSchema,
+  },
+  { $id: 'InvitationPath', additionalProperties: false },
+);
+
+export const createInvitationBodySchema = Type.Object(
+  {
+    email: Type.String({
+      minLength: 3,
+      maxLength: 320,
+      pattern: '^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$',
+    }),
+    role: invitationRoleSchema,
+  },
+  { $id: 'CreateInvitationBody', additionalProperties: false },
+);
+
+export const acceptInvitationBodySchema = Type.Object(
+  {
+    token: Type.String({ minLength: 43, maxLength: 128 }),
+  },
+  { $id: 'AcceptInvitationBody', additionalProperties: false },
+);
+
+export const invitationSchema = Type.Object(
+  {
+    invitation_id: uuidStringSchema,
+    organization_id: uuidStringSchema,
+    role: invitationRoleSchema,
+    expires_at: Type.String({ format: 'date-time' }),
+  },
+  { $id: 'Invitation', additionalProperties: false },
+);
+
 export const rawUploadPathSchema = Type.Object(
   {
     organization_id: uuidStringSchema,
@@ -382,6 +425,9 @@ export type CreateOrganizationBody = Static<
 export type OrganizationPath = Static<typeof organizationPathSchema>;
 export type MembershipPath = Static<typeof membershipPathSchema>;
 export type PutMembershipBody = Static<typeof putMembershipBodySchema>;
+export type InvitationPath = Static<typeof invitationPathSchema>;
+export type CreateInvitationBody = Static<typeof createInvitationBodySchema>;
+export type AcceptInvitationBody = Static<typeof acceptInvitationBodySchema>;
 export type RawUploadPath = Static<typeof rawUploadPathSchema>;
 export type DeclareRawUploadBody = Static<typeof declareRawUploadBodySchema>;
 export type CompleteRawUploadBody = Static<typeof completeRawUploadBodySchema>;

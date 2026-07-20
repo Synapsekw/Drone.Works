@@ -1,7 +1,7 @@
 # Security boundaries
 
 Status: accepted Phase 0 baseline
-Last updated: 2026-07-17
+Last updated: 2026-07-20
 
 The abuse-case analysis and release gates are in
 [`../security/THREAT-MODEL.md`](../security/THREAT-MODEL.md) and
@@ -51,9 +51,25 @@ persona; it never supplies a user ID, organization ID, membership, or role.
 Every request still reloads current app-owned membership and enters PostgreSQL
 through the ordinary forced-RLS transaction. Hosted configuration must reject
 the adapter at startup and hosted route inventories must not contain its control.
-A13a evidence is neither authentication nor release evidence. A13b replaces the
-identity source with verified Better Auth sessions and repeats the complete
-functional and Alpha/Beta paths before A14.
+A13a evidence is neither authentication nor release evidence. A13b proves this
+adapter is absent from hosted artifacts and repeats the complete functional and
+Alpha/Beta paths through the verified-session adapter.
+
+## Verified identity boundary
+
+Better Auth 1.6.23 owns credentials, email verification, recovery tokens, and
+revocable sessions in the separate `droneworks_auth` schema. Its login is
+non-superuser/non-owner/non-BYPASSRLS and has no customer-table privileges. The
+API accepts only an online verified `userId`/`sessionId` result; provider
+organization and role claims are discarded before app-owned membership and
+forced RLS run.
+
+Hosted cookies are Secure, HttpOnly, SameSite=Lax. CSRF/origin and redirect
+allowlists remain enabled, implicit account linking is disabled, verification
+and recovery links expire, recovery revokes sessions, and sensitive routes are
+rate limited. Invitation tokens are random and persisted only as SHA-256; auth
+and domain audits store action/resource identifiers and changed-field names,
+never email, password, cookie, recovery/invitation token, or request payload.
 
 ## Data classes and cryptography
 

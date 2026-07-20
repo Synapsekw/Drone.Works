@@ -2,7 +2,7 @@
 
 Status: founding draft
 Version: 1.0
-Last updated: 2026-07-17
+Last updated: 2026-07-20
 
 This document defines observable product behavior. Technology choices and internal implementation details belong in `DECISIONS.md`. Acceptance examples for the first release live in `PHASE-1-ACCEPTANCE.md`.
 
@@ -12,6 +12,12 @@ This document defines observable product behavior. Technology choices and intern
 
 - All customer-owned domain resources belong to exactly one organization.
 - A user may belong to multiple organizations and operates in one selected organization at a time.
+- Email/password registration requires email verification before a user can
+  enter customer domain data. Sessions are revocable independently of
+  organization membership.
+- Invitations are organization-owned, random, expiring, single-use records.
+  Acceptance requires a signed-in user's verified normalized email to match the
+  invited address; provider organization and role claims are ignored.
 - Creating an organization generates its identifier on the server, makes the
   creating user its owner, and creates an active pilot profile linked to that
   owner membership.
@@ -29,6 +35,9 @@ This document defines observable product behavior. Technology choices and intern
 - Removing a membership takes effect on the next organization operation,
   unlinks but does not delete its pilot profile, and cannot remove or demote the
   organization's last owner.
+- Account deletion revokes the user's sessions and removes current memberships
+  without deleting retained pilot history. It fails until ownership is
+  transferred for every organization where the user is the final owner.
 
 ### Phase 1 role behavior
 
@@ -287,12 +296,18 @@ An imported identifier results in one of four visible outcomes:
 - Creation operations accept idempotency keys. Repeating a completed request with the same key and equivalent input returns the original result.
 - Breaking contract changes require a new API version. Additive fields may appear in v1, so clients must ignore unknown fields.
 - Phase 1 uses web sessions. Public API-key creation and webhook subscriptions are deferred, but authorization is modeled independently of session handling.
-- Auth/session and future billing callbacks are the only standing exceptions to the first-party API rule. Any new exception requires an accepted entry in `DECISIONS.md`.
+- Auth/session operations under `/api/auth/` and future billing callbacks are the
+  only standing exceptions to the first-party API rule. Auth operations cannot
+  mutate customer-domain state except through reviewed app-owned services. Any
+  new exception requires an accepted entry in `DECISIONS.md`.
 - The local generated-persona control is the D-015 identity-harness exception,
   not a domain operation. Every browser domain read or mutation, including
   organization selection, upload, status, summary, and track, uses the generated
   `/api/v1/` client. Switching persona or organization aborts polling and clears
   all organization-bound upload, status, summary, track, and error state.
+- The hosted web uses an online verified session for the same generated
+  `/api/v1/` client operations. Signing out, switching user, or switching
+  organization clears the same organization-bound browser state and cache.
 
 ## 9. Privacy, retention, and security behavior
 

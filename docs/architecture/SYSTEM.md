@@ -1,7 +1,7 @@
 # Phase 1A system architecture
 
 Status: accepted Phase 0 baseline
-Last updated: 2026-07-19
+Last updated: 2026-07-20
 
 ## System shape
 
@@ -55,11 +55,11 @@ one generated user ID; the browser cannot submit arbitrary user, organization,
 membership, or role identifiers. Canonical membership, application role checks,
 organization-required repositories, and forced RLS remain unchanged.
 
-A13b replaces that identity source with verified Better Auth sessions and reruns
-the complete functional and Alpha/Beta paths. Staging and production startup
-reject the development adapter, and A14 cannot begin until A13b passes. Local
-PostgreSQL remains the primary development database throughout; only managed RDS
-is deferred.
+A13b now supplies verified Better Auth sessions and has rerun the complete
+functional and Alpha/Beta paths. The original persona remains an explicit
+local/test-only mode; hosted artifacts exclude its endpoint and controls, while
+staging and production startup require verified sessions. Local PostgreSQL
+remains the primary development database; managed RDS is deferred to A14.
 
 ## Initial AWS topology
 
@@ -107,16 +107,16 @@ and [S3 version-deletion behavior](https://docs.aws.amazon.com/AmazonS3/latest/u
 
 ## Component ownership and exit
 
-| Component             | Operational owner                         | Primary failure mode                                           | Exit cost / replacement boundary                                                                                        |
-| --------------------- | ----------------------------------------- | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| Web/API/worker images | Drone.Works engineering                   | Bad deploy or exhausted host                                   | Rebuild OCI images on another container host; no domain rewrite.                                                        |
-| PostgreSQL/RDS        | Engineering; AWS manages service hardware | unavailable instance, bad migration, pool exhaustion           | Standard PostgreSQL dump/restore plus reviewed SQL; RLS contract travels with migrations.                               |
-| pg-boss/outbox        | Engineering                               | stuck/duplicate/abandoned job                                  | Job payload/version and handler boundaries permit another queue; domain handlers remain idempotent.                     |
-| Better Auth           | Engineering                               | login outage, security advisory, migration error               | Identity adapter exposes only user/session IDs; export auth rows and replace the provider without changing memberships. |
-| S3                    | Engineering; AWS manages durability       | denied request, throttling, region outage, incomplete deletion | Object keys, checksums, version IDs, and adapter contract map to another S3-compatible store.                           |
-| Parser                | Engineering                               | malformed input, resource exhaustion, unsupported version      | Replace the digest-pinned CLI behind the versioned intermediate contract and rerun the release/containment gate.        |
-| CloudWatch            | Engineering                               | missing/delayed telemetry or excess log cost                   | OpenTelemetry-compatible application signals and structured JSON can move to another backend.                           |
-| Email and map tiles   | Engineering                               | provider outage or quota                                       | Application-owned adapters; providers remain Phase 1A procurement tasks.                                                |
+| Component             | Operational owner                         | Primary failure mode                                           | Exit cost / replacement boundary                                                                                            |
+| --------------------- | ----------------------------------------- | -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Web/API/worker images | Drone.Works engineering                   | Bad deploy or exhausted host                                   | Rebuild OCI images on another container host; no domain rewrite.                                                            |
+| PostgreSQL/RDS        | Engineering; AWS manages service hardware | unavailable instance, bad migration, pool exhaustion           | Standard PostgreSQL dump/restore plus reviewed SQL; RLS contract travels with migrations.                                   |
+| pg-boss/outbox        | Engineering                               | stuck/duplicate/abandoned job                                  | Job payload/version and handler boundaries permit another queue; domain handlers remain idempotent.                         |
+| Better Auth           | Engineering                               | login outage, security advisory, migration error               | Exact 1.6.23 core behind an adapter; auth rows restore with PostgreSQL while app-owned memberships remain provider-neutral. |
+| S3                    | Engineering; AWS manages durability       | denied request, throttling, region outage, incomplete deletion | Object keys, checksums, version IDs, and adapter contract map to another S3-compatible store.                               |
+| Parser                | Engineering                               | malformed input, resource exhaustion, unsupported version      | Replace the digest-pinned CLI behind the versioned intermediate contract and rerun the release/containment gate.            |
+| CloudWatch            | Engineering                               | missing/delayed telemetry or excess log cost                   | OpenTelemetry-compatible application signals and structured JSON can move to another backend.                               |
+| Email and map tiles   | Engineering                               | provider outage or quota                                       | Application-owned adapters; providers remain Phase 1A procurement tasks.                                                    |
 
 ## Phase 1A vertical flow
 

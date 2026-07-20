@@ -1,7 +1,7 @@
 # Phase 1A implementation backlog
 
 Status: implementation-ready
-Last updated: 2026-07-17
+Last updated: 2026-07-20
 Outcome: an authorized user enters an organization, uploads one supported DJI
 log, observes isolated asynchronous processing, and opens a flight summary with
 a 2D track.
@@ -552,6 +552,18 @@ evidence format. The environment remains disposable, generated, and no-cloud.
 
 ### A13b — Replace the development identity with verified sessions
 
+**Status:** Complete (2026-07-20). Evidence: exact
+`better-auth@1.6.23` is lockfile/integrity pinned with reviewed migration 004;
+`pnpm test:auth` passes registration, verification, session, recovery,
+invitation, revocation, final-owner, deletion, secure-cookie, origin/redirect,
+rate-limit, audit-redaction, migration-drift, claim-mismatch, and hosted-control
+exclusion scenarios. `pnpm test:e2e:local` repeats the complete browser path
+under verified HttpOnly-cookie sessions, and `pnpm test:e2e:functional` keeps
+the A13a local adapter regression green. The sanitized matrix is retained in
+`../testing/A13B-AUTH-EVIDENCE.md`; the production dependency audit is clean
+after pinning patched PostCSS 8.5.19. No AWS resource or hosted credential was
+created.
+
 **Outcome:** A verified user can register/sign in, create or enter an
 organization, run the same functional path, and be revoked without provider
 claims becoming authorization; the development identity remains unavailable in
@@ -580,10 +592,11 @@ identity operation; the repeated A13a path remains green.
 claim-mismatch, revoked session, last-owner, secure-cookie, CSRF/origin, redirect,
 rate-limit, provider-migration, local-adapter absence, and full-path replay tests.
 
-**Contract impact:** Adds auth callbacks and session schemas, confirms the local
-persona control remains excluded from public and hosted route inventories, and
-updates generated OpenAPI. No role behavior changes from the accepted app-owned
-contract.
+**Contract impact:** Adds app-owned invitation operations and schemas to the
+generated `/api/v1/` OpenAPI/client. Better Auth callbacks remain a narrow
+separate route inventory outside the domain OpenAPI. The local persona control
+remains excluded from public and hosted route inventories; no role behavior
+changes from the accepted app-owned contract.
 
 **Operational impact:** Auth migrations, local email capture, session cleanup,
 auth alerts, incident revocation, backup/deletion ownership, and the hard

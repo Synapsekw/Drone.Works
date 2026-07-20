@@ -35,6 +35,10 @@ const customerTables = Object.freeze(
   [...keychainCustomerTables, 'aircraft_identifiers'].sort(),
 );
 
+const verifiedAuthCustomerTables = Object.freeze(
+  [...customerTables, 'invitations'].sort(),
+);
+
 interface MigrationManifestEntry {
   readonly id: string;
   readonly sha256: string;
@@ -90,6 +94,14 @@ const manifest: readonly MigrationManifestEntry[] = Object.freeze([
       '../sql/migrations/003_canonical_normalization.sql',
       import.meta.url,
     ),
+  }),
+  Object.freeze({
+    id: '004_verified_auth',
+    sha256: '01955a4a59d24461e0b0f161094c9bb1a9140fc453027919f1d89d715ef922a0',
+    isolationSha256:
+      'fc65745bfc3c6e986754f1705cce5921d0916ca0e8bde1b47b8f81b1ff97f270',
+    expectedTables: verifiedAuthCustomerTables,
+    url: new URL('../sql/migrations/004_verified_auth.sql', import.meta.url),
   }),
 ]);
 

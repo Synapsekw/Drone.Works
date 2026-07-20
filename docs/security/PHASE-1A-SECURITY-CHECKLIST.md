@@ -1,7 +1,7 @@
 # Phase 1A security acceptance checklist
 
 Status: required for the walking skeleton
-Last updated: 2026-07-16
+Last updated: 2026-07-20
 
 Evidence must link to a CI run, reviewed configuration, drill record, or test.
 An unchecked blocking item keeps the stated boundary disabled.
@@ -20,13 +20,13 @@ An unchecked blocking item keeps the stated boundary disabled.
 ## Before staging promotion
 
 - [x] Staging/production startup rejects the development identity adapter and
-  hosted route inventories contain no persona control. A05 configuration and
-  route-inventory tests run in `pnpm test:authorization`.
+      hosted route inventories contain no persona control. A05 configuration and
+      route-inventory tests run in `pnpm test:authorization`.
 - [x] Alpha/Beta negative suite passes with the ordinary non-owner pooled
-  database role. A04/A05 evidence runs in `pnpm test:database` and
-  `pnpm test:authorization`.
+      database role. A04/A05 evidence runs in `pnpm test:database` and
+      `pnpm test:authorization`.
 - [x] Migration checksums, independent ledger, grants, owners, RLS, and
-  isolation digest pass in the A04 native PostgreSQL suite.
+      isolation digest pass in the A04 native PostgreSQL suite.
 - [ ] Outbox atomicity, stable dispatch, retry, cancellation, stale lease, and queue metrics pass.
 - [ ] Parser image signature/SBOM passes; no-network and every resource/output limit are asserted.
 - [ ] Poison input fails independently and a following valid parse succeeds.
@@ -42,8 +42,13 @@ An unchecked blocking item keeps the stated boundary disabled.
 - [ ] The object suite passes against a temporary private AWS bucket, CloudTrail is reviewed, and test resources are destroyed.
 - [ ] Generated-data RDS point-in-time restore completes within four hours in isolation.
 - [ ] Restore replays synthetic deletion receipts before exposure and verifies no deleted rows or S3 versions return.
-- [ ] Better Auth registration, verification, login, linking, recovery, invite, revocation, last-owner, and deletion tests pass.
-- [ ] Hosted cookies are Secure/HttpOnly/SameSite, CSRF/origin controls pass, and auth/email rate limits alert.
+- [x] Better Auth registration, verification, login, organization/pilot linking,
+      recovery, invite, revocation, last-owner, and deletion tests pass in
+      `pnpm test:auth`.
+- [x] Hosted cookie attributes are Secure/HttpOnly/SameSite; CSRF/origin,
+      redirect, and sensitive-route rate-limit controls pass locally.
+- [ ] Hosted trusted-proxy client-IP policy, transactional email delivery, and
+      auth/email rate-limit alerts pass in the deployed environment.
 - [ ] Workload roles use no static cloud key; parser receives no environment secret, network, DB, or host IAM access.
 - [ ] Application/control log retention is 30/90 days and sample review finds no forbidden payload.
 - [ ] Federated MFA operator, SSM, CloudTrail, approval, and break-glass alert/rotation drill pass.

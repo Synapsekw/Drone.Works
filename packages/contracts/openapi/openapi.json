@@ -359,6 +359,126 @@
         "type": "object",
         "required": [
           "organization_id",
+          "invitation_id"
+        ],
+        "properties": {
+          "organization_id": {
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+            "type": "string"
+          },
+          "invitation_id": {
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+            "type": "string"
+          }
+        },
+        "title": "InvitationPath"
+      },
+      "def-11": {
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "email",
+          "role"
+        ],
+        "properties": {
+          "email": {
+            "minLength": 3,
+            "maxLength": 320,
+            "pattern": "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$",
+            "type": "string"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "admin"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "pilot"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "viewer"
+                ]
+              }
+            ]
+          }
+        },
+        "title": "CreateInvitationBody"
+      },
+      "def-12": {
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "token"
+        ],
+        "properties": {
+          "token": {
+            "minLength": 43,
+            "maxLength": 128,
+            "type": "string"
+          }
+        },
+        "title": "AcceptInvitationBody"
+      },
+      "def-13": {
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "invitation_id",
+          "organization_id",
+          "role",
+          "expires_at"
+        ],
+        "properties": {
+          "invitation_id": {
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+            "type": "string"
+          },
+          "organization_id": {
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+            "type": "string"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "admin"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "pilot"
+                ]
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "viewer"
+                ]
+              }
+            ]
+          },
+          "expires_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "title": "Invitation"
+      },
+      "def-14": {
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "organization_id",
           "upload_id"
         ],
         "properties": {
@@ -373,7 +493,7 @@
         },
         "title": "RawUploadPath"
       },
-      "def-11": {
+      "def-15": {
         "additionalProperties": true,
         "type": "object",
         "required": [
@@ -388,7 +508,7 @@
         },
         "title": "IdempotencyHeaders"
       },
-      "def-12": {
+      "def-16": {
         "additionalProperties": false,
         "type": "object",
         "required": [
@@ -427,7 +547,7 @@
         },
         "title": "DeclareRawUploadBody"
       },
-      "def-13": {
+      "def-17": {
         "additionalProperties": false,
         "type": "object",
         "required": [
@@ -453,7 +573,7 @@
         },
         "title": "RawUploadDeclaration"
       },
-      "def-14": {
+      "def-18": {
         "additionalProperties": false,
         "type": "object",
         "required": [
@@ -477,7 +597,7 @@
         },
         "title": "RawUploadContent"
       },
-      "def-15": {
+      "def-19": {
         "additionalProperties": false,
         "type": "object",
         "required": [
@@ -497,7 +617,7 @@
         },
         "title": "CompleteRawUploadBody"
       },
-      "def-16": {
+      "def-20": {
         "additionalProperties": false,
         "type": "object",
         "required": [
@@ -557,7 +677,7 @@
         },
         "title": "RawUpload"
       },
-      "def-17": {
+      "def-21": {
         "additionalProperties": false,
         "type": "object",
         "required": [
@@ -576,7 +696,7 @@
         },
         "title": "ImportPath"
       },
-      "def-18": {
+      "def-22": {
         "additionalProperties": false,
         "type": "object",
         "required": [
@@ -714,7 +834,7 @@
         },
         "title": "ImportStatus"
       },
-      "def-19": {
+      "def-23": {
         "additionalProperties": false,
         "type": "object",
         "required": [
@@ -733,7 +853,7 @@
         },
         "title": "FlightPath"
       },
-      "def-20": {
+      "def-24": {
         "additionalProperties": false,
         "type": "object",
         "required": [
@@ -1237,7 +1357,7 @@
         },
         "title": "FlightFacts"
       },
-      "def-21": {
+      "def-25": {
         "additionalProperties": false,
         "type": "object",
         "required": [
@@ -1275,7 +1395,7 @@
         },
         "title": "FlightTelemetrySummary"
       },
-      "def-22": {
+      "def-26": {
         "additionalProperties": false,
         "type": "object",
         "required": [
@@ -1421,12 +1541,12 @@
             }
           },
           "facts": {
-            "$ref": "#/components/schemas/def-20"
+            "$ref": "#/components/schemas/def-24"
           },
           "telemetry": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/def-21"
+                "$ref": "#/components/schemas/def-25"
               },
               {
                 "type": "null"
@@ -1436,7 +1556,7 @@
         },
         "title": "FlightSummary"
       },
-      "def-23": {
+      "def-27": {
         "additionalProperties": false,
         "type": "object",
         "properties": {
@@ -1468,7 +1588,7 @@
         },
         "title": "FlightTrackQuery"
       },
-      "def-24": {
+      "def-28": {
         "additionalProperties": false,
         "type": "object",
         "required": [
@@ -1623,7 +1743,7 @@
         },
         "title": "FlightTrackPoint"
       },
-      "def-25": {
+      "def-29": {
         "additionalProperties": false,
         "type": "object",
         "required": [
@@ -1654,7 +1774,7 @@
         },
         "title": "FlightTelemetryRange"
       },
-      "def-26": {
+      "def-30": {
         "additionalProperties": false,
         "type": "object",
         "required": [
@@ -1666,24 +1786,24 @@
         ],
         "properties": {
           "altitude_msl_m": {
-            "$ref": "#/components/schemas/def-25"
+            "$ref": "#/components/schemas/def-29"
           },
           "battery_charge_percent": {
-            "$ref": "#/components/schemas/def-25"
+            "$ref": "#/components/schemas/def-29"
           },
           "height_agl_m": {
-            "$ref": "#/components/schemas/def-25"
+            "$ref": "#/components/schemas/def-29"
           },
           "horizontal_speed_mps": {
-            "$ref": "#/components/schemas/def-25"
+            "$ref": "#/components/schemas/def-29"
           },
           "vertical_speed_mps": {
-            "$ref": "#/components/schemas/def-25"
+            "$ref": "#/components/schemas/def-29"
           }
         },
         "title": "FlightTrackStatistics"
       },
-      "def-27": {
+      "def-31": {
         "additionalProperties": false,
         "type": "object",
         "required": [
@@ -1761,13 +1881,13 @@
             "type": "integer"
           },
           "statistics": {
-            "$ref": "#/components/schemas/def-26"
+            "$ref": "#/components/schemas/def-30"
           },
           "samples": {
             "maxItems": 2000,
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/def-24"
+              "$ref": "#/components/schemas/def-28"
             }
           }
         },
@@ -2762,6 +2882,553 @@
               "application/json": {
                 "schema": {
                   "description": "The membership was removed."
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "The request was denied or could not be accepted.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "instance",
+                    "correlation_id"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "minimum": 400,
+                      "maximum": 599,
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "correlation_id": {
+                      "type": "string"
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/def-0"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "The request could not be completed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "instance",
+                    "correlation_id"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "minimum": 400,
+                      "maximum": 599,
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "correlation_id": {
+                      "type": "string"
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/def-0"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organizations/{organization_id}/invitations": {
+      "post": {
+        "operationId": "createInvitation",
+        "summary": "Create an organization invitation",
+        "tags": [
+          "invitations"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "type": "object",
+                "required": [
+                  "email",
+                  "role"
+                ],
+                "properties": {
+                  "email": {
+                    "minLength": 3,
+                    "maxLength": 320,
+                    "pattern": "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$",
+                    "type": "string"
+                  },
+                  "role": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "admin"
+                        ]
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "pilot"
+                        ]
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "viewer"
+                        ]
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "type": "string"
+            },
+            "in": "path",
+            "name": "organization_id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "A single-use organization invitation was created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "invitation_id",
+                    "organization_id",
+                    "role",
+                    "expires_at"
+                  ],
+                  "properties": {
+                    "invitation_id": {
+                      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+                      "type": "string"
+                    },
+                    "organization_id": {
+                      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+                      "type": "string"
+                    },
+                    "role": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "admin"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "pilot"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "viewer"
+                          ]
+                        }
+                      ]
+                    },
+                    "expires_at": {
+                      "format": "date-time",
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "The request was denied or could not be accepted.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "instance",
+                    "correlation_id"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "minimum": 400,
+                      "maximum": 599,
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "correlation_id": {
+                      "type": "string"
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/def-0"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "The request could not be completed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "instance",
+                    "correlation_id"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "minimum": 400,
+                      "maximum": 599,
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "correlation_id": {
+                      "type": "string"
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/def-0"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organizations/{organization_id}/invitations/accept": {
+      "post": {
+        "operationId": "acceptInvitation",
+        "summary": "Accept an organization invitation",
+        "tags": [
+          "invitations"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "type": "object",
+                "required": [
+                  "token"
+                ],
+                "properties": {
+                  "token": {
+                    "minLength": 43,
+                    "maxLength": 128,
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "type": "string"
+            },
+            "in": "path",
+            "name": "organization_id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The verified matching user accepted the invitation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "user_id",
+                    "role",
+                    "pilot_profile_id"
+                  ],
+                  "properties": {
+                    "user_id": {
+                      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+                      "type": "string"
+                    },
+                    "role": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "owner"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "admin"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "pilot"
+                          ]
+                        },
+                        {
+                          "type": "string",
+                          "enum": [
+                            "viewer"
+                          ]
+                        }
+                      ]
+                    },
+                    "pilot_profile_id": {
+                      "anyOf": [
+                        {
+                          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "The request was denied or could not be accepted.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "instance",
+                    "correlation_id"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "minimum": 400,
+                      "maximum": 599,
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "correlation_id": {
+                      "type": "string"
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/def-0"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "The request could not be completed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "instance",
+                    "correlation_id"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "minimum": 400,
+                      "maximum": 599,
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    },
+                    "correlation_id": {
+                      "type": "string"
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/def-0"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organizations/{organization_id}/invitations/{invitation_id}": {
+      "delete": {
+        "operationId": "revokeInvitation",
+        "summary": "Revoke an organization invitation",
+        "tags": [
+          "invitations"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "type": "string"
+            },
+            "in": "path",
+            "name": "organization_id",
+            "required": true
+          },
+          {
+            "schema": {
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "type": "string"
+            },
+            "in": "path",
+            "name": "invitation_id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "The pending invitation was revoked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "The pending invitation was revoked."
                 }
               }
             }
@@ -4363,12 +5030,12 @@
                       }
                     },
                     "facts": {
-                      "$ref": "#/components/schemas/def-20"
+                      "$ref": "#/components/schemas/def-24"
                     },
                     "telemetry": {
                       "anyOf": [
                         {
-                          "$ref": "#/components/schemas/def-21"
+                          "$ref": "#/components/schemas/def-25"
                         },
                         {
                           "type": "null"
@@ -4627,13 +5294,13 @@
                       "type": "integer"
                     },
                     "statistics": {
-                      "$ref": "#/components/schemas/def-26"
+                      "$ref": "#/components/schemas/def-30"
                     },
                     "samples": {
                       "maxItems": 2000,
                       "type": "array",
                       "items": {
-                        "$ref": "#/components/schemas/def-24"
+                        "$ref": "#/components/schemas/def-28"
                       }
                     }
                   }

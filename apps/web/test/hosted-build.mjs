@@ -40,6 +40,7 @@ await rm(join(webRoot, '.next'), { force: true, recursive: true });
 await run(['build'], {
   API_INTERNAL_URL: 'http://127.0.0.1:9',
   DRONE_WORKS_ENV: 'production',
+  DRONE_WORKS_AUTH_ENABLED: 'true',
   DRONE_WORKS_LOCAL_IDENTITY_ENABLED: 'false',
 });
 
@@ -89,6 +90,7 @@ const server = spawn(
       ...process.env,
       API_INTERNAL_URL: 'http://127.0.0.1:9',
       DRONE_WORKS_ENV: 'production',
+      DRONE_WORKS_AUTH_ENABLED: 'true',
       DRONE_WORKS_LOCAL_IDENTITY_ENABLED: 'false',
     },
     stdio: 'ignore',
@@ -110,7 +112,9 @@ try {
   const html = await response.text();
   assert.equal(html.includes('Generated Alpha owner'), false);
   assert.equal(html.includes('Local development identity'), false);
-  assert.match(html, /Verified identity required/);
+  assert.match(html, /Verified access/);
+  assert.match(html, /Register a verified user/);
+  assert.match(html, /Recover access/);
   const localControl = await fetch(
     `http://127.0.0.1:${port}/_local/generated-personas/select`,
     { method: 'POST' },

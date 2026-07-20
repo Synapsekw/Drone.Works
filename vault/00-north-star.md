@@ -1,11 +1,12 @@
 ---
 type: north-star
 status: active
-last-updated: 2026-07-20-1125
+last-updated: 2026-07-20-1535
 tags: [project/drone-works, north-star]
 related:
   - "[[project-history]]"
   - "[[memory]]"
+  - "[[2026-07-20-1535-local-batch-review]]"
   - "[[2026-07-20-1125-local-flight-library]]"
 ---
 
@@ -25,18 +26,18 @@ Drone.Works is an explainable operational record for small professional drone te
 |---|---|---|
 | Phase 0 — Technical discovery | Complete | Accepted evidence/decisions, safe external gates, threat model, and implementation-ready backlog. |
 | Phase 1A — Walking skeleton | In progress; hosted gate deferred | A01–A13b local/auth work is complete; A14 staging is intentionally paused under D-016. |
-| Phase 1B — Trustworthy imports | Active locally | LP02 batch truth and review inbox is the next product slice. |
+| Phase 1B — Trustworthy imports | Initial local slice complete | LP02 adds atomic batches, per-item outcome truth, duplicate review, attempt history, and safe retry; the broader phase gate remains open. |
 | Phase 1C — Operational logbook | Initial local slice complete | LP01 adds the flight library, dashboard totals, filters, direct detail opening, and synthetic replay. |
 | Phase 1D — Maintenance and hardening | Planned | Basic maintenance plus deletion, recovery, security, and operations gates. |
 
 ## Now
 
-- **Phase:** D-016 local product validation is active. A01–A13b remain complete; LP01 is complete, LP02 is next, and A14/cloud rollout is intentionally paused.
-- **Branch:** `main` is synchronized with `origin/main` through local flight-operations implementation commit `02c6812` before this vault closeout. The unrelated `.obsidian/app.json` change and two untracked `index 2.ts` copies remain unstaged and untouched.
-- **Completed evidence:** Entering a generated organization now loads its current flight library, active totals, search and review-state filter through the generated `/api/v1/` client. Three synthetic flights per organization make the dashboard immediately testable, and a listed flight opens a checksum-verified bounded provider-free track with truthful capabilities and gaps. Current membership, forced RLS, hosted persona exclusion, coordinate privacy, and organization-switch clearing remain enforced.
-- **Verification baseline:** Contract, flight API 7, database 7, web 7, auth 7, local smoke, full `pnpm verify`, and `pnpm build` pass. Hosted verify run `29724398981` passed workspace/build, native database/auth/authorization/upload/jobs/flight-API, and browser jobs on `02c6812`; parser evidence was not triggered because parser inputs did not change.
-- **Blocking evidence:** No product blocker exists for LP02. AWS/RDS, hosted credentials, external email, production map services, and customer data remain disabled by the accepted D-016 sequencing decision.
-- **Next technical action:** begin LP02 with a local batch-upload and review-inbox vertical slice that accounts for every file, preserves distinct terminal failures, supports safe retry, and exposes exact/probable duplicate outcomes without silent discard.
+- **Phase:** D-016 local product validation is active. A01–A13b, LP01, and LP02 are complete; LP03 is next, while A14/cloud rollout remains intentionally paused.
+- **Branch:** `main` is synchronized with `origin/main` through LP02 implementation commit `e4643d7` before this vault closeout. The unrelated `.obsidian/app.json` change and two untracked `index 2.ts` copies remain unstaged and untouched.
+- **Completed evidence:** A generated persona can declare and process a multi-file batch, follow batch and item progress, distinguish every accepted LP02 outcome, inspect preserved attempt history, safely retry an eligible failure, and open retained or candidate flight truth from the review inbox. Exact duplicates reuse the canonical flight; probable duplicates remain visible. Generated-client `/api/v1/` access, current membership, forced RLS, hosted persona exclusion, provider-free coordinate privacy, and organization-switch clearing remain enforced.
+- **Verification baseline:** Contract 4, database 7, authorization 6, upload 10, jobs 8, flight API 7, auth 7, browser 9, clean local smoke, full `pnpm verify`, and `pnpm build` pass. Hosted verify run `29732988094` passed on `e4643d7`; parser evidence was not triggered because parser inputs did not change.
+- **Blocking evidence:** No product blocker exists for LP03. The broader Phase 1B gate remains open; AWS/RDS, hosted credentials, external email, production map services, and customer data remain disabled by D-016.
+- **Next technical action:** begin LP03 with useful local aircraft, pilot, and battery registries, active-flight totals, and visible reconciliation state.
 - **Next external decision:** evaluate each local product slice for usefulness; resume A14 only after explicit acceptance that the workflow is ready for hosted testing.
 - **Privacy:** raw fixtures remain ignored and local. No raw values, coordinates, identifiers, keychain feature points, credentials, or generated parser artifacts belong in this vault.
 

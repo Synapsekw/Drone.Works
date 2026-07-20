@@ -32,14 +32,14 @@ Phase 0 complete
   -> A11 flight summary and bounded replay (complete)
   -> A12 web vertical path (complete)
   -> A13a functional local application (complete)
-  -> A13b verified auth and repeated end-to-end path
+  -> A13b verified auth and repeated end-to-end path (complete)
   -> A14 AWS staging
   -> continue the ordered Phase 1A vertical path
 ```
 
-Resume at A13b by replacing only the generated identity source with pinned,
-reviewed Better Auth sessions and replaying the unchanged A13a functional and
-Alpha/Beta paths. Preserve app-owned membership authorization, forced RLS,
-`/api/v1/`, parser containment, provider-free replay, and fixture privacy. RDS
-still waits for A14; keep A14–A15 fail-closed until their external authority and
-evidence pass.
+Resume at A14 only after AWS account, approved-region, and spend authority are
+confirmed. Begin with the pre-provision region/service-health gate and reviewed
+synthetic-only IaC. Preserve app-owned membership authorization, forced RLS,
+`/api/v1/`, parser containment, provider-free replay, and fixture privacy; keep
+customer uploads, real DJI keys, hosted credentials, and production data off
+until their later gates pass.

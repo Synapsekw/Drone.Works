@@ -1,12 +1,13 @@
 ---
 type: north-star
 status: active
-last-updated: 2026-07-19-0827
+last-updated: 2026-07-20-0943
 tags: [project/drone-works, north-star]
 related:
   - "[[project-history]]"
   - "[[memory]]"
   - "[[2026-07-19-0827-a13a-functional-local-gate]]"
+  - "[[2026-07-20-0943-a13b-verified-auth-gate]]"
 ---
 
 # Drone.Works — North Star
@@ -24,20 +25,20 @@ Drone.Works is an explainable operational record for small professional drone te
 | Increment | State | Current outcome |
 |---|---|---|
 | Phase 0 — Technical discovery | Complete | Accepted evidence/decisions, safe external gates, threat model, and implementation-ready backlog. |
-| Phase 1A — Walking skeleton | In progress | A01–A13a complete; the generated local application now passes browser-to-parser processing, worker recovery, duplicate/corrupt isolation, tenancy, privacy, and destructive cleanup. |
+| Phase 1A — Walking skeleton | In progress | A01–A13b complete; verified sessions now repeat the browser-to-parser, recovery, tenancy, privacy, and destructive-cleanup path without weakening app-owned authorization. |
 | Phase 1B — Trustworthy imports | Planned | Explain every batch outcome and reconcile uncertainty without silent loss. |
 | Phase 1C — Operational logbook | Planned | Daily flight, fleet, replay, correction, search, and export workflow. |
 | Phase 1D — Maintenance and hardening | Planned | Basic maintenance plus deletion, recovery, security, and operations gates. |
 
 ## Now
 
-- **Phase:** Phase 1A implementation is active. A01–A13a are complete. A13b now integrates verified authentication and repeats the functional gate; AWS still begins only at A14.
-- **Branch:** `main` is synchronized with `origin/main` through A13a implementation commit `77779a4` before this vault closeout. The unrelated `.obsidian/app.json` change and two untracked `index 2.ts` copies remain unstaged and untouched.
-- **Completed evidence:** The generated local persona now drives the real immutable upload, durable worker, trusted key broker, exact source, no-network parser, canonical flight, A11 summary/track, and provider-free MapLibre path. The gate proves explicit consent/fail-closed key handling, worker kill/retry, exact duplicate reuse, independent corrupt failure, Alpha/Beta isolation, API and coordinate-network boundaries, accessible states, redaction, and zero generated database/object payload after teardown.
-- **Verification baseline:** `pnpm test:e2e:functional`, `CI=true pnpm verify`, `pnpm build`, contract/privacy/boundary checks, browser/hosted exclusion, and every native suite pass. Counts are database 7, authorization 6, upload 8, jobs 8, normalization 6, flight API 6, web 7, and parser 21. Hosted verify run `29673161565` and parser-evidence run `29673161557` passed on `77779a4`.
-- **Blocking evidence:** A13b verified auth must pass before A14. A14–A15 require AWS authority, hosted secret/KMS deployment, and live hosted-data evidence; none is enabled now.
-- **Next technical action:** implement A13b by pinning/reviewing Better Auth, adding its schema and verified session/recovery/invitation/revocation flows, excluding the generated adapter from hosted startup, and replaying the unchanged A13a functional plus Alpha/Beta gates.
-- **Next external decision:** No external decision is needed through A13b. Before A14, confirm an operational approved region and account/spend authority; hosted provider credentials and managed-key activation remain off until their deployment gates pass.
+- **Phase:** Phase 1A implementation is active. A01–A13b are complete. AWS begins only at A14 and remains externally gated.
+- **Branch:** `main` is synchronized with `origin/main` through A13b implementation commit `4a86db4` before this vault closeout. The unrelated `.obsidian/app.json` change and two untracked `index 2.ts` copies remain unstaged and untouched.
+- **Completed evidence:** Exact pinned Better Auth now supplies verified registration, email verification, HttpOnly-cookie sessions, recovery, revocation, and deletion safeguards. App-owned invitations and current membership remain authoritative under forced RLS; hosted artifacts exclude the generated-persona endpoint and control. Both verified-session and generated-persona replays pass the real immutable upload, durable worker, parser, canonical flight, bounded MapLibre track, Alpha/Beta isolation, API/coordinate privacy, redaction, and destructive cleanup gates.
+- **Verification baseline:** `pnpm test:auth`, both functional replays, `CI=true pnpm verify`, `pnpm build`, contract/privacy/boundary checks, browser hosted-exclusion, migration integrity, and the production dependency audit pass. Counts are auth 7, database 7, authorization 6, upload 8, jobs 8, normalization 6, flight API 6, web 7, and parser 21. Hosted verify run `29719523125` and parser-evidence run `29719523112` passed on `4a86db4`.
+- **Blocking evidence:** A14–A15 require AWS account/region/spend authority, hosted secret/KMS deployment, real email/proxy policy, and live synthetic hosted-data evidence; none is enabled now.
+- **Next technical action:** after external authority is confirmed, begin A14 with the pre-provision regional health/service-availability gate and reviewed synthetic-only staging IaC, then prove exact-digest promotion, rollback, and destroy/recreate.
+- **Next external decision:** Confirm the operational AWS account, approved region, and spend authority before A14 creates any paid resource. Hosted credentials and managed-key activation remain off until that gate passes.
 - **Parallel follow-up:** when cloud help becomes necessary, provide the first-time account owner one step at a time with purpose, cost/security effect, verification, and safe stop/rollback; never request secret values.
 - **Privacy:** raw fixtures remain ignored and local. No raw values, coordinates, identifiers, keychain feature points, credentials, or generated parser artifacts belong in this vault.
 
